@@ -7,14 +7,23 @@ mod arch;
 mod device_drivers;
 mod registers;
 
+use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use core::fmt;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use device_drivers::uart::Uart;
 
 #[panic_handler]
-fn panic_handler(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic_handler(info: &PanicInfo) -> ! {
+    // print panic message
+    println!("!!! Kernel Panic !!!");
+    if let Some(loc) = info.location() {
+        println!("  At {}:{}:{}", loc.file(), loc.line(), loc.column());
+    }
+
+    // shutdown the device
+    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
+    unsafe { shutdown_device.shutdown(ShutdownCode::Fail(1)) }
 }
 
 #[macro_export]
@@ -38,9 +47,6 @@ pub fn _print(args: fmt::Arguments) {
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, _dtb: *mut u8) {
     println!("Hello World {}", 42);
 
-    // const vga: *mut u8 = 0xb8000 as *mut u8;
-    // unsafe {
-    //     core::ptr::write_volatile(vga, 0b01001000 as u8);
-    //     core::ptr::write_volatile(vga.add(1), 'a' as u8);
-    // }
+    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
+    unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
 }
