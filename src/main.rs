@@ -4,8 +4,13 @@
 #[path = "arch/riscv64imac/mod.rs"]
 mod arch;
 
+mod device_drivers;
+mod registers;
+
 use core::fmt;
+use core::fmt::Write;
 use core::panic::PanicInfo;
+use device_drivers::uart::Uart;
 
 #[panic_handler]
 fn panic_handler(_info: &PanicInfo) -> ! {
@@ -25,18 +30,13 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    const uart: *mut u8 = 0x1000_0000 as *mut u8;
-    let str = args.as_str().unwrap();
-    for b in str.as_bytes() {
-        unsafe {
-            core::ptr::write_volatile(uart, *b);
-        }
-    }
+    let uart: &mut Uart = unsafe { &mut *(0x1000_0000 as *mut Uart) };
+    uart.write_fmt(args).unwrap();
 }
 
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, _dtb: *mut u8) {
-    println!("Hello World");
+    println!("Hello World {}", 42);
 
     // const vga: *mut u8 = 0xb8000 as *mut u8;
     // unsafe {
