@@ -1,0 +1,3 @@
+file target/riscv64qemu/debug/rust-os
+target remote localhost:1234
+br kernel_main
