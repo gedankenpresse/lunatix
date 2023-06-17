@@ -7,6 +7,7 @@ mod arch;
 mod device_drivers;
 mod registers;
 
+use crate::arch::trap::TrapFrame;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use core::fmt;
 use core::fmt::Write;
@@ -45,7 +46,17 @@ pub fn _print(args: fmt::Arguments) {
 
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, _dtb: *mut u8) {
-    println!("Hello World {}", 42);
+    // setup context switching
+    let mut stack = [0usize; 2048];
+    let trap_frame = unsafe { TrapFrame::null_from_stack(&mut stack as *mut usize, stack.len()) };
+    unsafe {
+        arch::asm_utils::write_sscratch(&trap_frame as *const TrapFrame as usize);
+    }
+    arch::trap::enable_interrupts();
+
+    println!("Hello World");
+    let x = unsafe { *(0x0 as *const u8) };
+    println!("{stack:0x?}");
 
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
     unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };

@@ -1,3 +1,6 @@
+pub mod asm_utils;
+pub mod trap;
+
 extern crate r0;
 extern crate rlibc;
 
