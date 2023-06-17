@@ -1,4 +1,5 @@
 [toolchain]
-channel = "nightly"
+channel = "stable"
 components = [ "rust-src" ]
 profile = "default"
+target = "riscv64imac-unknown-none-elf"

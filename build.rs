@@ -32,7 +32,7 @@ fn main() {
             .file(entry.path())
             .flag("-no-pie")
             .flag("-fno-pic")
-            .compiler("riscv64-linux-gnu-gcc")
+            .compiler("riscv64-elf-gcc")
             .target("riscv64imac")
             .compile(name);
     }
@@ -42,4 +42,3 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
 }
-

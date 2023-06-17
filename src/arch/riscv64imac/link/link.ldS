@@ -1,6 +1,10 @@
 INCLUDE src/arch/riscv64imac/link/memory.x
 
+PROVIDE(_stext = ORIGIN(REGION_TEXT));
 PROVIDE(_stack_start = ORIGIN(REGION_STACK) + LENGTH(REGION_STACK));
+PROVIDE(_max_hart_id = 0);
+PROVIDE(_hart_stack_size = 2K);
+PROVIDE(_heap_size = 0);
 
 PROVIDE(_mp_hook = default_mp_hook);
 PROVIDE(__pre_init = default_pre_init);
@@ -8,30 +12,47 @@ PROVIDE(handle_trap = default_handle_trap);
 
 SECTIONS
 {
-	/* this is the start of the text section */
-	PROVIDE(_stext = ORIGIN(FLASH));
-
-	.text ALIGN(_stext, 4) :
+	.text.dummy (NOLOAD) :
 	{
-		KEEP(*(.init));
-		*(.text .text.*);
-	} > FLASH
+	/* This section is intended to make _stext address work */
+	. = ABSOLUTE(_stext);
+	} > REGION_TEXT
 
-	.rodata ALIGN(4) :
+	.text _stext :
 	{
-		*(.rodata .rodata.*);
-	} > RAM
+	/* Put reset handler first in .text section so it ends up as the entry */
+	/* point of the program. */
+	KEEP(*(.init));
+	KEEP(*(.init.rust));
+	. = ALIGN(4);
+	*(.trap);
+	*(.trap.rust);
 
+	*(.text .text.*);
+	} > REGION_TEXT
 
-	.data : AT(LOADADDR(.rodata) + SIZEOF(.rodata))
+	.rodata : ALIGN(4)
 	{
-		_sidata = LOADADDR(.data);
-		_sdata = .;
-		PROVIDE(__global_pointer$ = . + 0x800);
-		*(.data .data.*);
-		. = ALIGN(4);
-		_edata = .;
-	} > RAM
+	*(.srodata .srodata.*);
+	*(.rodata .rodata.*);
+
+	/* 4-byte align the end (VMA) of this section.
+		This is required by LLD to ensure the LMA of the following .data
+		section will have the correct alignment. */
+	. = ALIGN(4);
+	} > REGION_RODATA
+
+	.data : ALIGN(4)
+	{
+	_sidata = LOADADDR(.data);
+	_sdata = .;
+	/* Must be called __global_pointer$ for linker relaxations to work. */
+	PROVIDE(__global_pointer$ = . + 0x800);
+	*(.sdata .sdata.* .sdata2 .sdata2.*);
+	*(.data .data.*);
+	. = ALIGN(4);
+	_edata = .;
+	} > REGION_DATA AT > REGION_RODATA
 
 	.bss :
 	{
@@ -39,17 +60,17 @@ SECTIONS
 		*(.sbss .sbbs.* .bss .bss.*);
 		. = ALIGN(4);
 		_ebss = .;
-	} > RAM
+	} > REGION_BSS
 
 	PROVIDE(_heap_size = 0);
 
-	.heap (INFO) :
+	.heap (NOLOAD) :
 	{
 		_sheap = .;
 		. += _heap_size;
 		. = ALIGN(4);
 		_eheap = .;
-	} > RAM
+	} > REGION_HEAP
 
 
 	/* fictitious region that represents the memory available for the stack */
