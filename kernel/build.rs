@@ -16,6 +16,13 @@ fn main() {
 
     let mut link = arch_dir.clone();
     link.push("link");
+
+    // Put the linker script somewhere the linker can find it
+    fs::copy(link.join("link.ldS"), out_dir.join("link.ldS")).unwrap();
+    fs::copy(link.join("memory.x"), out_dir.join("memory.x")).unwrap();
+   
+    println!("cargo:rustc-link-search={}", out_dir.display());
+
     for entry in fs::read_dir(link).unwrap() {
         println!("cargo:rerun-if-changed={}", entry.unwrap().path().display());
     }

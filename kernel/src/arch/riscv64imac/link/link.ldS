@@ -1,4 +1,4 @@
-INCLUDE src/arch/riscv64imac/link/memory.x
+INCLUDE memory.x
 
 PROVIDE(_stext = ORIGIN(REGION_TEXT));
 PROVIDE(_stack_start = ORIGIN(REGION_STACK) + LENGTH(REGION_STACK));
