@@ -3,4 +3,5 @@
 members = [
     "kernel",
     "memory",
+    "ksync",
 ]

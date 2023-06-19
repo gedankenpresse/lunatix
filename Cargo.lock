@@ -43,6 +43,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ksync"
+version = "0.1.0"
+
+[[package]]
 name = "memoffset"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
