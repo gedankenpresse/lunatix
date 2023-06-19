@@ -116,6 +116,7 @@ dependencies = [
  "cc",
  "fdt-rs",
  "ksync",
+ "memory",
  "r0",
  "rlibc",
  "thiserror-no-std",
