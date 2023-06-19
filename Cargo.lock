@@ -115,6 +115,7 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "fdt-rs",
+ "ksync",
  "r0",
  "rlibc",
  "thiserror-no-std",

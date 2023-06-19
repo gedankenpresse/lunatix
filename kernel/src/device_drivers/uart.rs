@@ -122,3 +122,6 @@ impl<'a> Debug for Uart<'a> {
             .finish()
     }
 }
+
+// TODO Evaluate Safety of this
+unsafe impl<'a> Send for Uart<'a> {}

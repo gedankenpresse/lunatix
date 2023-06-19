@@ -10,13 +10,17 @@ mod registers;
 use crate::arch::trap::TrapFrame;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use crate::device_drivers::uart::Uart;
-use core::cell::UnsafeCell;
 use core::fmt;
 use core::fmt::Write;
+use core::ops::DerefMut;
 use core::panic::PanicInfo;
 use device_drivers::uart::MmUart;
 use fdt_rs::base::DevTree;
+use ksync::SpinLock;
 use thiserror_no_std::private::DisplayAsDisplay;
+
+static UART_DEVICE: SpinLock<Option<Uart>> = SpinLock::new(None);
+static SHUTDOWN_DEVICE: SpinLock<Option<SifiveShutdown>> = SpinLock::new(None);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -42,10 +46,16 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    // 10_0000_0000
-    //    1000_0000
-    let mut uart = unsafe { Uart::from_ptr(0x1000_0000 as *mut MmUart) };
-    uart.write_fmt(args).unwrap();
+    if let Some(uart) = UART_DEVICE.spin_lock().deref_mut() {
+        uart.write_fmt(args).unwrap();
+    } else {
+        let mut uart = unsafe { Uart::from_ptr(0x1000_0000 as *mut MmUart) };
+        uart.write_str(
+            "Warning: UART device has not been set up. Using hardcoded qemu device pointer.\n",
+        )
+        .unwrap();
+        uart.write_fmt(args).unwrap();
+    }
 }
 
 #[no_mangle]
@@ -60,8 +70,13 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
 
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
-    let mut uart = unsafe { Uart::from_device_tree(&device_tree).unwrap() };
-    uart.write_fmt(format_args!("Hello World {}", 42));
+    let uart = unsafe { Uart::from_device_tree(&device_tree).unwrap() };
+    (*UART_DEVICE.spin_lock()) = Some(uart);
+
+    // do the actual kernel logic
+    for i in 0..5 {
+        println!("Hello World from Kernel Land Nr {}", i);
+    }
 
     // shut down the machine
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };

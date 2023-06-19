@@ -10,6 +10,7 @@ fdt-rs = { version = "0.4.3", default-features = false }
 r0 = "1.0.0"
 rlibc = "1.0.0"
 thiserror-no-std = "2.0.2"
+ksync = { path = "../ksync" }
 
 [build-dependencies]
 cc = "1.0.79"
