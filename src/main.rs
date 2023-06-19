@@ -9,18 +9,20 @@ mod registers;
 
 use crate::arch::trap::TrapFrame;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
+use crate::device_drivers::uart::Uart;
+use core::cell::UnsafeCell;
 use core::fmt;
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use device_drivers::uart::Uart;
+use device_drivers::uart::MmUart;
+use fdt_rs::base::DevTree;
+use thiserror_no_std::private::DisplayAsDisplay;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
     println!("!!! Kernel Panic !!!");
-    if let Some(loc) = info.location() {
-        println!("  At {}:{}:{}", loc.file(), loc.line(), loc.column());
-    }
+    println!("  {}", info.as_display());
 
     // shutdown the device
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
@@ -40,12 +42,14 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    let uart: &mut Uart = unsafe { &mut *(0x1000_0000 as *mut Uart) };
+    // 10_0000_0000
+    //    1000_0000
+    let mut uart = unsafe { Uart::from_ptr(0x1000_0000 as *mut MmUart) };
     uart.write_fmt(args).unwrap();
 }
 
 #[no_mangle]
-extern "C" fn kernel_main(_hartid: usize, _unused: usize, _dtb: *mut u8) {
+extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // setup context switching
     let mut stack = [0usize; 2048];
     let trap_frame = unsafe { TrapFrame::null_from_stack(&mut stack as *mut usize, stack.len()) };
@@ -54,10 +58,12 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, _dtb: *mut u8) {
     }
     arch::trap::enable_interrupts();
 
-    println!("Hello World");
-    let x = unsafe { *(0x0 as *const u8) };
-    println!("{stack:0x?}");
+    // parse device tree from bootloader
+    let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+    let mut uart = unsafe { Uart::from_device_tree(&device_tree).unwrap() };
+    uart.write_fmt(format_args!("Hello World {}", 42));
 
-    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
+    // shut down the machine
+    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };
     unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
 }
