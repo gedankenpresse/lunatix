@@ -3,8 +3,7 @@ pub mod memory;
 pub mod task;
 
 use self::errors::OccupiedSlot;
-pub use self::memory::Memory;
-use crate::caps;
+pub use self::memory::Memory;   
 pub use cspace::CSpace;
 pub use errors::Error;
 pub use task::Task;
@@ -41,6 +40,13 @@ impl From<Cap<Task>> for Capability {
 }
 
 impl Capability {
+    pub fn get_memory_mut(&mut self) -> Result<&mut Cap<Memory>, errors::InvalidCap> {
+        match self {
+            Capability::Memory(m) => Ok(m),
+            _ => Err(errors::InvalidCap)
+        }
+    }
+
     pub fn get_task_mut(&mut self) -> Result<&mut Cap<Task>, errors::InvalidCap> {
         match self {
             Capability::Task(t) => Ok(t),
@@ -62,6 +68,12 @@ impl CSlot {
                 Ok(())
             }
             _ => Err(OccupiedSlot),
+        }
+    }
+
+    pub const fn empty() -> Self {
+        Self {
+            cap: Capability::Uninit,
         }
     }
 }
@@ -126,10 +138,15 @@ mod errors {
         }
     }
 
+    #[derive(Debug)]
     pub struct InvalidCAddr;
+
+    #[derive(Debug)]
     pub struct NoMem;
 
+    #[derive(Debug)]
     pub struct OccupiedSlot;
 
+    #[derive(Debug)]
     pub struct InvalidCap;
 }

@@ -17,14 +17,35 @@ use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use crate::device_drivers::uart::Uart;
 use crate::mem::{Page};
 use crate::userspace::fake_userspace;
-use core::ops::{DerefMut};
+use core::ops::DerefMut;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use thiserror_no_std::private::DisplayAsDisplay;
+use memory::Arena;
 
 static UART_DEVICE: SpinLock<Option<Uart>> = SpinLock::new(None);
 static SHUTDOWN_DEVICE: SpinLock<Option<SifiveShutdown>> = SpinLock::new(None);
+
+struct InitCaps {
+    mem: CSlot,
+    init_task: CSlot,
+}
+
+impl InitCaps {
+    const fn empty() -> Self {
+        Self {
+            mem: CSlot::empty(),
+            init_task: CSlot::empty(),
+        }
+    }
+}
+
+/// TODO: fix this somehow
+/// CSlot isn't send because raw pointers... meh
+unsafe impl Send for InitCaps {}
+
+static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -103,6 +124,32 @@ unsafe fn set_return_to_user() {
 }
 
 
+// Fill INIT_CAPS with appropriate capabilities
+fn create_init_caps(alloc: Arena<'static, Page>) {
+    // create capability objects for userspace code
+    let mut guard = INIT_CAPS.try_lock().unwrap();
+    guard.mem.set(caps::Cap::from_content(caps::Memory { inner: alloc })).unwrap();
+    match &mut *guard {
+        InitCaps { mem, init_task } => 
+        caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap()),
+    }.unwrap();
+    
+
+    // setup stack for userspace code
+    const NUM_PAGES: usize = 1;
+    let stack = guard.mem.cap.get_memory_mut().unwrap()
+        .alloc_pages_raw(NUM_PAGES)
+        .unwrap();
+    let task = guard.init_task.cap.get_task_mut().unwrap();
+    let task_state = unsafe { &mut *task.state };
+    task_state.frame.general_purpose_regs.registers[2] =
+        unsafe { calc_stack_start(stack, NUM_PAGES) as usize };
+
+    // set up program counter to point to userspace code
+    let userspace_pc = fake_userspace as *const u8 as usize;
+    task_state.frame.ctx.epc = userspace_pc;
+}
+
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // parse device tree from bootloader
@@ -124,39 +171,16 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     arch::trap::enable_interrupts();
 
-    // create capability objects for userspace code
-    let mut cap_mem = {
-        let content = caps::Memory { inner: allocator };
-        caps::Cap::from_content(content)
-    };
-    let mut cslot = CSlot::default();
-    caps::Task::init(&mut cslot, &mut cap_mem).unwrap();
-
-    // setup stack for userspace code
-    const NUM_PAGES: usize = 1;
-    let stack = cap_mem
-        .alloc_pages_raw(NUM_PAGES)
-        .map_err(caps::Error::from)
-        .unwrap();
-    let task = cslot
-        .cap
-        .get_task_mut()
-        .map_err(caps::Error::from)
-        .unwrap()
-        .deref_mut();
-    let task_state = unsafe { &mut *task.state };
-    task_state.frame.general_purpose_regs.registers[2] =
-        unsafe { calc_stack_start(stack, NUM_PAGES) as usize };
-
-    // set up program counter to point to userspace code
-    let userspace_pc = fake_userspace as *const u8 as usize;
-    task_state.frame.ctx.epc = userspace_pc;
-
-
+    create_init_caps(allocator);
     // switch to userspace
     unsafe { 
         set_return_to_user();
-        yield_to(trap_handler_stack as *mut u8, &mut task_state.frame)
+        let mut guard = INIT_CAPS.try_lock().unwrap();
+        let task  = guard.init_task.cap.get_task_mut().unwrap();
+        let taskstate = task.state;
+        drop(guard);
+        let frame =  &mut (*taskstate).frame ;
+        yield_to(trap_handler_stack as *mut u8, frame)
     };
 
     // shut down the machine
