@@ -58,25 +58,89 @@ pub fn _print(args: fmt::Arguments) {
     }
 }
 
+fn get_memory(dev_tree :&DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
+    use fdt_rs::base::DevTree;
+    use fdt_rs::prelude::{FallibleIterator, PropReader};
+    let mut nodes = dev_tree.nodes();
+    let mut memory = None;
+    while let Some(item) = nodes.next()? {
+        if item.name()?.starts_with("memory") {
+            memory = Some(item);
+            break;
+        }
+    }
+    let memory = match memory {
+        Some(node) => node,
+        None => panic!("no memory"),
+    };
+
+
+    println!("{:?}", memory.name()?);
+    let mut props = memory.props();
+    while let Some(prop) = props.next()? {
+        if prop.name().unwrap() == "reg" {
+            let start = prop.u64(0)?;
+            let size = prop.u64(1)?;
+            return Ok(Some((start, size)));
+        }
+    }
+    return Ok(None);
+}
+
+type Page = [u8; 4096];
+fn init_heap(dev_tree: &DevTree) -> memory::Memory<'static, Page> {
+    extern "C" {
+        static mut _heap_start: u64;
+    }
+
+    let heap_start: *mut u8 = unsafe { &mut _heap_start as *mut u64 as *mut u8 };
+    let (start, size) = get_memory(dev_tree).unwrap().unwrap();
+    assert!(heap_start >= start as *mut u8);
+    assert!(heap_start < (start + size) as *mut u8);
+    let heap_size = size - (heap_start as u64 - start);
+    let pages = heap_size as usize / core::mem::size_of::<Page>();
+    assert!(pages * core::mem::size_of::<Page>() <= (heap_size as usize));
+
+    let pages = unsafe { core::slice::from_raw_parts_mut(heap_start as *mut Page, pages) };
+    let mem = memory::Memory::new(pages);
+    println!("{:?}", &mem);
+    mem
+}
+
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
-    // setup context switching
-    let mut stack = [0usize; 2048];
-    let trap_frame = unsafe { TrapFrame::null_from_stack(&mut stack as *mut usize, stack.len()) };
-    unsafe {
-        arch::asm_utils::write_sscratch(&trap_frame as *const TrapFrame as usize);
-    }
-    arch::trap::enable_interrupts();
-
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+
+    // setup uart
     let uart = unsafe { Uart::from_device_tree(&device_tree).unwrap() };
-    (*UART_DEVICE.spin_lock()) = Some(uart);
+    { (*UART_DEVICE.spin_lock()) = Some(uart); }
+
+    // setup page heap
+    // after this operation, the device tree was overwritten
+    let mut mem = init_heap(&device_tree);
+    drop(device_tree);
+    drop(dtb);
+
+
+    // setup context switching
+    let stack_pages = mem.alloc_many_raw(10).unwrap();
+    let trap_frame = unsafe { TrapFrame::null_from_stack(
+        stack_pages.cast::<usize>(),
+        core::mem::size_of::<Page>() / core::mem::size_of::<usize>())
+    };
+    unsafe { arch::asm_utils::write_sscratch(&trap_frame as *const TrapFrame as usize); }
+    arch::trap::enable_interrupts();
 
     // do the actual kernel logic
     for i in 0..5 {
         println!("Hello World from Kernel Land Nr {}", i);
     }
+
+    unsafe { 
+        let null_deref =  *(0 as *mut u8);
+        println!("{null_deref}");
+    };
 
     // shut down the machine
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };

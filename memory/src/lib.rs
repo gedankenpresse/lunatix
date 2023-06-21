@@ -5,11 +5,12 @@ use core::marker::PhantomData;
 #[cfg(feature = "std")]
 extern crate std;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct Block {
     next: Option<*mut Block>,
 }
 
+#[derive(Debug)]
 pub struct Memory<'a, Content> {
     start_ptr: *mut Content,
     items: usize,
@@ -36,7 +37,7 @@ impl<'a, Content> Memory<'a, Content> {
     pub fn new(slice: &'a mut [Content]) -> Self {
         unsafe {
             let mut mem = Self::from_slice(slice);
-            mem.init_freelist(); 
+            mem.init_freelist();
             mem
         }
     }
@@ -63,7 +64,7 @@ impl<'a, Content> Memory<'a, Content> {
             if i == self.items - 1 {
                 *block = Block { next: None };
             } else {
-                *block = Block { next: Some(block.add(1)) };
+                *block = Block { next: Some(block.cast::<Content>().add(1).cast::<Block>()) };
             }
         }
         self.head = Some(self.start_ptr.cast::<Block>());
@@ -89,6 +90,42 @@ impl<'a, Content> Memory<'a, Content> {
         }
     }
 
+    pub fn alloc_many<'b>(&'b mut self, items: usize) -> Option<&'a mut [Content]> {
+        let raw = match self.alloc_many_raw(items) {
+            Some(b) => b,
+            None => return None,
+        };
+
+        return Some(unsafe { core::slice::from_raw_parts_mut(raw, items) });
+    }
+
+    pub fn alloc_many_raw(&mut self, items: usize) -> Option<*mut Content> {
+        unsafe {
+            let mut count = 1;
+            let mut cur_head: *mut Block = match self.head {
+                Some(b) => b,
+                None => return None,
+            };
+            let mut cur = cur_head;
+            while count < items {
+                let next = match (*cur).next {
+                    Some(block) => block,
+                    None => return None,
+                };
+                if next == cur.cast::<Content>().offset(1).cast::<Block>() {
+                    cur = next;
+                    count += 1;
+                } else {
+                    cur_head = next;
+                    cur = next;
+                    count = 1;
+                }
+            }
+            self.head = (*cur).next;
+            return Some(cur_head.cast::<Content>());
+        }
+    }
+
     pub unsafe fn free_one(&mut self, ptr: *mut Content) {
         assert!(is_aligned_to(ptr as *const u8, core::mem::align_of::<Content>()));
         assert!(ptr >= self.start_ptr);
@@ -97,14 +134,29 @@ impl<'a, Content> Memory<'a, Content> {
         (*block_ptr).next = self.head;
         self.head = Some(block_ptr);
     }
+
+    pub unsafe fn free_many(&mut self, ptr: *mut Content, items: usize) {
+        assert!(is_aligned_to(ptr as *const u8, core::mem::align_of::<Content>()));
+        assert!(ptr >= self.start_ptr);
+        assert!(ptr.offset(items as isize) <= self.start_ptr.offset(self.items as isize));
+        for i in 0..items {
+            self.free_one(ptr.offset(i as isize));
+        }
+    }
 }
 
 
 #[cfg(test)]
 mod tests {
 
+    #[cfg(test)]
+    extern crate std;
+
     #[derive(Copy, Clone)]
     struct Point { x: usize, y: usize }
+
+
+    type Page = [u8; 4096];
 
     #[test]
     fn can_create_memory() {
@@ -127,6 +179,39 @@ mod tests {
             assert!(mem.alloc_one().is_some(), "failed to alloc {i}");
         }
         assert!(mem.alloc_one().is_none());
+    }
+
+    #[test]
+    fn can_alloc_page() {
+        use std::vec::Vec;
+        const ITEMS: usize = 200;
+        let mut pages = Vec::with_capacity(ITEMS);
+        for _ in 0..ITEMS {
+            let page: Page = [0; 4096]; 
+            pages.push(page);
+        }
+        assert!(pages.len() == pages.capacity());
+        let len = pages.len();
+        let mut mem = super::Memory::new(&mut pages[0..len]);
+        for i in 0..ITEMS {
+            assert!(mem.alloc_one().is_some(), "could not alloc {i}");
+        }
+        assert!(mem.alloc_one().is_none());
+    }
+
+    #[test]
+    fn can_alloc_pages() {
+        use std::vec::Vec;
+        const ITEMS: usize = 200;
+        let mut pages = Vec::with_capacity(ITEMS);
+        for _ in 0..ITEMS {
+            let page: Page = [0; 4096]; 
+            pages.push(page);
+        }
+        assert!(pages.len() == pages.capacity());
+        let len = pages.len();
+        let mut mem = super::Memory::new(&mut pages[0..len]);
+        assert!(mem.alloc_many_raw(20).is_some());
     }
 
     #[test]
@@ -155,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn can_free() {
+    fn can_free_one() {
         const ITEMS: usize = 20;
         let mut points = [Point { x: 0, y: 0}; ITEMS];
         let mut mem = super::Memory::new(&mut points);
@@ -176,6 +261,58 @@ mod tests {
         drop(points);
     }
 
+
+    #[test]
+    fn can_alloc_memory_by_ones() {
+        const ITEMS: usize = 20;
+        let mut points = [Point { x: 0, y: 0}; ITEMS];
+        let mut mem = super::Memory::new(&mut points);
+
+        for i in 0..ITEMS {
+            assert!(mem.alloc_many(1).is_some(), "failed to alloc {i}");
+        }
+        assert!(mem.alloc_one().is_none());
+    }
+
+    #[test]
+    fn can_alloc_many() {
+        const BLOCKS: usize = 5;
+        const SIZE: usize = 2;
+        const ITEMS: usize = BLOCKS * SIZE;
+        let mut points = [Point { x: 0, y: 0}; ITEMS];
+        let mut mem = super::Memory::new(&mut points);
+        for _ in 0..BLOCKS {
+            let _ = mem.alloc_many(2).unwrap();
+        }
+        assert!(mem.alloc_one().is_none());
+    }
+
+    #[test]
+    fn alloc_many_dont_alias() {
+        const BLOCKS: usize = 5;
+        const SIZE: usize = 2;
+        const ITEMS: usize = BLOCKS * SIZE;
+        let mut points = [Point { x: 0, y: 0}; ITEMS];
+        let mut mem = super::Memory::new(&mut points);
+
+        let mut alloced: [Option<&mut [Point]>; BLOCKS] = [None, None, None, None, None];
+        for i in 0..BLOCKS {
+            alloced[i] = mem.alloc_many(SIZE);
+            assert!(alloced[i].is_some());
+            assert!(alloced[i].as_ref().unwrap().len() == SIZE);
+            alloced[i].as_deref_mut().unwrap()[0] = Point { x: i, y: i};
+            alloced[i].as_deref_mut().unwrap()[1] = Point { x: i, y: i};
+        }
+        assert!(mem.alloc_one().is_none());
+
+        for i in 0..BLOCKS {
+            assert!(alloced[i].as_ref().unwrap()[0].x == i);
+            assert!(alloced[i].as_ref().unwrap()[0].y == i);
+            assert!(alloced[i].as_ref().unwrap()[1].x == i);
+            assert!(alloced[i].as_ref().unwrap()[1].y == i);
+        }
+    }
+
     /* 
     // This Test *shouldn't* compile
     #[test]
@@ -189,4 +326,30 @@ mod tests {
         *block = Point { x: 1, y: 1};
     }
     */
+
+    #[test]
+    fn can_free_many() {
+        const BLOCKS: usize = 5;
+        const SIZE: usize = 2;
+        const ITEMS: usize = BLOCKS * SIZE;
+        let mut points = [Point { x: 0, y: 0}; ITEMS];
+        let mut mem = super::Memory::new(&mut points);
+
+        let mut alloced: [Option<*mut Point>; BLOCKS] = [None, None, None, None, None];
+        for i in 0..BLOCKS {
+            alloced[i] = mem.alloc_many_raw(SIZE);
+            assert!(alloced[i].is_some());
+        }
+        assert!(mem.alloc_one().is_none());
+
+        for i in 0..BLOCKS {
+            unsafe { mem.free_many(alloced[i].unwrap(), SIZE); }
+        }
+
+
+        for i in 0..ITEMS {
+            assert!(mem.alloc_one().is_some(), "failed to alloc {i}");
+        }
+        assert!(mem.alloc_one().is_none());
+    }
 }

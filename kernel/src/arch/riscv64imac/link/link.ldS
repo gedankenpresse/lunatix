@@ -4,6 +4,7 @@ PROVIDE(_stext = ORIGIN(REGION_TEXT));
 PROVIDE(_stack_start = ORIGIN(REGION_STACK) + LENGTH(REGION_STACK));
 PROVIDE(_max_hart_id = 0);
 PROVIDE(_hart_stack_size = 2K);
+PROVIDE(_heap_start = ORIGIN(REGION_HEAP));
 PROVIDE(_heap_size = 0);
 
 PROVIDE(_mp_hook = default_mp_hook);
@@ -62,11 +63,10 @@ SECTIONS
 		_ebss = .;
 	} > REGION_BSS
 
-	PROVIDE(_heap_size = 0);
-
 	.heap (NOLOAD) :
 	{
 		_sheap = .;
+		. = ABSOLUTE(_heap_start);
 		. += _heap_size;
 		. = ALIGN(4);
 		_eheap = .;
@@ -81,14 +81,6 @@ SECTIONS
     	_sstack = .;
   	} > REGION_STACK
 
-	/*
-	.stack _heap (INFO) : ALIGN(4)
-	{
-		_estack = .;
-		. = _stack_start;
-		_sstack = .;
-	} > RAM
-	*/
 
 	/* fake output .got section */
   	/* Dynamic relocations are unsupported. This section is only used to detect
