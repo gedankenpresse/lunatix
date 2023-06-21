@@ -23,8 +23,7 @@ checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
 [[package]]
 name = "elfloader"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a7b18d35bf8ec3bac59c3ec29cf1f1b46e764e00b42a9c0c754d06e38e78f3b"
+source = "git+https://github.com/gz/rust-elfloader.git?branch=master#478ec8a8d37625800c90bfee99508e1696d74a41"
 dependencies = [
  "bitflags",
  "log",

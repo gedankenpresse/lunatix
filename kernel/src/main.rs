@@ -6,23 +6,24 @@ mod arch;
 
 mod caps;
 mod device_drivers;
+mod init;
 mod mem;
+mod printk;
 mod registers;
 mod userspace;
-mod printk;
 
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use crate::device_drivers::uart::Uart;
-use crate::mem::{Page};
+use crate::mem::Page;
 use crate::userspace::fake_userspace;
 use core::ops::DerefMut;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
-use thiserror_no_std::private::DisplayAsDisplay;
 use memory::Arena;
+use thiserror_no_std::private::DisplayAsDisplay;
 
 static UART_DEVICE: SpinLock<Option<Uart>> = SpinLock::new(None);
 static SHUTDOWN_DEVICE: SpinLock<Option<SifiveShutdown>> = SpinLock::new(None);
@@ -57,7 +58,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
     unsafe { shutdown_device.shutdown(ShutdownCode::Fail(1)) }
 }
-
 
 fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
     use fdt_rs::base::DevTree;
@@ -123,21 +123,28 @@ unsafe fn set_return_to_user() {
     core::arch::asm!("csrc sstatus, a0",in("a0") spp);
 }
 
-
 // Fill INIT_CAPS with appropriate capabilities
 fn create_init_caps(alloc: Arena<'static, Page>) {
     // create capability objects for userspace code
     let mut guard = INIT_CAPS.try_lock().unwrap();
-    guard.mem.set(caps::Cap::from_content(caps::Memory { inner: alloc })).unwrap();
+    guard
+        .mem
+        .set(caps::Cap::from_content(caps::Memory { inner: alloc }))
+        .unwrap();
     match &mut *guard {
-        InitCaps { mem, init_task } => 
-        caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap()),
-    }.unwrap();
-    
+        InitCaps { mem, init_task } => {
+            caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap())
+        }
+    }
+    .unwrap();
 
     // setup stack for userspace code
     const NUM_PAGES: usize = 1;
-    let stack = guard.mem.cap.get_memory_mut().unwrap()
+    let stack = guard
+        .mem
+        .cap
+        .get_memory_mut()
+        .unwrap()
         .alloc_pages_raw(NUM_PAGES)
         .unwrap();
     let task = guard.init_task.cap.get_task_mut().unwrap();
@@ -173,13 +180,13 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
 
     create_init_caps(allocator);
     // switch to userspace
-    unsafe { 
+    unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();
-        let task  = guard.init_task.cap.get_task_mut().unwrap();
+        let task = guard.init_task.cap.get_task_mut().unwrap();
         let taskstate = task.state;
         drop(guard);
-        let frame =  &mut (*taskstate).frame ;
+        let frame = &mut (*taskstate).frame;
         yield_to(trap_handler_stack as *mut u8, frame)
     };
 
