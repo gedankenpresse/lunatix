@@ -1,7 +1,5 @@
 [workspace]
-
 members = [
     "kernel",
-    "memory",
-    "ksync",
+    "support_crates/*"
 ]
