@@ -68,8 +68,11 @@ dependencies = [
  "ksync",
  "memory",
  "r0",
+ "regs",
  "rlibc",
+ "sifive_shutdown_driver",
  "thiserror-no-std",
+ "uart_driver",
 ]
 
 [[package]]
@@ -140,6 +143,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd7a31eed1591dcbc95d92ad7161908e72f4677f8fabf2a32ca49b4237cbf211"
 
 [[package]]
+name = "regs"
+version = "0.1.0"
+
+[[package]]
 name = "rlibc"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,6 +175,13 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "sifive_shutdown_driver"
+version = "0.1.0"
+dependencies = [
+ "regs",
+]
 
 [[package]]
 name = "static_assertions"
@@ -204,6 +218,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3ad459d94dd517257cc96add8a43190ee620011bb6e6cdc82dafd97dfafafea"
 dependencies = [
  "thiserror-impl-no-std",
+]
+
+[[package]]
+name = "uart_driver"
+version = "0.1.0"
+dependencies = [
+ "fdt-rs",
+ "regs",
 ]
 
 [[package]]

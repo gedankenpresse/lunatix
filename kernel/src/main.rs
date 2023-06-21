@@ -5,17 +5,13 @@
 mod arch;
 
 mod caps;
-mod device_drivers;
 mod init;
 mod mem;
 mod printk;
-mod registers;
 mod userspace;
 
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
-use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
-use crate::device_drivers::uart::Uart;
 use crate::mem::Page;
 use crate::userspace::fake_userspace;
 use core::ops::DerefMut;
@@ -23,10 +19,11 @@ use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use memory::Arena;
+use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 use thiserror_no_std::private::DisplayAsDisplay;
+use uart_driver::Uart;
 
 static UART_DEVICE: SpinLock<Option<Uart>> = SpinLock::new(None);
-static SHUTDOWN_DEVICE: SpinLock<Option<SifiveShutdown>> = SpinLock::new(None);
 
 struct InitCaps {
     mem: CSlot,
@@ -55,8 +52,10 @@ fn panic_handler(info: &PanicInfo) -> ! {
     println!("  {}", info.as_display());
 
     // shutdown the device
-    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100000 as *mut SifiveShutdown) };
-    unsafe { shutdown_device.shutdown(ShutdownCode::Fail(1)) }
+    unsafe {
+        let shutdown_device = SifiveShutdown::from_ptr(0x100000 as *mut u32);
+        shutdown_device.shutdown(ShutdownCode::Fail(1))
+    }
 }
 
 fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {

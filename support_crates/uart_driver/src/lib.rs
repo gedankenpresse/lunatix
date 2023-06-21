@@ -1,8 +1,11 @@
-use crate::println;
-use crate::registers::{RO, RW};
+//! Driver implementation for UARt devices
+
+#![no_std]
+
 use core::fmt::{Debug, Formatter, Write};
 use fdt_rs::base::DevTree;
 use fdt_rs::prelude::{FallibleIterator, PropReader};
+use regs::{RO, RW};
 
 /// A controller for UART (ns16550) devices
 pub struct Uart<'a> {
@@ -37,7 +40,6 @@ impl<'a> Uart<'a> {
             Err(_) => Err(()),
             Ok(None) => Err(()),
             Ok(Some(node)) => {
-                println!("Using device {} as UART device", node.name().unwrap());
                 // TODO Handle registers better. Right now we completely ignore that reg is "in the address space of the parent bus" and what virtual-reg means
                 let addr_prop = node
                     .props()
@@ -49,11 +51,6 @@ impl<'a> Uart<'a> {
                 // TODO Fetch #address-cells and #size-cells from parent node (although 2 and 2 are usually the default on 64 bit systems) and use it in reg interpretation
                 let mm_addr = u64::from_be_bytes((&addr_prop[0..8]).try_into().unwrap());
                 let mm_len = u64::from_be_bytes((&addr_prop[8..16]).try_into().unwrap());
-                println!(
-                    "UART device {} is memory mapped at 0x{:x}",
-                    node.name().unwrap(),
-                    mm_addr
-                );
 
                 // fetch baud rate property from device tree
                 let baud_rate = u32::from_be_bytes(
@@ -75,6 +72,7 @@ impl<'a> Uart<'a> {
         }
     }
 
+    /// Create an instance for controlling a memory mapped UART device that is located at `pointer`.
     pub unsafe fn from_ptr(pointer: *mut MmUart) -> Self {
         Self {
             regs: &*pointer,

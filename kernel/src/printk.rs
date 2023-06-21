@@ -1,10 +1,9 @@
-
+use crate::UART_DEVICE;
 use core::fmt;
 use core::fmt::Write;
 use core::ops::DerefMut;
-use crate::UART_DEVICE;
 
-use crate::device_drivers::uart::{MmUart, Uart};
+use uart_driver::{MmUart, Uart};
 
 #[macro_export]
 macro_rules! print {

@@ -12,6 +12,9 @@ rlibc = "1.0.0"
 thiserror-no-std = "2.0.2"
 ksync = { path = "../support_crates/ksync" }
 memory = { path = "../support_crates/alloc" }
+regs = { path = "../support_crates/regs" }
+uart_driver = { path = "../support_crates/uart_driver" }
+sifive_shutdown_driver = { path = "../support_crates/sifive_shutdown_driver" }
 elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
 
 [build-dependencies]
