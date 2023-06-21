@@ -6,6 +6,8 @@ mod arch;
 
 mod device_drivers;
 mod registers;
+mod caps;
+mod mem;
 
 use crate::arch::trap::TrapFrame;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
@@ -87,8 +89,7 @@ fn get_memory(dev_tree :&DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
     return Ok(None);
 }
 
-type Page = [u8; 4096];
-fn init_heap(dev_tree: &DevTree) -> memory::Memory<'static, Page> {
+fn init_heap(dev_tree: &DevTree) -> memory::Memory<'static, crate::mem::Page> {
     extern "C" {
         static mut _heap_start: u64;
     }
@@ -98,13 +99,25 @@ fn init_heap(dev_tree: &DevTree) -> memory::Memory<'static, Page> {
     assert!(heap_start >= start as *mut u8);
     assert!(heap_start < (start + size) as *mut u8);
     let heap_size = size - (heap_start as u64 - start);
-    let pages = heap_size as usize / core::mem::size_of::<Page>();
-    assert!(pages * core::mem::size_of::<Page>() <= (heap_size as usize));
+    let pages = heap_size as usize / crate::mem::PAGESIZE;
+    assert!(pages * crate::mem::PAGESIZE <= (heap_size as usize));
 
-    let pages = unsafe { core::slice::from_raw_parts_mut(heap_start as *mut Page, pages) };
+    let pages = unsafe { core::slice::from_raw_parts_mut(heap_start as *mut crate::mem::Page, pages) };
     let mem = memory::Memory::new(pages);
     println!("{:?}", &mem);
     mem
+}
+
+fn init_caps(mem: memory::Memory<'static, crate::mem::Page>) -> Result<(), caps::Error> {
+    let mut init_memcap = { 
+        let content = caps::Memory { inner: mem };
+        caps::Cap::from_content(content)
+    };
+
+    let mut init_cspace = caps::CSpace::init_sz(&mut init_memcap, 8)?;
+    let slot = init_cspace.get_slot_mut(0)?;
+    slot.set(caps::Memory::init_sz(&mut init_memcap, 10)?)?;
+    Ok(())
 }
 
 #[no_mangle]
@@ -127,7 +140,7 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     let stack_pages = mem.alloc_many_raw(10).unwrap();
     let trap_frame = unsafe { TrapFrame::null_from_stack(
         stack_pages.cast::<usize>(),
-        core::mem::size_of::<Page>() / core::mem::size_of::<usize>())
+        crate::mem::PAGESIZE / core::mem::size_of::<usize>())
     };
     unsafe { arch::asm_utils::write_sscratch(&trap_frame as *const TrapFrame as usize); }
     arch::trap::enable_interrupts();
@@ -137,6 +150,7 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
         println!("Hello World from Kernel Land Nr {}", i);
     }
 
+    init_caps(mem).unwrap();
     unsafe { 
         let null_deref =  *(0 as *mut u8);
         println!("{null_deref}");
