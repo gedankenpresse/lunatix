@@ -11,7 +11,7 @@ r0 = "1.0.0"
 rlibc = "1.0.0"
 thiserror-no-std = "2.0.2"
 ksync = { path = "../support_crates/ksync" }
-memory = { path = "../support_crates/memory" }
+memory = { path = "../support_crates/alloc" }
 
 [build-dependencies]
 cc = "1.0.79"

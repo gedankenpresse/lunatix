@@ -1,5 +1,6 @@
-use crate::caps::errors::*;
 use crate::caps;
+use crate::caps::errors::*;
+use crate::caps::CSlot;
 
 pub struct CSpace {
     bits: usize,
@@ -17,38 +18,41 @@ fn cspace_pages(bits: usize) -> usize {
 }
 
 impl CSpace {
-    pub (crate) fn init_sz(mem: &mut caps::Memory, bits: usize) -> Result<caps::Cap<Self>, NoMem> {
+    pub(crate) fn init_sz(mem: &mut caps::Memory, bits: usize) -> Result<caps::Cap<Self>, NoMem> {
         let pages = cspace_pages(bits);
         let slots = {
             let ptr = mem.alloc_pages_raw(pages)? as *mut caps::CSlot;
+            for i in 0..1 << bits {
+                unsafe { *ptr.add(i) = CSlot::default() }
+            }
             let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
             slots
         };
         for slot in slots.iter_mut() {
             *slot = caps::CSlot::default();
         }
-        let cap= caps::Cap::from_content(Self { 
+        let cap = caps::Cap::from_content(Self {
             bits,
             slots: slots.as_mut_ptr(),
         });
         Ok(cap)
     }
 
-    pub (crate) fn get_slots(&self) -> &[caps::CSlot] {
+    pub(crate) fn get_slots(&self) -> &[caps::CSlot] {
         let nslots = 1 << self.bits;
         unsafe { core::slice::from_raw_parts(self.slots, nslots) }
     }
 
-    pub (crate) fn get_slots_mut(&mut self) -> &mut [caps::CSlot] {
+    pub(crate) fn get_slots_mut(&mut self) -> &mut [caps::CSlot] {
         let nslots = 1 << self.bits;
         unsafe { core::slice::from_raw_parts_mut(self.slots, nslots) }
     }
 
-    pub (crate) fn get_slot(&self, slot: usize) -> Result<&caps::CSlot, InvalidCAddr> {
+    pub(crate) fn get_slot(&self, slot: usize) -> Result<&caps::CSlot, InvalidCAddr> {
         self.get_slots().get(slot).ok_or(InvalidCAddr)
     }
 
-    pub (crate) fn get_slot_mut(&mut self, slot: usize) -> Result<&mut caps::CSlot, InvalidCAddr> {
+    pub(crate) fn get_slot_mut(&mut self, slot: usize) -> Result<&mut caps::CSlot, InvalidCAddr> {
         self.get_slots_mut().get_mut(slot).ok_or(InvalidCAddr)
     }
 }
