@@ -8,13 +8,18 @@ mod caps;
 mod device_drivers;
 mod mem;
 mod registers;
+mod userspace;
 
 use crate::arch::trap::TrapFrame;
+use crate::caps::CSlot;
 use crate::device_drivers::shutdown::{ShutdownCode, SifiveShutdown};
 use crate::device_drivers::uart::Uart;
+use crate::mem::{Page, PAGESIZE};
+use crate::userspace::fake_userspace;
 use core::fmt;
 use core::fmt::Write;
-use core::ops::DerefMut;
+use core::mem::size_of;
+use core::ops::{Add, DerefMut};
 use core::panic::PanicInfo;
 use device_drivers::uart::MmUart;
 use fdt_rs::base::DevTree;
@@ -120,6 +125,17 @@ fn init_caps(mem: memory::Arena<'static, crate::mem::Page>) -> Result<(), caps::
     Ok(())
 }
 
+/// Calculate the stack pointer from a given memory region that should be used as program stack
+unsafe fn calc_stack_start(ptr: *mut Page, num_pages: usize) -> *mut u8 {
+    ptr.add(num_pages).cast()
+}
+
+/// Yield to the task that owns the given `trap_frame`
+unsafe fn yield_to(trap_handler_stack: *mut u8, trap_frame: &mut TrapFrame) -> ! {
+    trap_frame.trap_stack = trap_handler_stack.cast();
+    arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame, trap_frame.ctx.epc);
+}
+
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // parse device tree from bootloader
@@ -133,33 +149,44 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
 
     // setup page heap
     // after this operation, the device tree was overwritten
-    let mut mem = init_heap(&device_tree);
+    let mut allocator = init_heap(&device_tree);
     drop(device_tree);
     drop(dtb);
 
     // setup context switching
-    let stack_pages = mem.alloc_many_raw(10).unwrap();
-    let trap_frame = unsafe {
-        TrapFrame::null_from_stack(
-            stack_pages.cast::<usize>(),
-            crate::mem::PAGESIZE / core::mem::size_of::<usize>(),
-        )
-    };
-    unsafe {
-        arch::asm_utils::write_sscratch(&trap_frame as *const TrapFrame as usize);
-    }
+    let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     arch::trap::enable_interrupts();
 
-    // do the actual kernel logic
-    for i in 0..5 {
-        println!("Hello World from Kernel Land Nr {}", i);
-    }
-
-    init_caps(mem).unwrap();
-    unsafe {
-        let null_deref = *(0 as *mut u8);
-        println!("{null_deref}");
+    // create capability objects for userspace code
+    let mut cap_mem = {
+        let content = caps::Memory { inner: allocator };
+        caps::Cap::from_content(content)
     };
+    let mut cslot = CSlot::default();
+    caps::Task::init(&mut cslot, &mut cap_mem).unwrap();
+
+    // setup stack for userspace code
+    const NUM_PAGES: usize = 1;
+    let stack = cap_mem
+        .alloc_pages_raw(NUM_PAGES)
+        .map_err(caps::Error::from)
+        .unwrap();
+    let task = cslot
+        .cap
+        .get_task_mut()
+        .map_err(caps::Error::from)
+        .unwrap()
+        .deref_mut();
+    let task_state = unsafe { &mut *task.state };
+    task_state.frame.general_purpose_regs.registers[2] =
+        unsafe { calc_stack_start(stack, NUM_PAGES) as usize };
+
+    // set up program counter to point to userspace code
+    let userspace_pc = fake_userspace as *const u8 as usize;
+    task_state.frame.ctx.epc = userspace_pc;
+
+    // switch to userspace
+    unsafe { yield_to(trap_handler_stack as *mut u8, &mut task_state.frame) };
 
     // shut down the machine
     let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };

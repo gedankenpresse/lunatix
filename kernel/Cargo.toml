@@ -10,6 +10,7 @@ fdt-rs = { version = "0.4.3", default-features = false }
 r0 = "1.0.0"
 rlibc = "1.0.0"
 thiserror-no-std = "2.0.2"
+elfloader = "0.16.0"
 ksync = { path = "../support_crates/ksync" }
 memory = { path = "../support_crates/alloc" }
 

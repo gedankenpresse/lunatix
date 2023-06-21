@@ -2,11 +2,12 @@ pub mod cspace;
 pub mod memory;
 pub mod task;
 
-pub use cspace::{ CSpace };
 use self::errors::OccupiedSlot;
-pub use self::memory::{ Memory };
-pub use task::{ Task };
+pub use self::memory::Memory;
+use crate::caps;
+pub use cspace::CSpace;
 pub use errors::Error;
+pub use task::Task;
 
 pub enum Capability {
     CSpace(Cap<CSpace>),
@@ -39,27 +40,36 @@ impl From<Cap<Task>> for Capability {
     }
 }
 
+impl Capability {
+    pub fn get_task_mut(&mut self) -> Result<&mut Cap<Task>, errors::InvalidCap> {
+        match self {
+            Capability::Task(t) => Ok(t),
+            _ => Err(errors::InvalidCap),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct CSlot {
-    cap: Capability
+    pub cap: Capability,
 }
 
 impl CSlot {
-    pub (crate) fn set(&mut self, v: impl Into<Capability>) -> Result<(), OccupiedSlot> {
+    pub(crate) fn set(&mut self, v: impl Into<Capability>) -> Result<(), OccupiedSlot> {
         match self.cap {
             Capability::Uninit => {
                 self.cap = v.into();
                 Ok(())
-            },
-            _ => Err(OccupiedSlot)
+            }
+            _ => Err(OccupiedSlot),
         }
     }
 }
 
 pub struct Cap<Type> {
-    pub (crate) header: usize,
+    pub(crate) header: usize,
     // link field should be here
-    pub (crate) content: Type,
+    pub(crate) content: Type,
 }
 
 impl<Type> core::ops::Deref for Cap<Type> {
@@ -76,16 +86,11 @@ impl<Type> core::ops::DerefMut for Cap<Type> {
     }
 }
 
-
 impl<Type> Cap<Type> {
     pub fn from_content(content: Type) -> Self {
-        Self {
-            header: 0,
-            content
-        }
+        Self { header: 0, content }
     }
 }
-
 
 mod errors {
 
@@ -94,6 +99,7 @@ mod errors {
         InvalidCAddr,
         NoMem,
         OccupiedSlot,
+        InvalidCap,
     }
 
     impl From<InvalidCAddr> for Error {
@@ -114,9 +120,16 @@ mod errors {
         }
     }
 
+    impl From<InvalidCap> for Error {
+        fn from(value: InvalidCap) -> Self {
+            Self::InvalidCap
+        }
+    }
+
     pub struct InvalidCAddr;
     pub struct NoMem;
 
     pub struct OccupiedSlot;
-}
 
+    pub struct InvalidCap;
+}

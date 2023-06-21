@@ -24,7 +24,11 @@ pub struct TrapFrame {
     pub general_purpose_regs: Regs,
     /// Storage for backing up floating point registers
     pub floating_point_regs: Regs,
-    /// **TODO**
+    /// A pointer to the kernel stack that handles a trap for this frame.
+    /// There is usually only one kernel interrupt handler stack so all task's trap frames will usually have the same
+    /// value.
+    ///
+    /// This value is set by the kernel scheduler when yielding to the task owning this frame.
     pub trap_stack: *mut usize,
     /// Context information about the last triggered trap
     pub ctx: TrapContext,
@@ -36,6 +40,7 @@ impl TrapFrame {
     pub unsafe fn null_from_stack(stack_end: *mut usize, length: usize) -> Self {
         let mut regs = Regs::default();
 
+        // TODO: Split stacks
         let stack = stack_end.add(length);
         regs.registers[2] = stack as usize & !15;
         Self {
@@ -43,6 +48,20 @@ impl TrapFrame {
             floating_point_regs: Regs::default(),
             trap_stack: stack,
             ctx: TrapContext::null(),
+        }
+    }
+
+    /// Create a new trap frame with null initialized values
+    ///
+    /// # Safety
+    /// It is safe to construct this instance however it should not be used directly because things like the stack
+    /// pointer are definitely invalid.
+    pub fn null() -> Self {
+        Self {
+            general_purpose_regs: Regs::default(),
+            floating_point_regs: Regs::default(),
+            ctx: TrapContext::null(),
+            trap_stack: 0x0 as *mut usize,
         }
     }
 }
@@ -105,6 +124,13 @@ struct TrapReturn<'a> {
     frame: &'a mut TrapFrame,
     /// The program counter value of the task which should be switched to
     pc: usize,
+}
+
+extern "C" {
+    /// Restore the given trap frames cpu registers and set the program count to the given value.
+    ///
+    /// This is implemented by `./asm/trap.S`.
+    pub fn trap_frame_restore(trap_frame: *mut TrapFrame, pc: usize) -> !;
 }
 
 /// Rust side of the trap handler code.
