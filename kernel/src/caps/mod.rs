@@ -1,17 +1,20 @@
 pub mod cspace;
 pub mod memory;
 pub mod task;
+pub mod vspace;
 
 use self::errors::OccupiedSlot;
 pub use self::memory::Memory;
 pub use cspace::CSpace;
 pub use errors::Error;
 pub use task::Task;
+pub use vspace::VSpace;
 
 pub enum Capability {
     CSpace(Cap<CSpace>),
     Memory(Cap<Memory>),
     Task(Cap<Task>),
+    VSpace(Cap<VSpace>),
     Uninit,
 }
 
@@ -39,6 +42,12 @@ impl From<Cap<Task>> for Capability {
     }
 }
 
+impl From<Cap<VSpace>> for Capability {
+    fn from(value: Cap<VSpace>) -> Self {
+        Self::VSpace(value)
+    }
+}
+
 impl Capability {
     pub fn get_memory_mut(&mut self) -> Result<&mut Cap<Memory>, errors::InvalidCap> {
         match self {
@@ -50,6 +59,13 @@ impl Capability {
     pub fn get_task_mut(&mut self) -> Result<&mut Cap<Task>, errors::InvalidCap> {
         match self {
             Capability::Task(t) => Ok(t),
+            _ => Err(errors::InvalidCap),
+        }
+    }
+
+    pub(crate) fn get_vspace_mut(&mut self) -> Result<&mut Cap<VSpace>, errors::InvalidCap> {
+        match self {
+            Capability::VSpace(v) => Ok(v),
             _ => Err(errors::InvalidCap),
         }
     }
