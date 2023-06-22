@@ -1,3 +1,5 @@
+use crate::arch::cpu;
+use crate::println;
 use core::arch::global_asm;
 
 /// A struct to save all registers

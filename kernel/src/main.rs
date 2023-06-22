@@ -163,9 +163,13 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     drop(device_tree);
     drop(dtb);
 
+    println!("{:?}", arch::cpu::Sie::read());
+
     // setup context switching
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     arch::trap::enable_interrupts();
+
+    println!("{:?}", arch::cpu::Sie::read());
 
     create_init_caps(allocator);
     // switch to userspace

@@ -1,4 +1,5 @@
 pub mod asm_utils;
+pub mod cpu;
 pub mod trap;
 
 extern crate r0;
