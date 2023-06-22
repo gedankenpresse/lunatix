@@ -14,16 +14,12 @@ use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::mem::Page;
 use crate::userspace::fake_userspace;
-use core::ops::DerefMut;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use memory::Arena;
 use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 use thiserror_no_std::private::DisplayAsDisplay;
-use uart_driver::Uart;
-
-static UART_DEVICE: SpinLock<Option<Uart>> = SpinLock::new(None);
 
 struct InitCaps {
     mem: CSlot,
@@ -160,12 +156,6 @@ fn create_init_caps(alloc: Arena<'static, Page>) {
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
-
-    // setup uart
-    let uart = unsafe { Uart::from_device_tree(&device_tree).unwrap() };
-    {
-        (*UART_DEVICE.spin_lock()) = Some(uart);
-    }
 
     // setup page heap
     // after this operation, the device tree was overwritten

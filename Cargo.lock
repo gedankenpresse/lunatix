@@ -70,9 +70,9 @@ dependencies = [
  "r0",
  "regs",
  "rlibc",
+ "sbi",
  "sifive_shutdown_driver",
  "thiserror-no-std",
- "uart_driver",
 ]
 
 [[package]]
@@ -160,6 +160,12 @@ checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 dependencies = [
  "semver",
 ]
+
+[[package]]
+name = "sbi"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29cb0870400aca7e4487e8ec1e93f9d4288da763cb1da2cedc5102e62b6522ad"
 
 [[package]]
 name = "semver"
