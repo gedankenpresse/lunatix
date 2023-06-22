@@ -3,7 +3,7 @@ pub mod memory;
 pub mod task;
 
 use self::errors::OccupiedSlot;
-pub use self::memory::Memory;   
+pub use self::memory::Memory;
 pub use cspace::CSpace;
 pub use errors::Error;
 pub use task::Task;
@@ -43,7 +43,7 @@ impl Capability {
     pub fn get_memory_mut(&mut self) -> Result<&mut Cap<Memory>, errors::InvalidCap> {
         match self {
             Capability::Memory(m) => Ok(m),
-            _ => Err(errors::InvalidCap)
+            _ => Err(errors::InvalidCap),
         }
     }
 
