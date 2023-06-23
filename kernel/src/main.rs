@@ -57,7 +57,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
 }
 
 fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
-    use fdt_rs::base::DevTree;
     use fdt_rs::prelude::{FallibleIterator, PropReader};
     let mut nodes = dev_tree.nodes();
     let mut memory = None;
@@ -123,6 +122,7 @@ unsafe fn set_return_to_user() {
 
 
 #[no_mangle]
+#[allow(unreachable_code)]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };

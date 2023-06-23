@@ -29,7 +29,7 @@ impl ElfLoader for InitLoader {
         Ok(())
     }
 
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
+    fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         let start = self.vbase + base;
         let end = self.vbase + base + region.len() as u64;
         println!("load region into = {:#x} -- {:#x}", start, end);

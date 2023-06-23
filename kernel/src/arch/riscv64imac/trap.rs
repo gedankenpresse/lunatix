@@ -1,7 +1,3 @@
-use crate::arch::cpu;
-use crate::println;
-use core::arch::global_asm;
-
 /// A struct to save all registers
 #[derive(Debug, Default)]
 #[repr(C)]
@@ -37,22 +33,6 @@ pub struct TrapFrame {
 }
 
 impl TrapFrame {
-    /// # Safety
-    /// The stack_end pointer has to be to an owned region of byte size length
-    pub unsafe fn null_from_stack(stack_end: *mut usize, length: usize) -> Self {
-        let mut regs = Regs::default();
-
-        // TODO: Split stacks
-        let stack = stack_end.add(length);
-        regs.registers[2] = stack as usize & !15;
-        Self {
-            general_purpose_regs: regs,
-            floating_point_regs: Regs::default(),
-            trap_stack: stack,
-            ctx: TrapContext::null(),
-        }
-    }
-
     /// Create a new trap frame with null initialized values
     ///
     /// # Safety
@@ -279,6 +259,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 }
 
 #[repr(usize)]
+#[allow(dead_code)]
 pub enum InterruptBits {
     USIE = 1 << 0,
     SSIE = 1 << 1,
@@ -289,6 +270,7 @@ pub enum InterruptBits {
 }
 
 #[repr(usize)]
+#[allow(dead_code)]
 pub enum StatusBits {
     UIE = 1 << 0,
     SIE = 1 << 1,

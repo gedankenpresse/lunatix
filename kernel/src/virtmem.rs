@@ -48,12 +48,13 @@ impl PageTable {
 
 
 impl PageTable {
-    fn len() -> usize {
+    pub fn len() -> usize {
         return 512;
     }
 }
 
 #[repr(u64)]
+#[allow(dead_code)]
 pub enum EntryBits {
     Valid = 1 << 0,
     Read = 1 << 1,
@@ -235,7 +236,7 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
     // Setup Root Page table in satp
     use core::arch::asm;
     let root_ppn = root as usize >> 12;
-    let bare_stap_val = 0 << 60 | root_ppn;
+    let _bare_stap_val = 0 << 60 | root_ppn;
     let sv39satp_val = 8 << 60 | root_ppn;
  
     // enable MXR (make Executable readable) bit

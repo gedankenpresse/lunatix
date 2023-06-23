@@ -20,6 +20,7 @@ pub struct Uart<'a> {
 /// This struct models how the ns16550a registers are layed out in memory.
 ///
 /// For more details on how the controller works see the [ns16550 spec](http://caro.su/msx/ocm_de1/16550.pdf).
+#[allow(non_snake_case)]
 pub struct MmUart {
     transceiver: RW<u8>,
     _interrupt_enable: RW<u8>,
@@ -50,7 +51,7 @@ impl<'a> Uart<'a> {
 
                 // TODO Fetch #address-cells and #size-cells from parent node (although 2 and 2 are usually the default on 64 bit systems) and use it in reg interpretation
                 let mm_addr = u64::from_be_bytes((&addr_prop[0..8]).try_into().unwrap());
-                let mm_len = u64::from_be_bytes((&addr_prop[8..16]).try_into().unwrap());
+                let _mm_len = u64::from_be_bytes((&addr_prop[8..16]).try_into().unwrap());
 
                 // fetch baud rate property from device tree
                 let baud_rate = u32::from_be_bytes(

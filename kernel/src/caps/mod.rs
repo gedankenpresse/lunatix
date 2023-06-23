@@ -131,25 +131,25 @@ mod errors {
     }
 
     impl From<InvalidCAddr> for Error {
-        fn from(value: InvalidCAddr) -> Self {
+        fn from(_value: InvalidCAddr) -> Self {
             Self::InvalidCAddr
         }
     }
 
     impl From<NoMem> for Error {
-        fn from(value: NoMem) -> Self {
+        fn from(_value: NoMem) -> Self {
             Self::NoMem
         }
     }
 
     impl From<OccupiedSlot> for Error {
-        fn from(value: OccupiedSlot) -> Self {
+        fn from(_value: OccupiedSlot) -> Self {
             Self::OccupiedSlot
         }
     }
 
     impl From<InvalidCap> for Error {
-        fn from(value: InvalidCap) -> Self {
+        fn from(_value: InvalidCap) -> Self {
             Self::InvalidCap
         }
     }
