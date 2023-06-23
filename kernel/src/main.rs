@@ -9,19 +9,19 @@ mod init;
 mod mem;
 mod printk;
 mod userspace;
+mod virtmem;
 
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::mem::Page;
-use crate::userspace::fake_userspace;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
-use memory::Arena;
 use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 use thiserror_no_std::private::DisplayAsDisplay;
 
-struct InitCaps {
+
+pub struct InitCaps {
     mem: CSlot,
     init_task: CSlot,
 }
@@ -39,7 +39,9 @@ impl InitCaps {
 /// CSlot isn't send because raw pointers... meh
 unsafe impl Send for InitCaps {}
 
-static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
+pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
+
+pub static mut KERNEL_ROOT_PT: *const virtmem::PageTable = 0x0 as *const virtmem::PageTable;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -102,14 +104,15 @@ fn init_heap(dev_tree: &DevTree) -> memory::Arena<'static, crate::mem::Page> {
     mem
 }
 
-/// Calculate the stack pointer from a given memory region that should be used as program stack
-unsafe fn calc_stack_start(ptr: *mut Page, num_pages: usize) -> *mut u8 {
-    ptr.add(num_pages).cast()
-}
-
 /// Yield to the task that owns the given `trap_frame`
-unsafe fn yield_to(trap_handler_stack: *mut u8, trap_frame: &mut TrapFrame) -> ! {
+unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
+    let state = unsafe { task.state.as_mut().unwrap() };
+    let trap_frame = &mut state.frame;
     trap_frame.trap_stack = trap_handler_stack.cast();
+    let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
+    println!("enabling task pagetabe");
+    unsafe { virtmem::use_pagetable(root_pt); }
+    println!("restoring trap frame");
     arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame, trap_frame.ctx.epc);
 }
 
@@ -118,44 +121,15 @@ unsafe fn set_return_to_user() {
     core::arch::asm!("csrc sstatus, a0",in("a0") spp);
 }
 
-// Fill INIT_CAPS with appropriate capabilities
-fn create_init_caps(alloc: Arena<'static, Page>) {
-    // create capability objects for userspace code
-    let mut guard = INIT_CAPS.try_lock().unwrap();
-    guard
-        .mem
-        .set(caps::Cap::from_content(caps::Memory { inner: alloc }))
-        .unwrap();
-    match &mut *guard {
-        InitCaps { mem, init_task } => {
-            caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap())
-        }
-    }
-    .unwrap();
-
-    // setup stack for userspace code
-    const NUM_PAGES: usize = 1;
-    let stack = guard
-        .mem
-        .cap
-        .get_memory_mut()
-        .unwrap()
-        .alloc_pages_raw(NUM_PAGES)
-        .unwrap();
-    let task = guard.init_task.cap.get_task_mut().unwrap();
-    let task_state = unsafe { &mut *task.state };
-    task_state.frame.general_purpose_regs.registers[2] =
-        unsafe { calc_stack_start(stack, NUM_PAGES) as usize };
-
-    // set up program counter to point to userspace code
-    let userspace_pc = fake_userspace as *const u8 as usize;
-    task_state.frame.ctx.epc = userspace_pc;
-}
 
 #[no_mangle]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+
+    // save memory for later
+    // we need this to map all physical memory into the kernelspace when enabling virtual memory 
+    let (mem_start, mem_length) =  get_memory(&device_tree).unwrap().unwrap();
 
     // setup page heap
     // after this operation, the device tree was overwritten
@@ -165,18 +139,27 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
 
     // setup context switching
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
+    let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
+    unsafe { arch::asm_utils::write_sscratch(trap_frame as usize); }
     arch::trap::enable_interrupts();
 
-    create_init_caps(allocator);
+    let kernel_root = virtmem::create_kernel_page_table(
+        &mut allocator,
+        mem_start as usize,
+        mem_length as usize
+    ).expect("Could not create kernel page table");
+    unsafe { KERNEL_ROOT_PT = kernel_root as *const virtmem::PageTable };
+    unsafe { virtmem::use_pagetable(kernel_root); }
+
+    println!("creating init caps");
+    init::create_init_caps(allocator);
+    println!("switching to userspace");
     // switch to userspace
     unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();
         let task = guard.init_task.cap.get_task_mut().unwrap();
-        let taskstate = task.state;
-        drop(guard);
-        let frame = &mut (*taskstate).frame;
-        yield_to(trap_handler_stack as *mut u8, frame)
+        yield_to_task(trap_handler_stack as *mut u8, task);
     };
 
     // shut down the machine

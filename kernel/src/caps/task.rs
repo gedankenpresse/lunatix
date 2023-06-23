@@ -5,6 +5,7 @@ use core::ptr;
 pub struct TaskState {
     pub frame: arch::trap::TrapFrame,
     pub cspace: caps::CSlot,
+    pub vspace: caps::CSlot,
 }
 
 pub struct Task {
@@ -21,6 +22,7 @@ impl TaskState {
         // initialize the task state
         unsafe {
             ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::default());
+            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::default());
             ptr::addr_of_mut!((*ptr).frame).write(arch::trap::TrapFrame::null());
         }
 
