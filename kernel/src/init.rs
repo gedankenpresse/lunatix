@@ -94,12 +94,12 @@ impl<'a, 'b> StackLoader<'a, 'b> {
     fn load(self) -> Result<u64, caps::Error> {
         let vspace = self.vspace;
         let mem = self.mem;
-        let rw = virtmem::EntryBits::Read as usize | virtmem::EntryBits::Write as usize | virtmem::EntryBits::UserReadable as usize;
+        let rw = virtmem::EntryBits::Read | virtmem::EntryBits::Write | virtmem::EntryBits::UserReadable;
         vspace.map_range(
             &mut mem.content, 
             self.vbase as usize, 
             self.stack_bytes as usize, 
-            rw
+            rw.bits() as usize
         ).unwrap();
         Ok(self.vbase + self.stack_bytes)
     }
@@ -125,22 +125,22 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
             );
 
             // maybe this should be done by the VSpace map operation
-            let mut bits: usize = virtmem::EntryBits::UserReadable as usize;
+            let mut bits: virtmem::EntryBits = virtmem::EntryBits::UserReadable;
             if header.flags().is_execute() {
-                bits |= virtmem::EntryBits::Execute as usize;
+                bits |= virtmem::EntryBits::Execute;
             }
             if header.flags().is_read() {
-                bits |= virtmem::EntryBits::Read as usize;
+                bits |= virtmem::EntryBits::Read;
             }
             if header.flags().is_write() {
-                bits |= virtmem::EntryBits::Write as usize;
+                bits |= virtmem::EntryBits::Write;
             }
 
             self.vspace.map_range(
                 &mut self.mem,
                 virt_start as usize,
                 header.mem_size() as usize,
-                bits
+                bits.bits() as usize
             ).unwrap();
         }
         Ok(())

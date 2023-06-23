@@ -34,6 +34,12 @@ macro_rules! write_reg {
     };
 }
 
+macro_rules! set_reg {
+    ($csr:literal, $value:expr) => {
+        asm!(concat!("csrs ", $csr, ", {}"), in(reg) $value)
+    }
+}
+
 /// Supervisor Status Register.
 ///
 /// It keeps track of the processor's current operating state.
@@ -112,6 +118,14 @@ impl SStatus {
     /// Ensure that you write an intended value!
     pub unsafe fn write(val: SStatusFlags) {
         Self::write_raw(val.bits())
+    }
+
+    pub unsafe fn set_raw(val: u64) {
+        set_reg!("sstatus", val);
+    }
+
+    pub unsafe fn set(val: SStatusFlags) {
+        Self::set_raw(val.bits())
     }
 }
 

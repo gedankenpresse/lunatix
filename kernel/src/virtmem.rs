@@ -1,5 +1,5 @@
 use core::mem::MaybeUninit;
-
+use bitflags::bitflags;
 use memory::Arena;
 
 use crate::mem::{Page, PAGESIZE};
@@ -53,32 +53,33 @@ impl PageTable {
     }
 }
 
-#[repr(u64)]
-#[allow(dead_code)]
-pub enum EntryBits {
-    Valid = 1 << 0,
-    Read = 1 << 1,
-    Write = 1 << 2,
-    Execute = 1 << 3,
-    UserReadable = 1 << 4,
-    Global = 1 << 5,
-    Accessed = 1 << 6,
-    Dirty = 1 << 7,
+bitflags! {
+    #[derive(Debug)]
+    pub struct EntryBits: u64 {
+        const Valid = 1 << 0;
+        const Read = 1 << 1;
+        const Write = 1 << 2;
+        const Execute = 1 << 3;
+        const UserReadable = 1 << 4;
+        const Global = 1 << 5;
+        const Accessed = 1 << 6;
+        const Dirty = 1 << 7;
 
+        const RWX = Self::Read.bits() | Self::Write.bits() | Self::Execute.bits();
+    }
 }
 
-pub const RWX_BITS: u64 = EntryBits::Read as u64 | EntryBits::Write as u64 | EntryBits::Execute as u64;
 
 impl Entry {
     pub fn is_valid(&self) -> bool {
-        self.entry & (EntryBits::Valid as u64) != 0
+        self.entry & EntryBits::Valid.bits() != 0
     }
 
     pub fn is_invalid(&self) -> bool {
         !self.is_valid()
     }
 	pub fn is_leaf(&self) -> bool {
-		self.entry & RWX_BITS != 0
+		self.entry & EntryBits::RWX.bits() != 0
 	}
 
     pub unsafe fn get_ptr(& self) -> *const PageTable {
@@ -122,7 +123,7 @@ fn vpn_segments(vaddr: usize) -> [usize; 3] {
 pub fn map(alloc:  &mut memory::Arena<'static, Page>, root: &mut PageTable, vaddr: usize, paddr: usize, bits: usize) {
     // Make sure that one of Read, Write, or Execute Bits is set.
     // Otherwise, entry is regarded as pointer to next page table level
-    assert!(bits & RWX_BITS as usize != 0);
+    assert!(bits & EntryBits::RWX.bits() as usize != 0);
     assert!(bits & !((1 << 10) - 1) == 0);
 
     // physical address should be at least page aligned and in PPN range
@@ -141,7 +142,7 @@ pub fn map(alloc:  &mut memory::Arena<'static, Page>, root: &mut PageTable, vadd
             unsafe { *page.cast::<u8>().add(i) = 0; }
         }
 
-		entry.entry = (page as u64 >> 2) | EntryBits::Valid as u64;
+		entry.entry = (page as u64 >> 2) | EntryBits::Valid.bits();
     }
     // Lookup in top level page table
     let v = &mut root.entries[vpn[2]];
@@ -160,7 +161,7 @@ pub fn map(alloc:  &mut memory::Arena<'static, Page>, root: &mut PageTable, vadd
 
 
     // Now we are ready to point v to our physical address
-    v.entry = ((paddr >> 2) | bits | EntryBits::Valid as usize) as u64;
+    v.entry = ((paddr >> 2) | bits | EntryBits::Valid.bits() as usize) as u64;
 }
 
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
@@ -221,8 +222,7 @@ pub fn map_range_alloc(alloc: &mut Arena<'static, Page>, root: &mut PageTable, v
 pub fn create_kernel_page_table(allocator: &mut Arena<'static, Page>, mem_start: usize, mem_length: usize) -> Result<*mut PageTable, ()> {
     let root = PageTable::empty(allocator).unwrap();
     let root_ref = unsafe  { root.as_mut().unwrap() };
-    use EntryBits::*;
-    let rwx = Read as usize | Write as usize  | Execute as usize;
+    let rwx = EntryBits::RWX.bits() as usize;
     // Map Kernel Memory
     id_map_range(allocator, root_ref, mem_start, mem_start + mem_length, rwx);
     // Map Uart
@@ -233,20 +233,18 @@ pub fn create_kernel_page_table(allocator: &mut Arena<'static, Page>, mem_start:
 }
 
 pub unsafe fn use_pagetable(root: *mut PageTable) {
-    // Setup Root Page table in satp
-    use core::arch::asm;
-    let root_ppn = root as usize >> 12;
-    let _bare_stap_val = 0 << 60 | root_ppn;
-    let sv39satp_val = 8 << 60 | root_ppn;
+    use crate::arch::cpu::*;
  
     // enable MXR (make Executable readable) bit
-    unsafe { asm!("csrs sstatus, {0}", in(reg) 1 << 19); }
     // enable SUM (premit Supervisor User Memory access) bit
-    unsafe { asm!("csrs sstatus, {0}", in(reg) 1 << 18 ); }
+    unsafe { SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM); }
 
     crate::println!("enabling new pagetable {:p}", root);
-    // write page table into satp reg
-    unsafe {
-        asm!("csrw satp, {0}", in(reg) sv39satp_val);
-    }
+
+    // Setup Root Page table in satp register
+    unsafe { Satp::write(SatpData { 
+        mode: SatpMode::Sv39,
+        asid: 0,
+        ppn: root as u64 >> 12 
+    });}
 }
