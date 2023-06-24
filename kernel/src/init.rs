@@ -9,7 +9,7 @@ use elfloader::{
     VAddr,
 };
 
-const INIT_BIN: &[u8] = include_bytes!("init.elf.bin");
+const INIT_BIN: &[u8] = include_bytes!("../../userspace/init_main");
 
 
 struct StackLoader<'a, 'b> {
@@ -118,7 +118,10 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 unsafe { *(phys as *mut u64) = self.vbase + addend; } 
                 Ok(())
             },
-            _ => Ok((/* not implemented */)),
+            RiscV(RelocationTypes::R_RISCV_64) => {
+                println!("R_RISCV_64 not implemented");
+                Ok((/* not implemented */))
+            },
             _ => Err(ElfLoaderErr::UnsupportedRelocationEntry),
         }
     }
@@ -154,7 +157,9 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
 
             // load elf binary
             let mut elf_loader = VSpaceLoader {
-                vbase: 0x5_0000_0000,
+                // choosing arbitrary vbase not supported for relocating data sections
+                // vbase: 0x5_0000_0000,
+                vbase: 0x0,
                 mem: mem_cap,
                 vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
             };
@@ -166,8 +171,12 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
             // set stack pointer
             taskstate.frame.general_purpose_regs.registers[2] = stack_start as usize;
 
+            // try setting gp
+            taskstate.frame.general_purpose_regs.registers[3] = entry_point as usize + 0x1000;
+        
             // set up program counter to point to userspace code
             taskstate.frame.ctx.epc = entry_point as usize;
+            println!("entry point: {:x}", taskstate.frame.ctx.epc);
         }
     }
 

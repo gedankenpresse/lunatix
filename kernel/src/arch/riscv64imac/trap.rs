@@ -252,10 +252,19 @@ impl From<usize> for Cause {
 
 #[no_mangle]
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
-    crate::println!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
-    crate::println!("PC: {:p}", tf.ctx.epc as *mut u8);
-    crate::println!("{:#x?}", tf.ctx);
-    panic!("no interrupt handler specified");
+    match tf.ctx.get_cause() {
+        Cause::EcallFrom(Priv::User) => {
+            crate::print!("{}", tf.general_purpose_regs.registers[10] as u8 as char);
+            tf.ctx.epc += 4;
+            return tf;
+        },
+        _ => {
+            crate::println!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
+            crate::println!("PC: {:p}", tf.ctx.epc as *mut u8);
+            crate::println!("{:#x?}", tf.ctx);
+            panic!("no interrupt handler specified");
+        }
+    }
 }
 
 #[repr(usize)]
