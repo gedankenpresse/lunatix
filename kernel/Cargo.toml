@@ -17,6 +17,7 @@ sifive_shutdown_driver = { path = "../support_crates/sifive_shutdown_driver" }
 elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
 sbi = "0.2.0"
 bitflags = "2.3.2"
+log = { version = "0.4.19", default-features = false, features = ["release_max_level_info"] }
 
 [build-dependencies]
 cc = "1.0.79"

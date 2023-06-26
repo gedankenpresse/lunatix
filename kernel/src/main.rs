@@ -6,20 +6,19 @@ mod arch;
 
 mod caps;
 mod init;
+mod logging;
 mod mem;
-mod printk;
-mod userspace;
 mod virtmem;
 
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
+use crate::logging::KernelLogger;
 use crate::mem::Page;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
+use log::Level;
 use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
-use thiserror_no_std::private::DisplayAsDisplay;
-
 
 pub struct InitCaps {
     mem: CSlot,
@@ -35,6 +34,8 @@ impl InitCaps {
     }
 }
 
+static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+
 /// TODO: fix this somehow
 /// CSlot isn't send because raw pointers... meh
 unsafe impl Send for InitCaps {}
@@ -46,8 +47,7 @@ pub static mut KERNEL_ROOT_PT: *const virtmem::PageTable = 0x0 as *const virtmem
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
-    println!("!!! Kernel Panic !!!");
-    println!("  {}", info.as_display());
+    log::error!("!!! Kernel Panic !!!\n  {}", info);
 
     // shutdown the device
     unsafe {
@@ -71,7 +71,7 @@ fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
         None => panic!("no memory"),
     };
 
-    println!("{:?}", memory.name()?);
+    log::debug!("{:?}", memory.name()?);
     let mut props = memory.props();
     while let Some(prop) = props.next()? {
         if prop.name().unwrap() == "reg" {
@@ -99,7 +99,7 @@ fn init_heap(dev_tree: &DevTree) -> memory::Arena<'static, crate::mem::Page> {
     let pages =
         unsafe { core::slice::from_raw_parts_mut(heap_start as *mut crate::mem::Page, pages) };
     let mem = memory::Arena::new(pages);
-    println!("{:?}", &mem);
+    log::debug!("{:?}", &mem);
     mem
 }
 
@@ -109,9 +109,11 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
     let trap_frame = &mut state.frame;
     trap_frame.trap_stack = trap_handler_stack.cast();
     let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
-    println!("enabling task pagetabe");
-    unsafe { virtmem::use_pagetable(root_pt); }
-    println!("restoring trap frame");
+    log::debug!("enabling task pagetable");
+    unsafe {
+        virtmem::use_pagetable(root_pt);
+    }
+    log::debug!("restoring trap frame");
     arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame, trap_frame.ctx.epc);
 }
 
@@ -120,16 +122,17 @@ unsafe fn set_return_to_user() {
     core::arch::asm!("csrc sstatus, a0",in("a0") spp);
 }
 
-
 #[no_mangle]
 #[allow(unreachable_code)]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
+    LOGGER.install().expect("Could not install logger");
+
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
     // save memory for later
-    // we need this to map all physical memory into the kernelspace when enabling virtual memory 
-    let (mem_start, mem_length) =  get_memory(&device_tree).unwrap().unwrap();
+    // we need this to map all physical memory into the kernelspace when enabling virtual memory
+    let (mem_start, mem_length) = get_memory(&device_tree).unwrap().unwrap();
 
     // setup page heap
     // after this operation, the device tree was overwritten
@@ -140,20 +143,22 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     // setup context switching
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
-    unsafe { arch::asm_utils::write_sscratch(trap_frame as usize); }
+    unsafe {
+        arch::asm_utils::write_sscratch(trap_frame as usize);
+    }
     arch::trap::enable_interrupts();
 
-    let kernel_root = virtmem::create_kernel_page_table(
-        &mut allocator,
-        mem_start as usize,
-        mem_length as usize
-    ).expect("Could not create kernel page table");
+    let kernel_root =
+        virtmem::create_kernel_page_table(&mut allocator, mem_start as usize, mem_length as usize)
+            .expect("Could not create kernel page table");
     unsafe { KERNEL_ROOT_PT = kernel_root as *const virtmem::PageTable };
-    unsafe { virtmem::use_pagetable(kernel_root); }
+    unsafe {
+        virtmem::use_pagetable(kernel_root);
+    }
 
-    println!("creating init caps");
+    log::debug!("creating init caps");
     init::create_init_caps(allocator);
-    println!("switching to userspace");
+    log::debug!("switching to userspace");
     // switch to userspace
     unsafe {
         set_return_to_user();

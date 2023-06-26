@@ -73,6 +73,7 @@ dependencies = [
  "elfloader",
  "fdt-rs",
  "ksync",
+ "log",
  "memory",
  "r0",
  "regs",

@@ -254,14 +254,17 @@ impl From<usize> for Cause {
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     match tf.ctx.get_cause() {
         Cause::EcallFrom(Priv::User) => {
-            crate::print!("{}", tf.general_purpose_regs.registers[10] as u8 as char);
+            log::debug!(
+                "Got ecall from user: {}",
+                tf.general_purpose_regs.registers[10] as u8 as char
+            );
             tf.ctx.epc += 4;
             return tf;
-        },
+        }
         _ => {
-            crate::println!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
-            crate::println!("PC: {:p}", tf.ctx.epc as *mut u8);
-            crate::println!("{:#x?}", tf.ctx);
+            log::debug!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
+            log::debug!("PC: {:p}", tf.ctx.epc as *mut u8);
+            log::debug!("{:#x?}", tf.ctx);
             panic!("no interrupt handler specified");
         }
     }
