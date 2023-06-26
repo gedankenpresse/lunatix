@@ -34,9 +34,17 @@ macro_rules! write_reg {
     };
 }
 
+/// Generate code to set specific register bits but leave others untouched
 macro_rules! set_reg {
     ($csr:literal, $value:expr) => {
         asm!(concat!("csrs ", $csr, ", {}"), in(reg) $value)
+    }
+}
+
+/// Generate code to clear specific register bits but leave others untouched
+macro_rules! clear_reg {
+    ($csr:literal, $value:expr) => {
+        asm!(concat!("csrc ", $csr, ", {}"), in(reg) $value)
     }
 }
 
@@ -120,12 +128,24 @@ impl SStatus {
         Self::write_raw(val.bits())
     }
 
-    pub unsafe fn set_raw(val: u64) {
-        set_reg!("sstatus", val);
+    /// Set the bits of this register where `mask` has a 1 but leave all others untouched
+    pub unsafe fn set_raw(mask: u64) {
+        set_reg!("sstatus", mask);
     }
 
-    pub unsafe fn set(val: SStatusFlags) {
-        Self::set_raw(val.bits())
+    /// Set only those bits of the register to `1` where `mask` is set while leaving all other register bits untouched
+    pub unsafe fn set(mask: SStatusFlags) {
+        Self::set_raw(mask.bits())
+    }
+
+    /// Clear all register bits, setting them to `0` where `mask` has a `1`
+    pub unsafe fn clear_raw(mask: u64) {
+        clear_reg!("sstatus", mask)
+    }
+
+    /// Clear all register bits, setting them to `0` where `mask` is set
+    pub unsafe fn clear(mask: SStatusFlags) {
+        clear_reg!("sstatus", mask.bits())
     }
 }
 
@@ -271,6 +291,22 @@ impl Sip {
     /// Writing to the Sip register may immediately trigger an interrupt and stop further code from executing
     pub unsafe fn write(val: InterruptBits) {
         Self::write_raw(val.bits())
+    }
+
+    pub unsafe fn set_raw(mask: u64) {
+        set_reg!("sip", mask)
+    }
+
+    pub unsafe fn set(mask: InterruptBits) {
+        set_reg!("sip", mask.bits())
+    }
+
+    pub unsafe fn clear_raw(mask: u64) {
+        clear_reg!("sip", mask)
+    }
+
+    pub unsafe fn clear(mask: InterruptBits) {
+        clear_reg!("sip", mask.bits())
     }
 }
 

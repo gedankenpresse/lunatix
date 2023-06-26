@@ -119,7 +119,8 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
 }
 
 unsafe fn set_return_to_user() {
-    arch::cpu::SStatus::write(arch::cpu::SStatus::read() | SStatusFlags::SPP);
+    log::debug!("clearing sstatus.SPP flag to enable returning to user code");
+    arch::cpu::SStatus::clear(SStatusFlags::SPP);
 }
 
 #[no_mangle]
