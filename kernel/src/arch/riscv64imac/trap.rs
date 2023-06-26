@@ -1,3 +1,6 @@
+use super::cpu;
+use crate::arch::cpu::{InterruptBits, SStatusFlags, StVecData};
+
 /// A struct to save all registers
 #[derive(Debug, Default)]
 #[repr(C)]
@@ -259,7 +262,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
                 tf.general_purpose_regs.registers[10] as u8 as char
             );
             tf.ctx.epc += 4;
-            return tf;
+            tf
         }
         _ => {
             log::debug!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
@@ -270,40 +273,29 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     }
 }
 
-#[repr(usize)]
-#[allow(dead_code)]
-pub enum InterruptBits {
-    USIE = 1 << 0,
-    SSIE = 1 << 1,
-    UTIE = 1 << 4,
-    STIE = 1 << 5,
-    UEIE = 1 << 8,
-    SEIE = 1 << 9,
-}
-
-#[repr(usize)]
-#[allow(dead_code)]
-pub enum StatusBits {
-    UIE = 1 << 0,
-    SIE = 1 << 1,
-    //SOME MORE
-}
-
+/// Instruct the CPU to call our trap handler for interrupts and enable triggering of traps.
 pub fn enable_interrupts() {
+    log::debug!("enabling supervisor interrupts triggering asm_trap_handler");
+
     extern "C" {
         /// the asm_trap_handler function is hand written assembly that
-        /// calls the rust_trap_handler with apporpriate arguments
+        /// calls the [`rust_trap_handler`] with appropriate arguments
         fn asm_trap_handler();
     }
 
     let handler = asm_trap_handler as usize;
-    use super::asm_utils::*;
     unsafe {
-        write_stvec(handler);
-        use InterruptBits::*;
-        use StatusBits::*;
-        set_sie(SEIE as usize | SSIE as usize);
-        read_set_sstatus(SIE as usize);
+        // set trap handler to our asm_trap_handler function
+        cpu::StVec::write(&StVecData {
+            mode: 0,
+            base: handler as u64,
+        });
+        // configure certain interrupt sources to actually trigger an interrupt
+        cpu::Sie::write(
+            InterruptBits::SupervisorExternalInterrupt | InterruptBits::SupervisorSoftwareInterrupt,
+        );
+        //  globally enable interrupts for the previous configuration now
+        cpu::SStatus::write(SStatusFlags::SIE);
     }
 }
 

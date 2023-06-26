@@ -144,7 +144,7 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
     unsafe {
-        arch::asm_utils::write_sscratch(trap_frame as usize);
+        arch::cpu::SScratch::write(trap_frame as usize);
     }
     arch::trap::enable_interrupts();
 

@@ -58,7 +58,7 @@ bitflags! {
         /// The SIE bit enables or disables all interrupts in supervisor mode.
         /// When SIE is clear, interrupts are not taken while in supervisor mode.
         /// When the hart is running in user-mode, the value in SIE is ignored, and supervisor-level interrupts are enabled.
-        /// The supervisor can disable individual interrupt sources using the SIE CSR.
+        /// The supervisor can disable individual interrupt sources using the [SIE CSR](Sie).
         const SIE = 1 << 1;
         /// The SPIE bit indicates whether supervisor interrupts were enabled prior to trapping into supervisor mode.
         /// When a trap is taken into supervisor mode, SPIE is set to SIE, and SIE is set to 0.
@@ -136,10 +136,11 @@ impl SStatus {
 pub struct StVec {}
 
 /// The data contained in the [`StVec`] register in an easy-to-handle format.
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct StVecData {
     /// A WARL field that can hold any valid virtual or physical address, subject to the following alignment constraints:
     /// - the address must be 4-byte aligned, and MODE settings other than Direct might impose additional alignment constraints on the value in the BASE field.
-    base: u64,
+    pub base: u64,
 
     /// The encoding of the MODE field is shown below.
     /// When MODE=Direct, all traps into supervisor mode cause the pc to be set to the address in the BASE field.
@@ -154,7 +155,7 @@ pub struct StVecData {
     /// | `0` | Direct | All exceptions set pc to BASE |
     /// | `1` | Vectored | Asynchronous interrupts set pc to BASE+4×cause |
     /// | `>1` | - | *Reserved* |
-    mode: u8,
+    pub mode: u8,
 }
 
 impl StVec {
@@ -168,7 +169,7 @@ impl StVec {
         let raw_val = Self::read_raw();
         StVecData {
             mode: (raw_val & 0b11) as u8,
-            base: raw_val >> 2,
+            base: raw_val & !(0b11 << 62),
         }
     }
 
@@ -179,13 +180,17 @@ impl StVec {
 
     /// Write a Trap Vector configuration to the register
     pub unsafe fn write(val: &StVecData) {
-        assert_eq!(val.base << 2, val.base, "StVec value uses an invalid base");
+        assert_eq!(
+            val.base << 2 >> 2,
+            val.base,
+            "StVec value uses an invalid base"
+        );
         assert_eq!(
             val.mode & 0b11,
             val.mode,
             "StVec value uses an invalid mode"
         );
-        Self::write_raw(val.base << 2 | val.mode as u64)
+        Self::write_raw((val.base & !(0b11 << 62)) | (val.mode as u64) << 62)
     }
 }
 
