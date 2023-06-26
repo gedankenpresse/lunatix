@@ -189,14 +189,14 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
             let entry_point = binary.entry_point() + elf_loader.vbase;
 
             // set stack pointer
-            taskstate.frame.general_purpose_regs.registers[2] = stack_start as usize;
+            taskstate.frame.general_purpose_regs[2] = stack_start as usize;
 
             // try setting gp
-            taskstate.frame.general_purpose_regs.registers[3] = entry_point as usize + 0x1000;
+            taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
 
             // set up program counter to point to userspace code
-            taskstate.frame.ctx.epc = entry_point as usize;
-            log::debug!("entry point: {:x}", taskstate.frame.ctx.epc);
+            taskstate.frame.start_pc = entry_point as usize;
+            log::debug!("entry point: {:0x}", taskstate.frame.start_pc);
         }
     }
 }

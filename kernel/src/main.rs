@@ -107,14 +107,14 @@ fn init_heap(dev_tree: &DevTree) -> memory::Arena<'static, crate::mem::Page> {
 unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
     let state = unsafe { task.state.as_mut().unwrap() };
     let trap_frame = &mut state.frame;
-    trap_frame.trap_stack = trap_handler_stack.cast();
+    trap_frame.trap_handler_stack = trap_handler_stack.cast();
     let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
     log::debug!("enabling task pagetable");
     unsafe {
         virtmem::use_pagetable(root_pt);
     }
     log::debug!("restoring trap frame");
-    arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame, trap_frame.ctx.epc);
+    arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame);
 }
 
 unsafe fn set_return_to_user() {

@@ -1,15 +1,9 @@
 use super::cpu;
-use crate::arch::cpu::{InterruptBits, SStatusFlags, StVecData};
+use super::cpu::{Exception, InterruptBits, SStatusFlags, StVecData, TrapEvent};
 
-/// A struct to save all registers
-#[derive(Debug, Default)]
-#[repr(C)]
-pub struct Regs {
-    pub registers: [usize; 32],
-}
-
-/// A struct to hold a trapped Frames data so that it can be interrupted and resumed between
-/// context switches.
+/// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
+/// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support
+/// context switching.
 ///
 /// ## ABI
 /// The layout of this data structure is important because it is accessed via the assembly code
@@ -18,21 +12,28 @@ pub struct Regs {
 /// - 32 general purpose register stores
 /// - 32 floating point register stores
 /// - a pointer to the rust trap handler stack
+/// - a program counter indicating where to jump to when switching to this task
+///
+/// Remaining fields afterwards can be arbitrary in size and value.
 #[repr(C)]
 #[derive(Debug)]
 pub struct TrapFrame {
-    /// Storage for backing up general purpose registers
-    pub general_purpose_regs: Regs,
-    /// Storage for backing up floating point registers
-    pub floating_point_regs: Regs,
+    /// Storage for backing up all 32 general purpose registers
+    pub general_purpose_regs: [usize; 32],
+    /// Storage for backing up all 32 floating point registers
+    pub floating_point_regs: [usize; 32],
     /// A pointer to the kernel stack that handles a trap for this frame.
     /// There is usually only one kernel interrupt handler stack so all task's trap frames will usually have the same
     /// value.
     ///
     /// This value is set by the kernel scheduler when yielding to the task owning this frame.
-    pub trap_stack: *mut usize,
+    pub trap_handler_stack: *mut usize,
+    /// Program counter value which will be used when switching to this task
+    pub start_pc: usize,
+
+    // ABI compatibility ends here
     /// Context information about the last triggered trap
-    pub ctx: TrapContext,
+    pub last_trap: Option<TrapInfo>,
 }
 
 impl TrapFrame {
@@ -43,10 +44,11 @@ impl TrapFrame {
     /// pointer are definitely invalid.
     pub fn null() -> Self {
         Self {
-            general_purpose_regs: Regs::default(),
-            floating_point_regs: Regs::default(),
-            ctx: TrapContext::null(),
-            trap_stack: 0x0 as *mut usize,
+            general_purpose_regs: Default::default(),
+            floating_point_regs: Default::default(),
+            trap_handler_stack: 0x0 as *mut usize,
+            start_pc: 0,
+            last_trap: None,
         }
     }
 }
@@ -54,68 +56,55 @@ impl TrapFrame {
 /// Context information about the last triggered trap of a [`TrapFrame`]
 #[repr(C)]
 #[derive(Debug)]
-pub struct TrapContext {
+pub struct TrapInfo {
     /// The exception program counter.
     ///
     /// This is the program counter at the point at which the trap was triggered.
     /// Essentially, the program counter of the interrupted code.
     pub epc: usize,
 
+    /// The event that caused the trap to trigger.
+    pub cause: TrapEvent,
+
     /// Supervisor bad address or instruction data.
     ///
-    /// **TODO: What does this mean?**
-    pub tval: usize,
+    /// If the `cause` field indicates that the cpu encountered a bad instruction or tried to access a bad memory
+    /// address, this field holds that bad instruction or bad address.
+    /// However, this value is very specific to the instruction cause so care should be taken when interpreting it.
+    pub stval: u64,
 
-    /// Supervisor trap cause.
-    pub cause: usize,
-
-    /// Currently unused
-    pub _nohartid: usize,
-
-    /// Supervisor status data.
-    ///
-    /// **TODO: Improve docs**
-    pub status: usize,
+    /// Information about the execution conditions under which a trap was triggered.
+    pub status: SStatusFlags,
 }
 
-impl TrapContext {
-    /// Instantiate an *invalid* value
-    ///
-    /// This is useful if for example no trap has been triggered yet so no context data is available.
-    pub fn null() -> Self {
+impl TrapInfo {
+    /// Construct an instance by reading the values that are currently stored in the corresponding CPU registers
+    pub fn from_current_regs() -> Self {
         Self {
-            epc: 0,
-            tval: 0,
-            cause: 0,
-            _nohartid: -1isize as usize,
-            status: 0,
+            epc: cpu::Sepc::read(),
+            cause: cpu::Scause::read(),
+            stval: cpu::StVal::read(),
+            status: cpu::SStatus::read(),
         }
     }
-
-    pub fn get_cause(&self) -> Cause {
-        Cause::from(self.cause)
-    }
 }
 
-/// Return type of the `rust_trap_handler` function
+/// Return type of the [`rust_trap_handler`] function
 ///
 /// ## ABI
 ///
-/// The layout of this data structure **must** be placed into registers the registers `a0` and `a1`
-/// when being returned from `rust_trap_handler` because `./asm/trap.S` expects that.
-#[repr(C)]
-struct TrapReturn<'a> {
-    /// A pointer to the [`TrapFrame`] of the task which should be switched to
-    frame: &'a mut TrapFrame,
-    /// The program counter value of the task which should be switched to
-    pc: usize,
-}
+/// When this struct is returned by the rust trap handler, the two fields `frame` and `pc` are written
+/// to the registers `a0` and `a1` automatically because that's how the compiler implements `return` in this case.
+///
+/// This is important because `./asm/trap.S` expects `rust_trap_handler` to return a new [`TrapFrame`] pointer as well
+/// as a new program pointer in exactly these registers `a0` and `a1`.
+pub type TrapReturn<'a> = &'a mut TrapFrame;
 
 extern "C" {
     /// Restore the given trap frames cpu registers and set the program count to the given value.
     ///
     /// This is implemented by `./asm/trap.S`.
-    pub fn trap_frame_restore(trap_frame: *mut TrapFrame, pc: usize) -> !;
+    pub fn trap_frame_restore(trap_frame: *mut TrapFrame) -> !;
 }
 
 /// Rust side of the trap handler code.
@@ -126,26 +115,12 @@ extern "C" {
 /// `trap.S` passes the following function arguments:
 /// - A pointer to the [`TrapFrame`]
 /// - The program counter of the trapped frame
-/// - [`TrapContext`] fields (see the struct field description for details)
+/// - [`TrapInfo`] fields (see the struct field description for details)
 #[inline(never)]
 #[no_mangle]
-extern "C" fn rust_trap_handler(
-    tf: &mut TrapFrame,
-    epc: usize,
-    tval: usize,
-    cause: usize,
-    nohartid: usize,
-    status: usize,
-) -> TrapReturn {
+extern "C" fn rust_trap_handler(tf: &mut TrapFrame) -> TrapReturn {
     // save passed arguments into the TrapFrame
-    let ctx = TrapContext {
-        epc,
-        tval,
-        cause,
-        _nohartid: nohartid,
-        status,
-    };
-    tf.ctx = ctx;
+    tf.last_trap = Some(TrapInfo::from_current_regs());
 
     // call actual trap handler (which might decide to switch the execution to a different TrapFrame)
     extern "Rust" {
@@ -154,120 +129,24 @@ extern "C" fn rust_trap_handler(
     let res = unsafe { handle_trap(tf) };
 
     // return the new TrapFrame in the format expected by `trap.S`
-    let epc = res.ctx.epc;
-    TrapReturn {
-        frame: res,
-        pc: epc,
-    }
-}
-
-/// The specific error which resulted in an exception
-#[derive(Debug, Clone)]
-pub enum Fault {
-    Misaligned,
-    AccessFault,
-    PageFault,
-}
-
-/// In which stage of an instruction an exception was triggered
-#[derive(Debug, Clone)]
-pub enum Mode {
-    Instruction,
-    Load,
-    Store,
-}
-
-/// The privilege level from which a trap was triggered
-#[derive(Debug, Clone, PartialEq)]
-pub enum Priv {
-    User = 0,
-    Supervisor = 1,
-    Reserved = 2,
-    Machine = 3,
-}
-
-/// The type of interrupt which was triggered
-#[derive(Debug, Clone)]
-pub enum InterruptType {
-    Software = 0,
-    Timer = 4,
-    External = 8,
-}
-
-/// The cause for a triggered trap
-#[derive(Debug, Clone)]
-pub enum Cause {
-    Interrupt(InterruptType, Priv),
-    EcallFrom(Priv),
-    IllegalInstruction,
-    Breakpoint,
-    Exception(Mode, Fault),
-    Reserved,
-}
-
-impl From<usize> for Cause {
-    fn from(num: usize) -> Self {
-        const MXLEN_MASK: usize = usize::MAX >> 1; // isize::MAX is currently a private constant so we emulate it -.-
-        use Cause::*;
-        use Fault::*;
-        use InterruptType::*;
-        use Mode::*;
-        if (num >> 5) != 0 {
-            let prive = match num & 0b11 {
-                0 => Priv::User,
-                1 => Priv::Supervisor,
-                2 => Priv::Reserved,
-                3 => Priv::Machine,
-                _ => unreachable!(),
-            };
-            let typ = match (num & MXLEN_MASK) >> 2 {
-                0 => Software,
-                1 => Timer,
-                2 => External,
-                _ => {
-                    return Reserved;
-                }
-            };
-            Interrupt(typ, prive)
-        } else {
-            match num {
-                0 => Exception(Instruction, Misaligned),
-                1 => Exception(Instruction, AccessFault),
-                2 => IllegalInstruction,
-                3 => Breakpoint,
-                4 => Exception(Load, Misaligned),
-                5 => Exception(Load, AccessFault),
-                6 => Exception(Store, Misaligned),
-                7 => Exception(Store, AccessFault),
-                8 => EcallFrom(Priv::User),
-                9 => EcallFrom(Priv::Supervisor),
-                10 => EcallFrom(Priv::Reserved),
-                11 => EcallFrom(Priv::Machine),
-                12 => Exception(Instruction, PageFault),
-                13 => Exception(Load, PageFault),
-                14 => Reserved,
-                15 => Exception(Store, PageFault),
-                _ => Reserved,
-            }
-        }
-    }
+    res
 }
 
 #[no_mangle]
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
-    match tf.ctx.get_cause() {
-        Cause::EcallFrom(Priv::User) => {
+    let last_trap = tf.last_trap.as_ref().unwrap();
+
+    match last_trap.cause {
+        TrapEvent::Exception(Exception::EnvCallFromUMode) => {
             log::debug!(
-                "Got ecall from user: {}",
-                tf.general_purpose_regs.registers[10] as u8 as char
+                "Got call from user: {}",
+                tf.general_purpose_regs[10] as u8 as char
             );
-            tf.ctx.epc += 4;
+            tf.start_pc = last_trap.epc + 4;
             tf
         }
         _ => {
-            log::debug!("Interrupt!: Cause: {:?}", tf.ctx.get_cause());
-            log::debug!("PC: {:p}", tf.ctx.epc as *mut u8);
-            log::debug!("{:#x?}", tf.ctx);
+            log::debug!("Interrupt!: Cause: {:#?}", last_trap);
             panic!("no interrupt handler specified");
         }
     }

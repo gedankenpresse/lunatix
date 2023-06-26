@@ -18,12 +18,13 @@
 // define this routine as a symbol that can be externally linked to
 .globl asm_trap_handler
 asm_trap_handler:
-	// save registers using scratch as tmp value and the bottom register (t6) to store the trap frame pointer
+	// save registers using sscratch as tmp value and the bottom register (t6) to store the TrapFrame pointer
 	// (which was originally saved in sscratch by rust when the trapped frame was started)
 
 	csrrw t6, sscratch, t6      // atomically swap t6 and sscratch content
 
 	// save registers (with corresponding offsets to the buffer pointed to by t6)
+	// these values will land in the `general_purpose_regs` and `floating_point_regs` fields in TrapFrame
 	sd x0, 0*REGBYTES(t6)
 	sd x1, 1*REGBYTES(t6)
 	sd x2, 2*REGBYTES(t6)
@@ -56,33 +57,32 @@ asm_trap_handler:
 	sd x29, 29*REGBYTES(t6)
 	sd x30, 30*REGBYTES(t6)
 
+	// floating point registers are currently ignored
+
     // t6 was originally swapped with sscratch so we have to swap it back and save it too
 	mv a0, t6			        // copy trap frame pointer to a0
 	csrrw t6, sscratch, t6 	    // restore original t6 value
 	sd x31, (31*REGBYTES)(a0)   // store actual t6/x31 register the same way the other registers were
 
 	// call rust trap handler with some arguments (a0 to a7 registers)
-	ld sp, (64*REGBYTES)(a0)    // load rust trap handler stack pointer
-	csrr a1, sepc               // load trapped frames program counter into a1
-	csrr a2, stval              // load "bad address or instruction" value into a2
-	csrr a3, scause             // load trap cause into a3
-	// csrr a4, shartid //this does not exist in s mode
-	csrr a5,  sstatus           // load supervisor status into a5
+	ld sp, (64*REGBYTES)(a0)    // load rust trap handler stack pointer (third field in TrapFrame)
+	// a0 (first function argument) already contains the TrapFrame pointer
 	call rust_trap_handler
 
 	// the rust trap handler returns the frap frame
-	// and program conuter that should be restored
-	// fallthrough to restore routine
+	// and program conuter that should be switched to (in a0 and a1).
+	// fallthrough to restore routine as that is ABI compatible and switches to the returned task
 	j trap_frame_restore
 .option pop
 
 
-// a0 ist the trap frame pointer, a1 the program counter
+// a0 ist the trap frame pointer which holds the tasks PC in its
 .globl trap_frame_restore
 trap_frame_restore:
-	csrw sepc, a1   	// restore program counter
-	mv t6, a0 			// move trap frame pointer in bottom register
-	csrw sscratch, t6 	// store trap frame pointer sscratch
+    ld t6, (65*REGBYTES)(a0)    // load program counter (4th field in TrapFrame struct) into t6
+	csrw sepc, t6   	        // configure cpu to return to that program counter upon sret
+	mv t6, a0 			        // move trap frame pointer to t6
+	csrw sscratch, t6 	        // store trap frame pointer to sscratch
 
 	// restore registers of the frame
 	// this modifies the bottom register last, so that t6 doesn't have to be saved anyhere
@@ -118,4 +118,7 @@ trap_frame_restore:
 	ld x29, 29*REGBYTES(t6)
 	ld x30, 30*REGBYTES(t6)
 	ld x31, 31*REGBYTES(t6)         // this overwrites t6
-	sret
+
+	// floating point registers are currently ignored
+
+	sret                            // return from trap handler
