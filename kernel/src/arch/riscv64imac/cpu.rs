@@ -49,7 +49,7 @@ pub struct SStatus {}
 bitflags! {
     #[derive(Debug)]
     pub struct SStatusFlags: u64 {
-        /// The SPP bit indicates at which a hart was executing before entering supervisor mode.
+        /// The SPP bit indicates at which mode a hart was executing before entering supervisor mode.
         /// When a trap is taken, SPP is set to `0` if the trap originated from user mode and `1` otherwise.
         /// When an `SRET` instruction is executed to return from the trap handler the privilege level is set to user
         /// mode if the SPP bit is `0`, or supervisor mode if the SPP bit is `1`.

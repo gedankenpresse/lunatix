@@ -10,6 +10,7 @@ mod logging;
 mod mem;
 mod virtmem;
 
+use crate::arch::cpu::SStatusFlags;
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::logging::KernelLogger;
@@ -118,8 +119,7 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
 }
 
 unsafe fn set_return_to_user() {
-    let spp: usize = 1 << 8;
-    core::arch::asm!("csrc sstatus, a0",in("a0") spp);
+    arch::cpu::SStatus::write(arch::cpu::SStatus::read() | SStatusFlags::SPP);
 }
 
 #[no_mangle]
