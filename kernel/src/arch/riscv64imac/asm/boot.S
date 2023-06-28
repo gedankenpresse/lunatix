@@ -24,9 +24,9 @@ _abs_start:
 	.option pop
 
 	// put everything except hart0 to sleep
-	beqz a0, 2f
-	wfi
-	j 3f
+	// beqz a0, 2f
+	// wfi
+	// j 3f
 
 2:
 	// prepare hart0 stack

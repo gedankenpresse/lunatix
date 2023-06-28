@@ -57,6 +57,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
 }
 
 fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
+    println!("[init] getting memory from device tree");
     use fdt_rs::prelude::{FallibleIterator, PropReader};
     let mut nodes = dev_tree.nodes();
     let mut memory = None;
@@ -66,6 +67,7 @@ fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
             break;
         }
     }
+
     let memory = match memory {
         Some(node) => node,
         None => panic!("no memory"),
@@ -121,15 +123,81 @@ unsafe fn set_return_to_user() {
 }
 
 
+struct CmdArgIter {
+    argc: u32,
+    current: u32,
+    argv: *const *const core::ffi::c_char,
+}
+
+impl Iterator for CmdArgIter {
+    type Item = &'static str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.argc { return None; }
+        let i = self.current;
+        self.current += 1;
+        let cstr = unsafe { *self.argv.offset(i as isize) };
+        use core::ffi::CStr;
+        let cs = unsafe { CStr::from_ptr(cstr) };
+        let s = cs.to_str().unwrap();
+        return Some(s);
+    }
+}
+
+fn arg_iter(argc: u32, argv: *const *const core::ffi::c_char) -> impl Iterator<Item = &'static str> {
+    CmdArgIter { 
+        argc,
+        argv,
+        current: 0,
+    }
+}
+
+#[no_mangle]
+extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) {
+    println!("Hello world from the kernel!");
+
+    let mut fdt_addr: Option<*const u8> = None;
+    for arg in arg_iter(argc, argv) {
+        if let Some(addr_str) = arg.strip_prefix("fdt_addr=") {
+            let addr = u64::from_str_radix(addr_str, 16).unwrap();
+            fdt_addr = Some(addr as *const u8);
+            println!("got fdt addr: {:p}", fdt_addr.unwrap());
+        } else {
+            println!("unknown arg {}", arg);
+        }
+    }
+
+    kernel_main(0, 0, fdt_addr.expect("need fdt_addr arg to start"));
+    // shut down the machine
+    arch::shutdown();
+    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };
+    unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
+}
+
 #[no_mangle]
 #[allow(unreachable_code)]
-extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
+extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
+    println!("hello world!");
+    println!("{:p}", dtb);
+    println!("size of u32 {}", core::mem::size_of::<u32>());
+
+    extern "C" {
+        static _stack_start: usize;
+    }
+
+    println!("stack start: {:p}", unsafe { &_stack_start });
+    let local = 0;
+    println!("local var {:p}", &local);
+    
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+
+    println!("parsed dtb");
 
     // save memory for later
     // we need this to map all physical memory into the kernelspace when enabling virtual memory 
     let (mem_start, mem_length) =  get_memory(&device_tree).unwrap().unwrap();
+    println!("got usable memory region");
 
     // setup page heap
     // after this operation, the device tree was overwritten
