@@ -70,6 +70,11 @@ bitflags! {
 }
 
 
+pub enum EntryError {
+    EntryInvalid,
+    EntryIsPage,
+}
+
 impl Entry {
     pub fn is_valid(&self) -> bool {
         self.entry & EntryBits::Valid.bits() != 0
@@ -81,6 +86,10 @@ impl Entry {
 	pub fn is_leaf(&self) -> bool {
 		self.entry & EntryBits::RWX.bits() != 0
 	}
+
+    pub fn is_pt(&self) -> bool {
+        self.entry & EntryBits::RWX.bits() == 0
+    }
 
     pub unsafe fn get_ptr(& self) -> *const PageTable {
         // TODO: Is this correct?
@@ -96,6 +105,16 @@ impl Entry {
     pub unsafe fn get_ptr_usize(& self) -> usize {
         // TODO: Is this correct?
         ((self.entry << 2) & !((1<<12) - 1)) as usize
+    }
+
+    pub unsafe fn get_pagetable_mut(&mut self) -> Result<&mut PageTable, EntryError> {
+        if self.is_invalid() {
+            return Err(EntryError::EntryInvalid);
+        }
+        if self.is_pt() {
+            return Ok(self.get_ptr_mut().as_mut().unwrap());
+        }
+        return Err(EntryError::EntryIsPage);
     }
 }
 
@@ -118,6 +137,32 @@ fn vpn_segments(vaddr: usize) -> [usize; 3] {
         // (vaddr >> (12 + 3 * VPN_BITS)) & VPN_BIT_MASK,
     ];
     vpn
+}
+
+#[derive(Debug)]
+pub enum MapError {
+    MappingExists,
+    PageTableMissing { level: usize },
+}
+
+
+pub fn map_available(root: &mut PageTable, vaddr: usize, paddr: usize, bits: usize) -> Result<(), MapError> {
+    // Make sure that one of Read, Write, or Execute Bits is set.
+    // Otherwise, entry is regarded as pointer to next page table level
+    assert!(bits & EntryBits::RWX.bits() as usize != 0);
+    assert!(bits & !(EntryBits::all().bits() as usize) == 0);
+
+    let vpn = vpn_segments(vaddr);
+    let v = &mut root.entries[vpn[2]];
+    let level1 = unsafe { v.get_pagetable_mut().map_err(|e| 
+        match e {
+            EntryError::EntryInvalid => MapError::PageTableMissing { level: 0 },
+            EntryError::EntryIsPage => MapError::MappingExists,
+        }    
+    )?};
+    
+
+    Ok(())
 }
 
 pub fn map(alloc:  &mut memory::Arena<'static, Page>, root: &mut PageTable, vaddr: usize, paddr: usize, bits: usize) {
