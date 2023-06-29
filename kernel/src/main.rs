@@ -57,7 +57,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
 }
 
 fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
-    println!("[init] getting memory from device tree");
     use fdt_rs::prelude::{FallibleIterator, PropReader};
     let mut nodes = dev_tree.nodes();
     let mut memory = None;
@@ -73,7 +72,6 @@ fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
         None => panic!("no memory"),
     };
 
-    println!("{:?}", memory.name()?);
     let mut props = memory.props();
     while let Some(prop) = props.next()? {
         if prop.name().unwrap() == "reg" {
@@ -95,6 +93,8 @@ fn init_heap(dev_tree: &DevTree) -> memory::Arena<'static, crate::mem::Page> {
     assert!(heap_start >= start as *mut u8);
     assert!(heap_start < (start + size) as *mut u8);
     let heap_size = size - (heap_start as u64 - start);
+
+    println!("[init alloc] {heap_start:p} {heap_size:0x}");
     let pages = heap_size as usize / crate::mem::PAGESIZE;
     assert!(pages * crate::mem::PAGESIZE <= (heap_size as usize));
 
@@ -176,31 +176,21 @@ extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) 
 
 #[no_mangle]
 #[allow(unreachable_code)]
-extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
-    println!("hello world!");
-    println!("{:p}", dtb);
-    println!("size of u32 {}", core::mem::size_of::<u32>());
-
-    extern "C" {
-        static _stack_start: usize;
-    }
-
-    println!("stack start: {:p}", unsafe { &_stack_start });
-    let local = 0;
-    println!("local var {:p}", &local);
-    
+extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {    
     // parse device tree from bootloader
+    println!("[main] parse device tree");
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
-    println!("parsed dtb");
 
     // save memory for later
     // we need this to map all physical memory into the kernelspace when enabling virtual memory 
+    print!("[main] physical memory:\t");
     let (mem_start, mem_length) =  get_memory(&device_tree).unwrap().unwrap();
-    println!("got usable memory region");
+    println!("{mem_start:0x} {mem_length:0x}");
 
     // setup page heap
     // after this operation, the device tree was overwritten
+    println!("[main] init alloc");
     let mut allocator = init_heap(&device_tree);
     drop(device_tree);
     drop(dtb);
@@ -208,21 +198,31 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
     // setup context switching
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
+    unsafe { (*trap_frame).trap_stack = trap_handler_stack.add(10).cast() }
+
+    println!("[main] enabling interrupts");
     unsafe { arch::asm_utils::write_sscratch(trap_frame as usize); }
     arch::trap::enable_interrupts();
 
+    // println!("[main] testing interrupts");
+    // unsafe { *(0x4 as *mut u8) = 0 };
+
+    println!("[main] creating kernel id map");
     let kernel_root = virtmem::create_kernel_page_table(
         &mut allocator,
         mem_start as usize,
         mem_length as usize
     ).expect("Could not create kernel page table");
+    println!("[main] enabling virtual memory");
     unsafe { KERNEL_ROOT_PT = kernel_root as *const virtmem::PageTable };
     unsafe { virtmem::use_pagetable(kernel_root); }
 
-    println!("creating init caps");
+    println!("[main] creating init caps");
     init::create_init_caps(allocator);
-    println!("switching to userspace");
+
+
     // switch to userspace
+    println!("[main] switching to userspace");
     unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();

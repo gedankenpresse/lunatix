@@ -620,7 +620,11 @@ impl Satp {
     }
 
     pub unsafe fn write_raw(val: u64) {
-        write_reg!("satp", val)
+        asm!("
+            csrw satp, {}
+            sfence.vma
+        ", in(reg) val);
+
     }
 
     pub unsafe fn write(val: SatpData) {

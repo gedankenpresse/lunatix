@@ -244,6 +244,7 @@ pub fn id_map_range(alloc: &mut Arena<'static, Page>, root: &mut PageTable, star
     let ptr: *mut Page = (start & !(PAGESIZE - 1)) as *mut Page;
     let endptr: *mut Page = end as *mut Page;
     assert!(ptr <= endptr);
+    crate::println!("[id_map] start {:0x} end {:0x}", start, end);
     let mut offset = 0;
     while unsafe { ptr.add(offset) < endptr } {
         let addr = unsafe { ptr.add(offset) } as usize;
@@ -284,12 +285,20 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
     // enable SUM (premit Supervisor User Memory access) bit
     unsafe { SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM); }
 
-    crate::println!("enabling new pagetable {:p}", root);
+
+    let data = Satp::read();
+    crate::println!("[use_pagetable] current satp status {:?}", data);
+
+    unsafe { 
+        core::arch::asm!("sfence.vma");
+    };
+
+    crate::println!("[use_pagetable] enabling {:p}", root);
 
     // Setup Root Page table in satp register
     unsafe { Satp::write(SatpData { 
         mode: SatpMode::Sv39,
-        asid: 0,
+        asid: 1,
         ppn: root as u64 >> 12 
     });}
 }

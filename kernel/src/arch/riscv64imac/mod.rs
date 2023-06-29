@@ -42,8 +42,9 @@ pub unsafe extern "C" fn _start_rust(argc: u32, argv: *const *const core::ffi::c
     if _mp_hook() {
         __pre_init();
 
-        r0::zero_bss(&mut _sbss, &mut _ebss);
-        r0::init_data(&mut _sdata, &mut _edata, &_sidata);
+        // this seems to be done by uboot, we don't have to do this manually
+        //r0::zero_bss(&mut _sbss, &mut _ebss);
+        //r0::init_data(&mut _sdata, &mut _edata, &_sidata);
     }
 
 
