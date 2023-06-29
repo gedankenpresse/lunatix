@@ -5,6 +5,7 @@
 mod allocator;
 mod logging;
 mod virtmem;
+mod argv_iter;
 
 #[path = "arch/riscv64imac/mod.rs"]
 mod arch;
@@ -46,13 +47,46 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
             .as_mut()
             .unwrap()
     };
+    log::debug!("root_table addr: {:p}", root_table);
 
     let mut kernel_loader = KernelLoader::new(allocator, root_table);
     let binary = ElfBinary::new(KERNEL_BIN).expect("Could not load kernel as elf object");
     binary
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
+    let stack_start: usize = 0xfffffffffff7a000;
+    kernel_loader.load_stack(stack_start - 0x5000, stack_start);
     let entry_point = binary.entry_point();
+    let KernelLoader { allocator, root_pagetable } = kernel_loader;
+
+    // a small hack, so that we don't run into problems when enabling virtual memory
+    // the kernel has to clean up lower address space later
+    log::debug!("identity mapping lower memory region");
+    virtmem::id_map_lower_huge(root_pagetable);
+
+    /*
+    for (i, entry) in root_pagetable.entries.iter().enumerate() {
+        log::debug!("{i} {entry:?}")
+    }
+    */
+
+    log::info!("Enabling Virtual Memory!");
+    unsafe { virtmem::use_pagetable(root_pagetable as *mut PageTable); }
+
+
+    log::info!("Starting Kernel");
+    log::debug!("Entry Point: {entry_point:0x}");
+    let argc: u32 = 0;
+    let argv: *const *const core::ffi::c_char = 0 as *const *const core::ffi::c_char;
+    unsafe { core::arch::asm!(
+        "mv gp, x0",
+        "mv sp, {stack}",
+        "jr {entry}",
+        stack = in(reg) stack_start - 16,
+        entry = in(reg) entry_point,
+        in("a0") argc,
+        in("a1") argv,
+    ); }
 
     unreachable!()
 }

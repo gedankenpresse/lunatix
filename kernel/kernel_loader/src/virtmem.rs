@@ -1,6 +1,7 @@
 use crate::allocator::BumpAllocator;
 use crate::arch::cpu::*;
 use bitflags::{bitflags, Flags};
+use core::fmt::Write;
 use core::mem;
 use core::mem::MaybeUninit;
 
@@ -12,11 +13,21 @@ pub struct Entry {
     entry: u64,
 }
 
+impl core::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Entry")
+            .field("ppn", unsafe { &self.get_ptr() })
+            .field("flags", &self.flags())
+            .finish()
+    }
+}
+
 /// One virtual memory mapping page.
 ///
 /// It exactly fills 4096 bytes which is also the size of mapped pages.
+#[derive(Debug)]
 pub struct PageTable {
-    entries: [Entry; 512],
+    pub entries: [Entry; 512],
 }
 
 impl PageTable {
@@ -36,7 +47,7 @@ impl PageTable {
 }
 
 bitflags! {
-    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    #[derive(Copy, Clone, Eq, PartialEq)]
     pub struct EntryBits: u64 {
         /// If set, the MMU considers this a valid entry in the page table and uses it for address mapping
         const Valid = 1 << 0;
@@ -65,6 +76,29 @@ bitflags! {
     }
 }
 
+impl core::fmt::Debug for EntryBits {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fn write_bit(flags: EntryBits, bit: EntryBits, c: char, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            if flags.contains(bit) {
+                f.write_char(c)
+            } else {
+                f.write_char(' ')
+            }
+        }
+        write_bit(*self, EntryBits::CUSTOM2, '2', f)?;
+        write_bit(*self, EntryBits::CUSTOM1, '1', f)?;
+        write_bit(*self, EntryBits::Dirty, 'D', f)?;
+        write_bit(*self, EntryBits::Accessed, 'A', f)?;
+        write_bit(*self, EntryBits::Global, 'G', f)?;
+        write_bit(*self, EntryBits::UserReadable, 'U', f)?;
+        write_bit(*self, EntryBits::Execute, 'X', f)?;
+        write_bit(*self, EntryBits::Write, 'W', f)?;
+        write_bit(*self, EntryBits::Read, 'R', f)?;
+        write_bit(*self, EntryBits::Valid, 'V', f)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub enum EntryError {
     EntryInvalid,
@@ -74,6 +108,10 @@ pub enum EntryError {
 impl Entry {
     pub fn is_valid(&self) -> bool {
         self.entry & EntryBits::Valid.bits() != 0
+    }
+
+    pub fn flags(&self) -> EntryBits {
+        EntryBits::from_bits(self.entry & ((1 << 9) - 1)).unwrap()
     }
 
     /// Whether this is a leaf entry not pointing to further [`PageTable`]s.
@@ -92,6 +130,10 @@ impl Entry {
     pub unsafe fn get_ptr_raw(&self) -> usize {
         // TODO: Is this correct?
         ((self.entry << 2) & !PBIT_MASK as u64) as usize
+    }
+
+    pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
+        self.entry = (paddr >> 2) | (flags | EntryBits::Valid).bits();
     }
 }
 
@@ -236,6 +278,14 @@ pub fn id_map_range(
         let addr = unsafe { ptr.add(offset) } as usize;
         map(alloc, root, addr, addr, flags);
         offset += 1;
+    }
+}
+
+pub fn id_map_lower_huge(root: &mut PageTable) {
+    let base: u64 = 1 << 30;
+    for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
+        assert!(!entry.is_valid());
+        unsafe { entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid); }
     }
 }
 

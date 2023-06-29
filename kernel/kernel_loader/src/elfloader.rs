@@ -12,8 +12,8 @@ use elfloader::{
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader {
-    allocator: BumpAllocator,
-    root_pagetable: &'static mut PageTable,
+    pub allocator: BumpAllocator,
+    pub root_pagetable: &'static mut PageTable,
 }
 
 impl KernelLoader {
@@ -23,6 +23,20 @@ impl KernelLoader {
             root_pagetable,
         }
     }
+
+
+    pub fn load_stack(&mut self, stack_low: usize, stack_high: usize) -> u64 {
+        let rw = virtmem::EntryBits::Read | virtmem::EntryBits::Write;
+        virtmem::map_range_alloc(
+            &mut self.allocator,
+            &mut self.root_pagetable,
+            stack_low,
+            stack_high - stack_low,
+            rw,
+        );
+        return stack_high as u64;
+     }
+
 }
 
 impl ElfLoader for KernelLoader {
@@ -32,7 +46,7 @@ impl ElfLoader for KernelLoader {
                 "allocate base = {:#x} end = {:#x} flags = {}",
                 header.virtual_addr(),
                 header.virtual_addr() + header.mem_size(),
-                header.flags()
+                header.flags(),
             );
 
             // derive mmu control bits from elf header
