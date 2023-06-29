@@ -28,9 +28,9 @@ extern "C" {
 /// Has to zero bss and init data
 /// Assumes that correct device tree header/struct and hartid is passed
 #[no_mangle]
-pub unsafe extern "C" fn _start_rust(hartid: usize, dtb: *mut u8) -> ! {
+pub unsafe extern "C" fn _start_rust(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     extern "C" {
-        fn kernel_main(hartid: usize, _unused: usize, dtb: *mut u8);
+        fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char);
     }
 
     extern "Rust" {
@@ -42,11 +42,13 @@ pub unsafe extern "C" fn _start_rust(hartid: usize, dtb: *mut u8) -> ! {
     if _mp_hook() {
         __pre_init();
 
-        r0::zero_bss(&mut _sbss, &mut _ebss);
-        r0::init_data(&mut _sdata, &mut _edata, &_sidata);
+        // this seems to be done by uboot, we don't have to do this manually
+        //r0::zero_bss(&mut _sbss, &mut _ebss);
+        //r0::init_data(&mut _sdata, &mut _edata, &_sidata);
     }
 
-    kernel_main(hartid, 0, dtb);
+    //kernel_main(hartid, 0, dtb);
+    kernel_main_elf(argc, argv);
 
     shutdown();
 }

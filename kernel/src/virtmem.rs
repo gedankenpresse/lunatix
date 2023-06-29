@@ -68,6 +68,12 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub enum EntryError {
+    EntryInvalid,
+    EntryIsPage,
+}
+
 impl Entry {
     pub fn is_valid(&self) -> bool {
         self.entry & EntryBits::Valid.bits() != 0
@@ -93,6 +99,16 @@ impl Entry {
     pub unsafe fn get_ptr_usize(&self) -> usize {
         // TODO: Is this correct?
         ((self.entry << 2) & !((1 << 12) - 1)) as usize
+    }
+
+    pub unsafe fn get_pagetable_mut(&mut self) -> Result<&mut PageTable, EntryError> {
+        if self.is_invalid() {
+            return Err(EntryError::EntryInvalid);
+        }
+        // if self.is_pt() {        // TODO Fix this
+        //     return Ok(self.get_ptr_mut().as_mut().unwrap());
+        // }
+        return Err(EntryError::EntryIsPage);
     }
 }
 
@@ -210,6 +226,7 @@ pub fn id_map_range(
     let ptr: *mut Page = (start & !(PAGESIZE - 1)) as *mut Page;
     let endptr: *mut Page = end as *mut Page;
     assert!(ptr <= endptr);
+    log::debug!("[id_map] start {:0x} end {:0x}", start, end);
     let mut offset = 0;
     while unsafe { ptr.add(offset) < endptr } {
         let addr = unsafe { ptr.add(offset) } as usize;
