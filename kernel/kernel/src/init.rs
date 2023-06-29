@@ -10,7 +10,7 @@ use elfloader::{
     VAddr,
 };
 
-const INIT_BIN: &[u8] = include_bytes!("../../userspace/init_main");
+// const INIT_BIN: &[u8] = include_bytes!("../../userspace/init_main");
 
 struct StackLoader<'a, 'b> {
     vbase: u64,
@@ -184,19 +184,20 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
                 mem: mem_cap,
                 vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
             };
-            let binary = ElfBinary::new(INIT_BIN).unwrap();
-            binary.load(&mut elf_loader).expect("Cant load the binary?");
-            let entry_point = binary.entry_point() + elf_loader.vbase;
+            // let binary = ElfBinary::new(INIT_BIN).unwrap();
+            // binary.load(&mut elf_loader).expect("Cant load the binary?");
+            // let entry_point = binary.entry_point() + elf_loader.vbase;
 
             // set stack pointer
             taskstate.frame.general_purpose_regs[2] = stack_start as usize;
 
             // try setting gp
-            taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
+            // taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
 
             // set up program counter to point to userspace code
-            taskstate.frame.start_pc = entry_point as usize;
-            log::debug!("entry point: {:0x}", taskstate.frame.start_pc);
+            // taskstate.frame.start_pc = entry_point as usize;
+            // log::debug!("entry point: {:0x}", taskstate.frame.start_pc);
+            panic!()
         }
     }
 }

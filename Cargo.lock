@@ -84,6 +84,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kernel_loader"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.3.2",
+ "cc",
+ "elfloader",
+ "kernel",
+ "log",
+ "sbi",
+]
+
+[[package]]
 name = "ksync"
 version = "0.1.0"
 

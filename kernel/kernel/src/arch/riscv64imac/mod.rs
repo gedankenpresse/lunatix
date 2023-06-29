@@ -34,17 +34,7 @@ pub unsafe extern "C" fn _start_rust(argc: u32, argv: *const *const core::ffi::c
     }
 
     extern "Rust" {
-        fn __pre_init();
-        fn _mp_hook() -> bool;
         fn _setup_interrupts();
-    }
-
-    if _mp_hook() {
-        __pre_init();
-
-        // this seems to be done by uboot, we don't have to do this manually
-        //r0::zero_bss(&mut _sbss, &mut _ebss);
-        //r0::init_data(&mut _sdata, &mut _edata, &_sidata);
     }
 
     //kernel_main(hartid, 0, dtb);
@@ -58,15 +48,4 @@ pub fn shutdown() -> ! {
         fn wfi_spin() -> !;
     }
     unsafe { wfi_spin() }
-}
-
-#[no_mangle]
-pub fn default_pre_init() {}
-
-/// # Safety
-/// should only return true for one hart, but with sbi it shouldn't matter
-#[no_mangle]
-pub unsafe fn default_mp_hook() -> bool {
-    //when booting with sbi only one hart should be executing, so we can do nothing here
-    true
 }
