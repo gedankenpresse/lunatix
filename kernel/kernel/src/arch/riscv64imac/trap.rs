@@ -138,7 +138,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            log::debug!(
+            crate::println!(
                 "Got call from user: {}",
                 tf.general_purpose_regs[10] as u8 as char
             );
@@ -146,7 +146,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             tf
         }
         _ => {
-            log::debug!("Interrupt!: Cause: {:#?}", last_trap);
+            crate::println!("Interrupt!: Cause: {:#?}", last_trap);
             panic!("no interrupt handler specified");
         }
     }

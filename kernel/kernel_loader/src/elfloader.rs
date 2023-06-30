@@ -27,6 +27,7 @@ impl KernelLoader {
 
     pub fn load_stack(&mut self, stack_low: usize, stack_high: usize) -> u64 {
         let rw = virtmem::EntryBits::Read | virtmem::EntryBits::Write;
+        log::debug!("loading stack low: {stack_low:0x} high: {stack_high:0x}");
         virtmem::map_range_alloc(
             &mut self.allocator,
             &mut self.root_pagetable,

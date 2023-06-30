@@ -33,7 +33,7 @@ _abs_start:
 	// TODO: init other harts stacks in rust main
 	.option push
 	.option norelax
-	la sp, _stack_start
+	// la sp, _stack_start
 	.option pop
 
 	//setup frame pointer

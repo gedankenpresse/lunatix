@@ -37,7 +37,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     LOGGER.install().expect("Could not install logger");
     log::info!("Hello World from Kernel Loader");
 
-    const MEM_START: usize = 0x81400000 + 0x1000000;
+    const MEM_START: usize = 0x82500000 + 0x1000000;
     let mut allocator =
         unsafe { BumpAllocator::new(MEM_START as *mut u8, (MEM_START + 0x20000000) as *mut u8) };
 
@@ -78,6 +78,12 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("Entry Point: {entry_point:0x}");
     let argc: u32 = 0;
     let argv: *const *const core::ffi::c_char = 0 as *const *const core::ffi::c_char;
+    let ptr = entry_point as *const ();
+    let entry: extern "C" fn(argc: u32, argv: *const *const core::ffi::c_char) = unsafe { core::mem::transmute(ptr) };
+    entry(argc, argv);
+
+    /*
+    unsafe { (entry_point as as  extern "C" fn (argc: u32, argv: *const *const core::ffi::c_char))(argc, argv) }
     unsafe { core::arch::asm!(
         "mv gp, x0",
         "mv sp, {stack}",
@@ -87,6 +93,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         in("a0") argc,
         in("a1") argv,
     ); }
+    */
 
     unreachable!()
 }

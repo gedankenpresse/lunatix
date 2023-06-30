@@ -7,8 +7,12 @@ mod arch;
 mod caps;
 mod init;
 mod logging;
+mod printk;
 mod mem;
 mod virtmem;
+
+
+
 
 use crate::arch::cpu::SStatusFlags;
 use crate::arch::trap::TrapFrame;
@@ -35,6 +39,17 @@ impl InitCaps {
     }
 }
 
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::printk::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
 /// TODO: fix this somehow
@@ -48,7 +63,7 @@ pub static mut KERNEL_ROOT_PT: *const virtmem::PageTable = 0x0 as *const virtmem
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
-    log::error!("!!! Kernel Panic !!!\n  {}", info);
+    crate::println!("!!! Kernel Panic !!!\n  {}", info);
 
     // shutdown the device
     unsafe {
@@ -157,8 +172,17 @@ fn arg_iter(
     }
 }
 
+/*/
+#[no_mangle]
+extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) {
+    kernel_main_elf(argc, argv)
+}
+*/
+
 #[no_mangle]
 extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) {
+    println!("Hello world");
+    LOGGER.install().expect("Could not install logger");
     log::info!("Hello world from the kernel!");
 
     let mut fdt_addr: Option<*const u8> = None;
@@ -186,8 +210,6 @@ extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) 
 #[no_mangle]
 #[allow(unreachable_code)]
 extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
-    LOGGER.install().expect("Could not install logger");
-
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 

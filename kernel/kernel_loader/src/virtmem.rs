@@ -201,6 +201,12 @@ pub fn map(
     let v = &mut pt.entries[vpn[0]];
 
     // TODO Assert that the entry is empty and not currently pointing at anything
+    if v.is_valid() {
+        log::debug!("expected invalid entry, got {v:?} {vaddr:0x}, new: {flags:?}");
+        //assert!(!v.is_valid(), "remapping entry");
+        flags |= v.flags();
+        log::debug!("new flags {flags:?}");
+    }
 
     // Now we are ready to point v to our physical address
     v.entry = ((paddr >> 2) | (flags | EntryBits::Valid).bits() as usize) as u64;
@@ -325,7 +331,7 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
     unsafe {
         Satp::write(SatpData {
             mode: SatpMode::Sv39,
-            asid: 0,
+            asid: 1,
             ppn: root as u64 >> 12,
         });
     }
