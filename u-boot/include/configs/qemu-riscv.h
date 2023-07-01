@@ -21,7 +21,8 @@
 	func(QEMU, qemu, na) \
 	func(VIRTIO, virtio, 0) \
 	func(SCSI, scsi, 0) \
-	func(DHCP, dhcp, na)
+	func(DHCP, dhcp, na) \
+	func(ELF, elf, na)
 
 #include <config_distro_bootcmd.h>
 
@@ -30,6 +31,15 @@
 		"if env exists kernel_start; then " \
 			"bootm ${kernel_start} - ${fdtcontroladdr};" \
 		"fi;\0"
+
+
+#define BOOTENV_DEV_ELF(devtypeu, devtypel, instance) \
+	"bootcmd_elf=" \
+		"setenv autostart yes; " \
+		"bootelf fdt_addr=${fdt_addr};\0"
+
+#define BOOTENV_DEV_NAME_ELF(devtypeu, devtypel, instance) \
+	"elf "
 
 #define BOOTENV_DEV_NAME_QEMU(devtypeu, devtypel, instance) \
 	"qemu "
