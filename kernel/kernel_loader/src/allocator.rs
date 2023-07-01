@@ -28,6 +28,17 @@ impl BumpAllocator {
             None
         } else {
             self.start = unsafe { aligned_start.add(size) };
+            
+            // zero content, this should actually be done in the elf loader...
+            // TODO: don't do this step and initialize kernel correctly
+            unsafe {
+                let mut start = aligned_start;
+                let end = aligned_start.add(size);
+                while start < end {
+                    *start = 0;
+                    start = start.add(1);
+                }
+            };
             Some(aligned_start)
         }
     }

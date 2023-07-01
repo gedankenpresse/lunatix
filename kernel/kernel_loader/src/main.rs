@@ -60,30 +60,19 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let KernelLoader { allocator, root_pagetable } = kernel_loader;
 
     // a small hack, so that we don't run into problems when enabling virtual memory
-    // the kernel has to clean up lower address space later
+    // TODO: the kernel has to clean up lower address space later
     log::debug!("identity mapping lower memory region");
     virtmem::id_map_lower_huge(root_pagetable);
 
-    /*
-    for (i, entry) in root_pagetable.entries.iter().enumerate() {
-        log::debug!("{i} {entry:?}")
-    }
-    */
 
     log::info!("Enabling Virtual Memory!");
     unsafe { virtmem::use_pagetable(root_pagetable as *mut PageTable); }
 
+    // TODO: relocate and map device tree
+    // TODO: relocate and map argv
+    // TODO: add phys mem to argv
 
-    log::info!("Starting Kernel");
-    log::debug!("Entry Point: {entry_point:0x}");
-    let argc: u32 = 0;
-    let argv: *const *const core::ffi::c_char = 0 as *const *const core::ffi::c_char;
-    let ptr = entry_point as *const ();
-    let entry: extern "C" fn(argc: u32, argv: *const *const core::ffi::c_char) = unsafe { core::mem::transmute(ptr) };
-    entry(argc, argv);
-
-    /*
-    unsafe { (entry_point as as  extern "C" fn (argc: u32, argv: *const *const core::ffi::c_char))(argc, argv) }
+    log::info!("Starting Kernel, entry point: {entry_point:0x}");
     unsafe { core::arch::asm!(
         "mv gp, x0",
         "mv sp, {stack}",
@@ -93,7 +82,6 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         in("a0") argc,
         in("a1") argv,
     ); }
-    */
 
     unreachable!()
 }

@@ -181,7 +181,6 @@ extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) {
 
 #[no_mangle]
 extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) {
-    println!("Hello world");
     LOGGER.install().expect("Could not install logger");
     log::info!("Hello world from the kernel!");
 
