@@ -210,7 +210,7 @@ impl StVec {
             val.mode,
             "StVec value uses an invalid mode"
         );
-        Self::write_raw((val.base & !(0b11 << 62)) | (val.mode as u64) << 62)
+        Self::write_raw(val.base | val.mode as u64)
     }
 }
 
