@@ -14,16 +14,19 @@ mod virtmem;
 
 
 
+use crate::arch::cpu::Satp;
+use crate::virtmem::{PageTable, virt_to_phys};
 use crate::{arch::cpu::SStatusFlags, mem::phys_to_kernel};
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::logging::KernelLogger;
-use crate::mem::Page;
+use crate::mem::{Page, phys_to_kernel_mut_ptr};
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use log::Level;
 use mem::{PhysConstPtr, PhysMutPtr};
+use memory::Arena;
 use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 
 pub struct InitCaps {
@@ -38,17 +41,6 @@ impl InitCaps {
             init_task: CSlot::empty(),
         }
     }
-}
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::printk::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
@@ -73,53 +65,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
     }
 }
 
-fn get_memory(dev_tree: &DevTree) -> fdt_rs::error::Result<Option<(u64, u64)>> {
-    use fdt_rs::prelude::{FallibleIterator, PropReader};
-    let mut nodes = dev_tree.nodes();
-    let mut memory = None;
-    while let Some(item) = nodes.next()? {
-        if item.name()?.starts_with("memory") {
-            memory = Some(item);
-            break;
-        }
-    }
-    let memory = match memory {
-        Some(node) => node,
-        None => panic!("no memory"),
-    };
-
-    log::debug!("{:?}", memory.name()?);
-    let mut props = memory.props();
-    while let Some(prop) = props.next()? {
-        if prop.name().unwrap() == "reg" {
-            let start = prop.u64(0)?;
-            let size = prop.u64(1)?;
-            return Ok(Some((start, size)));
-        }
-    }
-    return Ok(None);
-}
-
-fn init_heap(dev_tree: &DevTree) -> memory::Arena<'static, crate::mem::Page> {
-    extern "C" {
-        static mut _heap_start: u64;
-    }
-
-    let heap_start: *mut u8 = unsafe { &mut _heap_start as *mut u64 as *mut u8 };
-    let (start, size) = get_memory(dev_tree).unwrap().unwrap();
-    assert!(heap_start >= start as *mut u8);
-    assert!(heap_start < (start + size) as *mut u8);
-    let heap_size = size - (heap_start as u64 - start);
-    let pages = heap_size as usize / crate::mem::PAGESIZE;
-    assert!(pages * crate::mem::PAGESIZE <= (heap_size as usize));
-
-    let pages =
-        unsafe { core::slice::from_raw_parts_mut(heap_start as *mut crate::mem::Page, pages) };
-    let mem = memory::Arena::new(pages);
-    log::debug!("{:?}", &mem);
-    mem
-}
-
 /// Yield to the task that owns the given `trap_frame`
 unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
     let state = unsafe { task.state.as_mut().unwrap() };
@@ -139,46 +84,6 @@ unsafe fn set_return_to_user() {
     arch::cpu::SStatus::clear(SStatusFlags::SPP);
 }
 
-struct CmdArgIter {
-    argc: u32,
-    current: u32,
-    argv: *const *const core::ffi::c_char,
-}
-
-impl Iterator for CmdArgIter {
-    type Item = &'static str;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.argc {
-            return None;
-        }
-        let i = self.current;
-        self.current += 1;
-        let cstr = unsafe { *self.argv.offset(i as isize) };
-        use core::ffi::CStr;
-        let cs = unsafe { CStr::from_ptr(cstr) };
-        let s = cs.to_str().unwrap();
-        return Some(s);
-    }
-}
-
-fn arg_iter(
-    argc: u32,
-    argv: *const *const core::ffi::c_char,
-) -> impl Iterator<Item = &'static str> {
-    CmdArgIter {
-        argc,
-        argv,
-        current: 0,
-    }
-}
-
-/*/
-#[no_mangle]
-extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) {
-    kernel_main_elf(argc, argv)
-}
-*/
 
 #[no_mangle]
 extern "C" fn kernel_main_elf(
@@ -196,6 +101,8 @@ extern "C" fn kernel_main_elf(
         0,
         0,
         fdt_addr,
+        phys_mem_start,
+        phys_mem_end,
     );
     // shut down the machine
     arch::shutdown();
@@ -203,37 +110,50 @@ extern "C" fn kernel_main_elf(
     unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
 }
 
-#[no_mangle]
-#[allow(unreachable_code)]
-extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
+extern "C" fn kernel_main(
+    _hartid: usize,
+    _unused: usize,
+    dtb: *const u8,
+    phys_mem_start: PhysMutPtr<u8>,
+    phys_mem_end: PhysMutPtr<u8>,
+) {
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
-    // save memory for later
-    // we need this to map all physical memory into the kernelspace when enabling virtual memory
-    let (mem_start, mem_length) = get_memory(&device_tree).unwrap().unwrap();
-
     // setup page heap
     // after this operation, the device tree was overwritten
-    let mut allocator = init_heap(&device_tree);
-    drop(device_tree);
-    drop(dtb);
+    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page;
+    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut Page;
+    log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
+    let mem_slice: &mut [Page] = unsafe { 
+        core::slice::from_raw_parts_mut(
+            phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page,
+            (phys_to_kernel_mut_ptr(phys_mem_end) as usize - phys_to_kernel_mut_ptr(phys_mem_start) as usize) / mem::PAGESIZE,
+        )
+    };
 
+    // clean up userspace mapping from kernel loader
+    log::debug!("Cleaning up userspace mapping from kernel loader");
+    let root_pagetable_phys = (Satp::read().ppn << 12) as *mut PageTable;
+    unsafe { KERNEL_ROOT_PT = root_pagetable_phys; }
+    let root_pt = unsafe { &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)  };
+    virtmem::unmap_userspace(root_pt);
+    unsafe { core::arch::asm!("sfence.vma"); }
+
+    log::debug!("Init Kernel Allocator");
+    let mut allocator = Arena::new(mem_slice);
     // setup context switching
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
-    unsafe {
-        arch::cpu::SScratch::write(trap_frame as usize);
-    }
+    unsafe { (*trap_frame).trap_handler_stack = trap_handler_stack.add(10) as *mut usize }
+    unsafe { arch::cpu::SScratch::write(trap_frame as usize); }
+    log::debug!("trap frame: {trap_frame:p} trap_stack: {trap_handler_stack:p}");
     arch::trap::enable_interrupts();
+    log::debug!("enabled interrupts");
 
-    let kernel_root =
-        virtmem::create_kernel_page_table(&mut allocator, mem_start as usize, mem_length as usize)
-            .expect("Could not create kernel page table");
-    unsafe { KERNEL_ROOT_PT = kernel_root as *const virtmem::PageTable };
-    unsafe {
-        virtmem::use_pagetable(kernel_root);
-    }
+
+    unsafe { *(0x1 as *mut u8) = 0};
+    // TODO: remove userspace from kernel page table
 
     log::debug!("creating init caps");
     init::create_init_caps(allocator);
@@ -245,8 +165,4 @@ extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
         let task = guard.init_task.cap.get_task_mut().unwrap();
         yield_to_task(trap_handler_stack as *mut u8, task);
     };
-
-    // shut down the machine
-    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };
-    unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
 }

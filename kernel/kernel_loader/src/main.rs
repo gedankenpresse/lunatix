@@ -14,7 +14,7 @@ mod elfloader;
 use crate::allocator::BumpAllocator;
 use crate::elfloader::KernelLoader;
 use crate::logging::KernelLogger;
-use crate::virtmem::PageTable;
+use crate::virtmem::{PageTable, PAGESIZE};
 use ::elfloader::ElfBinary;
 use fdt_rs::base::DevTree;
 use core::panic::PanicInfo;
@@ -98,6 +98,9 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         *phys_dev_tree_ptr.add(i) = byte;
     } };
     assert!(unsafe { DevTree::from_raw_pointer(phys_dev_tree_ptr)}.is_ok());
+
+    // waste a page or two so we get back to page alignment
+    allocator.alloc(PAGESIZE, PAGESIZE);
 
     // TODO: relocate and map argv
     // TODO: add phys mem to argv

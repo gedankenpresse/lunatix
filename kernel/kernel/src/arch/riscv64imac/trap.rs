@@ -163,6 +163,7 @@ pub fn enable_interrupts() {
     }
 
     let handler = asm_trap_handler as usize;
+    log::debug!("trap handler address: {handler:0x}");
     unsafe {
         // set trap handler to our asm_trap_handler function
         cpu::StVec::write(&StVecData {

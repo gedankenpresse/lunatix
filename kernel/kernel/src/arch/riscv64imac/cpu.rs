@@ -201,7 +201,7 @@ impl StVec {
     /// Write a Trap Vector configuration to the register
     pub unsafe fn write(val: &StVecData) {
         assert_eq!(
-            val.base << 2 >> 2,
+            val.base & !((1 << 2) - 1),
             val.base,
             "StVec value uses an invalid base"
         );
@@ -367,7 +367,7 @@ impl SScratch {
         res
     }
 
-    pub fn write(val: usize) {
+    pub unsafe fn write(val: usize) {
         unsafe { asm!("csrw sscratch, {}", in(reg) val) }
     }
 }

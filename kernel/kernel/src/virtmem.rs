@@ -110,6 +110,11 @@ impl Entry {
         // }
         return Err(EntryError::EntryIsPage);
     }
+
+
+    pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
+        self.entry = (paddr >> 2) | (flags | EntryBits::Valid).bits();
+    }
 }
 
 const PBITS: usize = 12; // the page offset is 12 bits long
@@ -291,5 +296,13 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
             asid: 0,
             ppn: root as u64 >> 12,
         });
+    }
+}
+
+
+/// identity maps lower half of address space using hugepages
+pub fn unmap_userspace(root: &mut PageTable) {
+    for entry in root.entries[0..256].iter_mut() {
+        unsafe { entry.set(0, EntryBits::empty()); }
     }
 }
