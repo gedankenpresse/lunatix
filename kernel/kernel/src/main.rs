@@ -14,7 +14,7 @@ mod virtmem;
 
 
 
-use crate::arch::cpu::SStatusFlags;
+use crate::{arch::cpu::SStatusFlags, mem::phys_to_kernel};
 use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::logging::KernelLogger;
@@ -23,6 +23,7 @@ use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use log::Level;
+use mem::{PhysConstPtr, PhysMutPtr};
 use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 
 pub struct InitCaps {
@@ -180,25 +181,21 @@ extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) {
 */
 
 #[no_mangle]
-extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) {
+extern "C" fn kernel_main_elf(
+    argc: u32,
+    argv: *const *const core::ffi::c_char,
+    phys_fdt: PhysConstPtr<u8>,
+    phys_mem_start: PhysMutPtr<u8>,
+    phys_mem_end: PhysMutPtr<u8>,
+) {
     LOGGER.install().expect("Could not install logger");
     log::info!("Hello world from the kernel!");
-
-    let mut fdt_addr: Option<*const u8> = None;
-    for arg in arg_iter(argc, argv) {
-        if let Some(addr_str) = arg.strip_prefix("fdt_addr=") {
-            let addr = u64::from_str_radix(addr_str, 16).unwrap();
-            fdt_addr = Some(addr as *const u8);
-            log::debug!("got fdt addr: {:p}", fdt_addr.unwrap());
-        } else {
-            log::debug!("unknown arg {}", arg);
-        }
-    }
+    let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
 
     kernel_main(
         0,
         0,
-        fdt_addr.expect("need fdt_addr arg to start") as *mut u8,
+        fdt_addr,
     );
     // shut down the machine
     arch::shutdown();
@@ -208,7 +205,7 @@ extern "C" fn kernel_main_elf(argc: u32, argv: *const *const core::ffi::c_char) 
 
 #[no_mangle]
 #[allow(unreachable_code)]
-extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *mut u8) {
+extern "C" fn kernel_main(_hartid: usize, _unused: usize, dtb: *const u8) {
     // parse device tree from bootloader
     let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 

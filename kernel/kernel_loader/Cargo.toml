@@ -12,6 +12,7 @@ log = { version = "0.4.19", default-features = false, features = ["release_max_l
 sbi = "0.2.0"
 bitflags = "2.2.1"
 #kernel = { path = "../kernel", artifact = "bin" }  # only works with nightly cargo
+fdt-rs = { version = "0.4.3", default-features = false }
 
 [build-dependencies]
 cc = "1.0.79"

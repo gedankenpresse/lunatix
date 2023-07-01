@@ -5,7 +5,7 @@ use core::fmt::Write;
 use core::mem;
 use core::mem::MaybeUninit;
 
-const PAGESIZE: usize = 4096;
+pub const PAGESIZE: usize = 4096;
 
 /// An entry of a page table responsible for mapping virtual to phyiscal adresses.
 #[derive(Copy, Clone)]
@@ -287,9 +287,19 @@ pub fn id_map_range(
     }
 }
 
+/// identity maps lower half of address space using hugepages
 pub fn id_map_lower_huge(root: &mut PageTable) {
     let base: u64 = 1 << 30;
     for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
+        assert!(!entry.is_valid());
+        unsafe { entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid); }
+    }
+}
+
+/// maps physical memory into lower half of kernel memory
+pub fn kernel_map_phys_huge(root: &mut PageTable) {
+    let base: u64 = 1 << 30;
+    for (i, entry) in root.entries[256..256+128].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe { entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid); }
     }

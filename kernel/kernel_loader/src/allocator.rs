@@ -17,6 +17,11 @@ impl BumpAllocator {
         self.end as usize - self.start as usize
     }
 
+    pub fn into_raw(self) -> (*mut u8, *mut u8) {
+        let Self { start, end } = self;
+        return (start, end);
+    }
+
     /// Allocate a certain number of bytes with a given alignment.
     /// Returns `None` if not enough free space is available.
     pub fn alloc(&mut self, size: usize, alignment: usize) -> Option<*mut u8> {
