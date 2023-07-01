@@ -10,11 +10,11 @@ const KERNEL_BASE: usize =  !(256 * GB - 1);
 
 
 #[repr(transparent)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PhysConstPtr<T>(*const T);
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(transparent)]
 pub struct PhysMutPtr<T>(*mut T);
 
@@ -54,14 +54,14 @@ impl<'a, T> DerefMut for PhysMutRef<'a, T> {
 }
 
 pub fn phys_to_kernel_usize(addr: usize) -> usize {
-    assert!(addr < 128 * GB);
+    assert!(addr < (128 * GB));
     return addr + KERNEL_BASE;
 }
 
 pub fn kernel_to_phys_usize(addr: usize) -> usize {
     assert!(addr >= KERNEL_BASE);
     let phys = addr - KERNEL_BASE;
-    assert!(addr < 128*GB);
+    assert!(phys < (128*GB));
     return phys;
 }
 

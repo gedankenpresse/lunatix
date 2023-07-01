@@ -3,7 +3,6 @@
 
 #[path = "arch/riscv64imac/mod.rs"]
 mod arch;
-
 mod caps;
 mod init;
 mod logging;
@@ -12,20 +11,18 @@ mod mem;
 mod virtmem;
 
 
-
-
 use crate::arch::cpu::Satp;
-use crate::virtmem::{PageTable, virt_to_phys};
-use crate::{arch::cpu::SStatusFlags, mem::phys_to_kernel};
+use crate::arch::cpu::SStatusFlags;
 use crate::arch::trap::TrapFrame;
+use crate::virtmem::PageTable;
 use crate::caps::CSlot;
 use crate::logging::KernelLogger;
-use crate::mem::{Page, phys_to_kernel_mut_ptr};
+use crate::mem::{Page, phys_to_kernel_mut_ptr, PhysConstPtr, PhysMutPtr};
+
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use log::Level;
-use mem::{PhysConstPtr, PhysMutPtr};
 use memory::Arena;
 
 pub struct InitCaps {
@@ -66,6 +63,114 @@ fn panic_handler(info: &PanicInfo) -> ! {
     arch::shutdown()
 }
 
+#[no_mangle]
+extern "C" fn kernel_main_elf(
+    _argc: u32,
+    _argv: *const *const core::ffi::c_char,
+    phys_fdt: PhysConstPtr<u8>,
+    phys_mem_start: PhysMutPtr<u8>,
+    phys_mem_end: PhysMutPtr<u8>,
+) {
+    LOGGER.install().expect("Could not install logger");
+    log::info!("Hello world from the kernel!");
+    let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
+
+
+    kernel_main(
+        0,
+        0,
+        fdt_addr,
+        phys_mem_start,
+        phys_mem_end,
+    );
+
+    use sbi::system_reset::*;
+    system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
+    arch::shutdown();
+}
+
+extern "C" fn kernel_main(
+    _hartid: usize,
+    _unused: usize,
+    dtb: *const u8,
+    phys_mem_start: PhysMutPtr<u8>,
+    phys_mem_end: PhysMutPtr<u8>,
+) {
+    // parse device tree from bootloader
+    let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+
+    let kernel_root_pt = init_kernel_pagetable();
+    unsafe { KERNEL_ROOT_PT = mem::kernel_to_phys_usize(kernel_root_pt as *mut PageTable as usize) as *const PageTable; }
+
+    let mut allocator = init_alloc(phys_mem_start, phys_mem_end);
+
+    let trap_stack = init_trap_handler_stack(&mut allocator);
+    init_kernel_trap_handler(&mut allocator, trap_stack);
+
+    log::debug!("enabled interrupts");
+    arch::trap::enable_interrupts();
+
+
+    log::debug!("creating init caps");
+    init::create_init_caps(allocator);
+    
+    log::debug!("switching to userspace");
+    run_init(trap_stack);
+}
+
+
+
+fn init_kernel_pagetable() -> &'static mut PageTable {
+    // clean up userspace mapping from kernel loader
+    log::debug!("Cleaning up userspace mapping from kernel loader");
+    let root_pagetable_phys = (Satp::read().ppn << 12) as *mut PageTable;
+    log::debug!("Kernel Pagetable Phys: {root_pagetable_phys:p}");
+    let root_pt = unsafe { &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)  };
+    virtmem::unmap_userspace(root_pt);
+    unsafe { core::arch::asm!("sfence.vma"); }
+    return root_pt
+}
+
+fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) -> Arena<'static, Page> {
+    log::debug!("start: {phys_mem_start:?}, end: {phys_mem_end:?}");
+    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page;
+    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut Page;
+    log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
+    let mem_slice: &mut [Page] = unsafe { 
+        core::slice::from_raw_parts_mut(
+            phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page,
+            (phys_to_kernel_mut_ptr(phys_mem_end) as usize - phys_to_kernel_mut_ptr(phys_mem_start) as usize) / mem::PAGESIZE,
+        )
+    };
+
+    log::debug!("Init Kernel Allocator");
+    let allocator = Arena::new(mem_slice);
+    return allocator;
+}
+
+fn init_trap_handler_stack(allocator: &mut Arena<'static, Page>) -> *mut () {
+    let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
+    let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
+    log::debug!("trap_stack: {stack_start:p}");
+    return stack_start
+}
+
+fn init_kernel_trap_handler(allocator: &mut Arena<'static, Page>, trap_stack_start: *mut ()) {
+    let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
+    unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
+    unsafe { arch::cpu::SScratch::write(trap_frame as usize); }
+    log::debug!("trap frame: {trap_frame:p}"); 
+}
+
+fn run_init(trap_stack: *mut ()) {
+    unsafe {
+        set_return_to_user();
+        let mut guard = INIT_CAPS.try_lock().unwrap();
+        let task = guard.init_task.cap.get_task_mut().unwrap();
+        yield_to_task(trap_stack as *mut u8, task);
+    };
+}
+
 /// Yield to the task that owns the given `trap_frame`
 unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
     let state = unsafe { task.state.as_mut().unwrap() };
@@ -83,89 +188,4 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
 unsafe fn set_return_to_user() {
     log::debug!("clearing sstatus.SPP flag to enable returning to user code");
     arch::cpu::SStatus::clear(SStatusFlags::SPP);
-}
-
-
-#[no_mangle]
-extern "C" fn kernel_main_elf(
-    argc: u32,
-    argv: *const *const core::ffi::c_char,
-    phys_fdt: PhysConstPtr<u8>,
-    phys_mem_start: PhysMutPtr<u8>,
-    phys_mem_end: PhysMutPtr<u8>,
-) {
-    LOGGER.install().expect("Could not install logger");
-    log::info!("Hello world from the kernel!");
-    let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
-
-
-    kernel_main(
-        0,
-        0,
-        fdt_addr,
-        phys_mem_start,
-        phys_mem_end,
-    );
-    // shut down the machine
-
-    use sbi::system_reset::*;
-    system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
-    arch::shutdown();
-}
-
-extern "C" fn kernel_main(
-    _hartid: usize,
-    _unused: usize,
-    dtb: *const u8,
-    phys_mem_start: PhysMutPtr<u8>,
-    phys_mem_end: PhysMutPtr<u8>,
-) {
-    // parse device tree from bootloader
-    let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
-
-    // setup page heap
-    // after this operation, the device tree was overwritten
-    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page;
-    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut Page;
-    log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
-    let mem_slice: &mut [Page] = unsafe { 
-        core::slice::from_raw_parts_mut(
-            phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page,
-            (phys_to_kernel_mut_ptr(phys_mem_end) as usize - phys_to_kernel_mut_ptr(phys_mem_start) as usize) / mem::PAGESIZE,
-        )
-    };
-
-    // clean up userspace mapping from kernel loader
-    log::debug!("Cleaning up userspace mapping from kernel loader");
-    let root_pagetable_phys = (Satp::read().ppn << 12) as *mut PageTable;
-    unsafe { KERNEL_ROOT_PT = root_pagetable_phys; }
-    let root_pt = unsafe { &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)  };
-    virtmem::unmap_userspace(root_pt);
-    unsafe { core::arch::asm!("sfence.vma"); }
-
-    log::debug!("Init Kernel Allocator");
-    let mut allocator = Arena::new(mem_slice);
-    // setup context switching
-    let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
-    let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
-    unsafe { (*trap_frame).trap_handler_stack = trap_handler_stack.add(10) as *mut usize }
-    unsafe { arch::cpu::SScratch::write(trap_frame as usize); }
-    log::debug!("trap frame: {trap_frame:p} trap_stack: {trap_handler_stack:p}");
-    arch::trap::enable_interrupts();
-    log::debug!("enabled interrupts");
-
-
-    unsafe { *(0x1 as *mut u8) = 0};
-    // TODO: remove userspace from kernel page table
-
-    log::debug!("creating init caps");
-    init::create_init_caps(allocator);
-    log::debug!("switching to userspace");
-    // switch to userspace
-    unsafe {
-        set_return_to_user();
-        let mut guard = INIT_CAPS.try_lock().unwrap();
-        let task = guard.init_task.cap.get_task_mut().unwrap();
-        yield_to_task(trap_handler_stack as *mut u8, task);
-    };
 }
