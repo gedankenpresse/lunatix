@@ -10,7 +10,7 @@ use elfloader::{
     VAddr,
 };
 
-// const INIT_BIN: &[u8] = include_bytes!("../../userspace/init_main");
+const INIT_BIN: &[u8] = include_bytes!("../../../userspace/init_main");
 
 struct StackLoader<'a, 'b> {
     vbase: u64,
@@ -95,7 +95,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 virtmem::virt_to_phys(unsafe { self.vspace.root.as_ref().unwrap() }, addr as usize)
                     .expect("should have been mapped");
             unsafe {
-                *(phys as *mut u8) = *byte;
+                *(mem::phys_to_kernel_usize(phys) as *mut u8) = *byte;
             }
         }
         Ok(())
@@ -123,7 +123,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 )
                 .expect("should have been mapped");
                 unsafe {
-                    *(phys as *mut u64) = self.vbase + addend;
+                    *(mem::phys_to_kernel_usize(phys) as *mut u64) = self.vbase + addend;
                 }
                 Ok(())
             }
@@ -139,6 +139,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
 // Fill INIT_CAPS with appropriate capabilities
 pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
     // create capability objects for userspace code
+    log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();
     guard
         .mem
@@ -146,6 +147,7 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
         .unwrap();
     match &mut *guard {
         InitCaps { mem, init_task } => {
+            log::debug!("init task");
             caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap()).unwrap();
             let mem_cap = mem.cap.get_memory_mut().unwrap();
             let taskstate = unsafe {
@@ -157,16 +159,18 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
                     .as_mut()
                     .unwrap()
             };
+            log::debug!("init vspace");
             taskstate
                 .vspace
                 .set(caps::VSpace::init(mem_cap).unwrap())
                 .unwrap();
+            log::debug!("init cspace");
             taskstate
                 .cspace
                 .set(caps::CSpace::init_sz(mem_cap, 4).unwrap())
                 .unwrap();
 
-            // setup stak
+            log::debug!("setup stack");
             let stack_start = StackLoader {
                 mem: mem_cap,
                 stack_bytes: 0x1000,
@@ -177,6 +181,7 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
             .unwrap();
 
             // load elf binary
+            log::debug!("load elf binary");
             let mut elf_loader = VSpaceLoader {
                 // choosing arbitrary vbase not supported for relocating data sections
                 // vbase: 0x5_0000_0000,
@@ -184,9 +189,10 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
                 mem: mem_cap,
                 vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
             };
-            // let binary = ElfBinary::new(INIT_BIN).unwrap();
-            // binary.load(&mut elf_loader).expect("Cant load the binary?");
-            // let entry_point = binary.entry_point() + elf_loader.vbase;
+            
+            let binary = ElfBinary::new(INIT_BIN).unwrap();
+            binary.load(&mut elf_loader).expect("Cant load the binary?");
+            let entry_point = binary.entry_point() + elf_loader.vbase;
 
             // set stack pointer
             taskstate.frame.general_purpose_regs[2] = stack_start as usize;
@@ -195,9 +201,8 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
             // taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
 
             // set up program counter to point to userspace code
-            // taskstate.frame.start_pc = entry_point as usize;
-            // log::debug!("entry point: {:0x}", taskstate.frame.start_pc);
-            panic!()
+            taskstate.frame.start_pc = entry_point as usize;
+            log::debug!("entry point: {:0x}", taskstate.frame.start_pc);
         }
     }
 }

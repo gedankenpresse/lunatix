@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use memory::Arena;
 
-use crate::mem::{Page, PAGESIZE};
+use crate::mem::{Page, PAGESIZE, self};
 
 #[derive(Copy, Clone)]
 pub struct Entry {
@@ -10,7 +10,16 @@ pub struct Entry {
 }
 
 pub struct PageTable {
-    entries: [Entry; 512],
+    pub entries: [Entry; 512],
+}
+
+impl core::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Entry")
+            .field("ppn", unsafe { &self.get_ptr() })
+            .field("flags", &self.flags())
+            .finish()
+    }
 }
 
 impl PageTable {
@@ -35,6 +44,7 @@ impl PageTable {
 
     // This doesn't do a deep copy, so it should only be used for global mappings
     pub fn init_copy(page: *mut MaybeUninit<Page>, orig: &PageTable) -> *mut PageTable {
+        log::debug!("unit page: {page:p}, orig: {orig:p}");
         let root = PageTable::init(page);
         let root_ref = unsafe { root.as_mut().unwrap() };
         for (i, &entry) in orig.entries.iter().enumerate() {
@@ -86,34 +96,42 @@ impl Entry {
         self.entry & EntryBits::RWX.bits() != 0
     }
 
+    pub fn flags(&self) -> EntryBits {
+        EntryBits::from_bits_retain(self.entry & EntryBits::all().bits())
+    }
+
     pub unsafe fn get_ptr(&self) -> *const PageTable {
-        // TODO: Is this correct?
-        ((self.entry << 2) & !((1 << 12) - 1)) as *mut PageTable
+        mem::phys_to_kernel_usize(self.get_phys_usize()) as *const PageTable
     }
 
     pub unsafe fn get_ptr_mut(&mut self) -> *mut PageTable {
-        // TODO: Is this correct?
-        ((self.entry << 2) & !((1 << 12) - 1)) as *mut PageTable
+        mem::phys_to_kernel_usize(self.get_phys_usize()) as *mut PageTable
     }
 
-    pub unsafe fn get_ptr_usize(&self) -> usize {
+    pub unsafe fn get_phys_usize(&self) -> usize {
         // TODO: Is this correct?
-        ((self.entry << 2) & !((1 << 12) - 1)) as usize
+        let phys = ((self.entry << 2) & !((1 << 12) - 1)) as usize;
+        return phys;
     }
 
-    pub unsafe fn get_pagetable_mut(&mut self) -> Result<&mut PageTable, EntryError> {
+    pub fn get_pagetable_mut(&mut self) -> Result<&mut PageTable, EntryError> {
         if self.is_invalid() {
             return Err(EntryError::EntryInvalid);
         }
-        // if self.is_pt() {        // TODO Fix this
-        //     return Ok(self.get_ptr_mut().as_mut().unwrap());
-        // }
-        return Err(EntryError::EntryIsPage);
+        if self.is_leaf() {
+            return Err(EntryError::EntryIsPage);
+        }
+
+        return Ok(unsafe { self.get_ptr_mut() .as_mut() }.unwrap());
     }
 
 
     pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
-        self.entry = (paddr >> 2) | (flags | EntryBits::Valid).bits();
+        self.entry = (paddr >> 2) | flags.bits();
+    }
+
+    pub unsafe fn set_pagetable(&mut self, pt: *mut PageTable) {
+         self.set(mem::kernel_to_phys_mut_ptr(pt).0 as u64, EntryBits::Valid);
     }
 }
 
@@ -144,6 +162,7 @@ pub fn map(
     paddr: usize,
     bits: usize,
 ) {
+    log::debug!("[map] root: {root:p} vaddr: {vaddr:0x} paddr: {paddr:0x} bits: {bits:?}");
     // Make sure that one of Read, Write, or Execute Bits is set.
     // Otherwise, entry is regarded as pointer to next page table level
     assert!(bits & EntryBits::RWX.bits() as usize != 0);
@@ -157,34 +176,32 @@ pub fn map(
 
     // Helper to allocate intermediate page tables
     fn alloc_missing_page(entry: &mut Entry, alloc: &mut Arena<'static, Page>) {
+        log::debug!("alloc missing: entry {entry:0p}");
         assert!(entry.is_invalid());
 
         // Allocate a page
         let page = alloc
             .alloc_one_raw()
             .expect("could not allocate page")
-            .cast::<Page>();
-        for i in 0..PAGESIZE {
-            unsafe {
-                *page.cast::<u8>().add(i) = 0;
-            }
-        }
+            .cast::<MaybeUninit<Page>>();
+        let page = PageTable::init(page);
 
-        entry.entry = (page as u64 >> 2) | EntryBits::Valid.bits();
+        unsafe { entry.set_pagetable(page); }
     }
+
     // Lookup in top level page table
     let v = &mut root.entries[vpn[2]];
     if !v.is_valid() {
         alloc_missing_page(v, alloc);
     }
-    let pt = unsafe { v.get_ptr_mut().as_mut().unwrap() };
+    let pt = v.get_pagetable_mut().unwrap();
     let v = &mut pt.entries[vpn[1]];
     if !v.is_valid() {
         alloc_missing_page(v, alloc);
     }
 
     // Lookup in lowest level page table
-    let pt = unsafe { v.get_ptr_mut().as_mut().unwrap() };
+    let pt = v.get_pagetable_mut().unwrap();
     let v = &mut pt.entries[vpn[0]];
 
     // Now we are ready to point v to our physical address
@@ -217,7 +234,7 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
         panic!("non leaf page where leaf was expected");
     }
 
-    let address = unsafe { v.get_ptr_usize() };
+    let address = unsafe { v.get_phys_usize() };
     return Some(address | (vaddr & PBIT_MASK));
 }
 
@@ -247,6 +264,7 @@ pub fn map_range_alloc(
     size: usize,
     bits: usize,
 ) {
+    log::debug!("[map range alloc] virt_base {virt_base:0x} size {size:0x}");
     let ptr: *mut Page = (virt_base & !(PAGESIZE - 1)) as *mut Page;
     let mut offset = 0;
     while unsafe { (ptr.add(offset) as usize) < (virt_base + size) } {
@@ -256,7 +274,7 @@ pub fn map_range_alloc(
             .alloc_one_raw()
             .expect("Could not alloc page")
             .cast::<Page>();
-        map(alloc, root, addr, page_addr as usize, bits);
+        map(alloc, root, addr, mem::kernel_to_phys_ptr(page_addr).0 as usize, bits);
         offset += 1;
     }
 }
@@ -278,7 +296,7 @@ pub fn create_kernel_page_table(
     return Ok(root);
 }
 
-pub unsafe fn use_pagetable(root: *mut PageTable) {
+pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
     use crate::arch::cpu::*;
 
     // enable MXR (make Executable readable) bit
@@ -287,14 +305,14 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
         SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM);
     }
 
-    log::debug!("enabling new pagetable {:p}", root);
+    log::debug!("enabling new pagetable {:p}", root.0);
 
     // Setup Root Page table in satp register
     unsafe {
         Satp::write(SatpData {
             mode: SatpMode::Sv39,
             asid: 0,
-            ppn: root as u64 >> 12,
+            ppn: root.0 as u64 >> 12,
         });
     }
 }

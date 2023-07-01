@@ -14,6 +14,7 @@ mod virtmem;
 use crate::arch::cpu::Satp;
 use crate::arch::cpu::SStatusFlags;
 use crate::arch::trap::TrapFrame;
+use crate::mem::kernel_to_phys_mut_ptr;
 use crate::virtmem::PageTable;
 use crate::caps::CSlot;
 use crate::logging::KernelLogger;
@@ -47,7 +48,7 @@ unsafe impl Send for InitCaps {}
 
 pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
-pub static mut KERNEL_ROOT_PT: *const virtmem::PageTable = 0x0 as *const virtmem::PageTable;
+pub static mut KERNEL_ROOT_PT:  mem::PhysConstPtr<virtmem::PageTable> = mem::PhysConstPtr(0x0 as *const virtmem::PageTable);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -100,7 +101,7 @@ extern "C" fn kernel_main(
     let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
     let kernel_root_pt = init_kernel_pagetable();
-    unsafe { KERNEL_ROOT_PT = mem::kernel_to_phys_usize(kernel_root_pt as *mut PageTable as usize) as *const PageTable; }
+    unsafe { KERNEL_ROOT_PT = mem::kernel_to_phys_ptr(kernel_root_pt as *mut PageTable); }
 
     let mut allocator = init_alloc(phys_mem_start, phys_mem_end);
 
@@ -179,7 +180,7 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
     let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
     log::debug!("enabling task pagetable");
     unsafe {
-        virtmem::use_pagetable(root_pt);
+        virtmem::use_pagetable(kernel_to_phys_mut_ptr(root_pt));
     }
     log::debug!("restoring trap frame");
     arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame);

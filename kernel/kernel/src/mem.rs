@@ -10,13 +10,27 @@ const KERNEL_BASE: usize =  !(256 * GB - 1);
 
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug)]
-pub struct PhysConstPtr<T>(*const T);
+#[derive(Debug)]
+pub struct PhysConstPtr<T>(pub *const T);
+
+impl<T> Copy for PhysConstPtr<T> { }
+impl<T> Clone for PhysConstPtr<T> {
+    fn clone(&self) -> Self {
+        PhysConstPtr(self.0)
+    }
+}
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 #[repr(transparent)]
-pub struct PhysMutPtr<T>(*mut T);
+pub struct PhysMutPtr<T>(pub *mut T);
+
+impl<T> Copy for PhysMutPtr<T> { }
+impl<T> Clone for PhysMutPtr<T> {
+    fn clone(&self) -> Self {
+        PhysMutPtr(self.0)
+    }
+}
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -55,6 +69,9 @@ impl<'a, T> DerefMut for PhysMutRef<'a, T> {
 
 pub fn phys_to_kernel_usize(addr: usize) -> usize {
     assert!(addr < (128 * GB));
+    if addr == 0 {
+        return 0;
+    }
     return addr + KERNEL_BASE;
 }
 

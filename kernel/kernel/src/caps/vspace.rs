@@ -11,12 +11,15 @@ pub struct VSpace {
 
 impl VSpace {
     pub(crate) fn init(mem: &mut caps::Memory) -> Result<caps::Cap<Self>, NoMem> {
+        log::debug!("alloc");
         let root = mem.alloc_pages_raw(1)?;
+        log::debug!("init copy");
         let root = virtmem::PageTable::init_copy(root.cast::<MaybeUninit<mem::Page>>(), unsafe {
-            crate::KERNEL_ROOT_PT
+            mem::phys_to_kernel_ptr(crate::KERNEL_ROOT_PT)
                 .as_ref()
                 .expect("No Kernel Root Page Table found")
         });
+
         let cap = caps::Cap::from_content(Self { root });
         Ok(cap)
     }
@@ -30,6 +33,7 @@ impl VSpace {
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
+        log::debug!("map range, root: {:p}", self.root);
         virtmem::map_range_alloc(
             &mut mem.inner,
             unsafe { self.root.as_mut().unwrap() },

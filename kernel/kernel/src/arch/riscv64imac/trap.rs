@@ -146,7 +146,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             tf
         }
         _ => {
-            crate::println!("Interrupt!: Cause: {:#?}", last_trap);
+            crate::println!("Interrupt!: Cause: {:#x?}", last_trap);
             panic!("no interrupt handler specified");
         }
     }
