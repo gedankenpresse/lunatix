@@ -90,7 +90,6 @@ dependencies = [
  "bitflags 2.3.2",
  "cc",
  "elfloader",
- "kernel",
  "log",
  "sbi",
 ]
