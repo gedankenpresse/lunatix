@@ -27,7 +27,6 @@ use ksync::SpinLock;
 use log::Level;
 use mem::{PhysConstPtr, PhysMutPtr};
 use memory::Arena;
-use sifive_shutdown_driver::{ShutdownCode, SifiveShutdown};
 
 pub struct InitCaps {
     mem: CSlot,
@@ -59,10 +58,12 @@ fn panic_handler(info: &PanicInfo) -> ! {
     crate::println!("!!! Kernel Panic !!!\n  {}", info);
 
     // shutdown the device
-    unsafe {
-        let shutdown_device = SifiveShutdown::from_ptr(0x100000 as *mut u32);
-        shutdown_device.shutdown(ShutdownCode::Fail(1))
-    }
+    use sbi::system_reset::*;
+    match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
+        Ok(_) => {},
+        Err(e) => crate::println!("Shutdown error: {}", e),
+    };
+    arch::shutdown()
 }
 
 /// Yield to the task that owns the given `trap_frame`
@@ -97,6 +98,7 @@ extern "C" fn kernel_main_elf(
     log::info!("Hello world from the kernel!");
     let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
 
+
     kernel_main(
         0,
         0,
@@ -105,9 +107,10 @@ extern "C" fn kernel_main_elf(
         phys_mem_end,
     );
     // shut down the machine
+
+    use sbi::system_reset::*;
+    system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
     arch::shutdown();
-    let shutdown_device: &mut SifiveShutdown = unsafe { &mut *(0x100_000 as *mut SifiveShutdown) };
-    unsafe { shutdown_device.shutdown(ShutdownCode::Pass) };
 }
 
 extern "C" fn kernel_main(
