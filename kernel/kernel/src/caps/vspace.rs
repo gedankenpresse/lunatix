@@ -39,7 +39,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
-            flags,
+            virtmem::EntryBits::from_bits_truncate(flags as u64),
         );
         Ok(())
     }
@@ -58,7 +58,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr,
             phys_page as usize,
-            flags,
+            virtmem::EntryBits::from_bits_truncate(flags as u64),
         );
         Ok(())
     }

@@ -63,7 +63,7 @@ impl PageTable {
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct EntryBits: u64 {
         const Valid = 1 << 0;
         const Read = 1 << 1;
@@ -159,13 +159,13 @@ pub fn map(
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
-    bits: usize,
+    flags: EntryBits,
 ) {
-    log::debug!("[map] root: {root:p} vaddr: {vaddr:0x} paddr: {paddr:0x} bits: {bits:?}");
+    log::debug!("[map] root: {root:p} vaddr: {vaddr:0x} paddr: {paddr:0x} flags: {flags:?}");
     // Make sure that one of Read, Write, or Execute Bits is set.
     // Otherwise, entry is regarded as pointer to next page table level
-    assert!(bits & EntryBits::RWX.bits() as usize != 0);
-    assert!(bits & !((1 << 10) - 1) == 0);
+    assert_eq!(flags.bits() & EntryBits::all().bits(), flags.bits());
+    assert_ne!((flags & EntryBits::RWX), EntryBits::empty());
 
     // physical address should be at least page aligned and in PPN range
     assert!(paddr & PBIT_MASK == 0);
@@ -190,23 +190,17 @@ pub fn map(
         }
     }
 
-    // Lookup in top level page table
-    let v = &mut root.entries[vpn[2]];
-    if !v.is_valid() {
-        alloc_missing_page(v, alloc);
+    let mut v = &mut root.entries[vpn[2]];
+    for level in (0..2).rev() {
+        if v.is_invalid() {
+            alloc_missing_page(&mut v, alloc);
+        }
+        v = &mut v.get_pagetable_mut().unwrap().entries[vpn[level]];
     }
-    let pt = v.get_pagetable_mut().unwrap();
-    let v = &mut pt.entries[vpn[1]];
-    if !v.is_valid() {
-        alloc_missing_page(v, alloc);
-    }
-
-    // Lookup in lowest level page table
-    let pt = v.get_pagetable_mut().unwrap();
-    let v = &mut pt.entries[vpn[0]];
 
     // Now we are ready to point v to our physical address
-    v.entry = ((paddr >> 2) | bits | EntryBits::Valid.bits() as usize) as u64;
+    assert!(v.is_invalid());
+    unsafe { v.set(paddr as u64, flags | EntryBits::Valid); }
 }
 
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
@@ -239,31 +233,13 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     return Some(address | (vaddr & PBIT_MASK));
 }
 
-pub fn id_map_range(
-    alloc: &mut Arena<'static, Page>,
-    root: &mut PageTable,
-    start: usize,
-    end: usize,
-    bits: usize,
-) {
-    let ptr: *mut Page = (start & !(PAGESIZE - 1)) as *mut Page;
-    let endptr: *mut Page = end as *mut Page;
-    assert!(ptr <= endptr);
-    log::debug!("[id_map] start {:0x} end {:0x}", start, end);
-    let mut offset = 0;
-    while unsafe { ptr.add(offset) < endptr } {
-        let addr = unsafe { ptr.add(offset) } as usize;
-        map(alloc, root, addr, addr, bits);
-        offset += 1;
-    }
-}
 
 pub fn map_range_alloc(
     alloc: &mut Arena<'static, Page>,
     root: &mut PageTable,
     virt_base: usize,
     size: usize,
-    bits: usize,
+    flags: EntryBits,
 ) {
     log::debug!("[map range alloc] virt_base {virt_base:0x} size {size:0x}");
     let ptr: *mut Page = (virt_base & !(PAGESIZE - 1)) as *mut Page;
@@ -280,27 +256,10 @@ pub fn map_range_alloc(
             root,
             addr,
             mem::kernel_to_phys_ptr(page_addr).0 as usize,
-            bits,
+            flags,
         );
         offset += 1;
     }
-}
-
-pub fn create_kernel_page_table(
-    allocator: &mut Arena<'static, Page>,
-    mem_start: usize,
-    mem_length: usize,
-) -> Result<*mut PageTable, ()> {
-    let root = PageTable::empty(allocator).unwrap();
-    let root_ref = unsafe { root.as_mut().unwrap() };
-    let rwx = EntryBits::RWX.bits() as usize;
-    // Map Kernel Memory
-    id_map_range(allocator, root_ref, mem_start, mem_start + mem_length, rwx);
-    // Map Uart
-    id_map_range(allocator, root_ref, 0x1000_0000, 0x1000_0000 + 0x1000, rwx);
-    // Map Shutdown
-    id_map_range(allocator, root_ref, 0x100_000, 0x100_000 + 0x1000, rwx);
-    return Ok(root);
 }
 
 pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
