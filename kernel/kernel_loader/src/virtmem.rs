@@ -78,7 +78,12 @@ bitflags! {
 
 impl core::fmt::Debug for EntryBits {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fn write_bit(flags: EntryBits, bit: EntryBits, c: char, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fn write_bit(
+            flags: EntryBits,
+            bit: EntryBits,
+            c: char,
+            f: &mut core::fmt::Formatter<'_>,
+        ) -> core::fmt::Result {
             if flags.contains(bit) {
                 f.write_char(c)
             } else {
@@ -292,16 +297,20 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
     let base: u64 = 1 << 30;
     for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
         assert!(!entry.is_valid());
-        unsafe { entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid); }
+        unsafe {
+            entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid);
+        }
     }
 }
 
 /// maps physical memory into lower half of kernel memory
 pub fn kernel_map_phys_huge(root: &mut PageTable) {
     let base: u64 = 1 << 30;
-    for (i, entry) in root.entries[256..256+128].iter_mut().enumerate() {
+    for (i, entry) in root.entries[256..256 + 128].iter_mut().enumerate() {
         assert!(!entry.is_valid());
-        unsafe { entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid); }
+        unsafe {
+            entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid);
+        }
     }
 }
 

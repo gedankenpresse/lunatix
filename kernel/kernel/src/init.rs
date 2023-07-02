@@ -189,7 +189,7 @@ pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
                 mem: mem_cap,
                 vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
             };
-            
+
             let binary = ElfBinary::new(INIT_BIN).unwrap();
             binary.load(&mut elf_loader).expect("Cant load the binary?");
             let entry_point = binary.entry_point() + elf_loader.vbase;

@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use memory::Arena;
 
-use crate::mem::{Page, PAGESIZE, self};
+use crate::mem::{self, Page, PAGESIZE};
 
 #[derive(Copy, Clone)]
 pub struct Entry {
@@ -122,16 +122,15 @@ impl Entry {
             return Err(EntryError::EntryIsPage);
         }
 
-        return Ok(unsafe { self.get_ptr_mut() .as_mut() }.unwrap());
+        return Ok(unsafe { self.get_ptr_mut().as_mut() }.unwrap());
     }
-
 
     pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
         self.entry = (paddr >> 2) | flags.bits();
     }
 
     pub unsafe fn set_pagetable(&mut self, pt: *mut PageTable) {
-         self.set(mem::kernel_to_phys_mut_ptr(pt).0 as u64, EntryBits::Valid);
+        self.set(mem::kernel_to_phys_mut_ptr(pt).0 as u64, EntryBits::Valid);
     }
 }
 
@@ -186,7 +185,9 @@ pub fn map(
             .cast::<MaybeUninit<Page>>();
         let page = PageTable::init(page);
 
-        unsafe { entry.set_pagetable(page); }
+        unsafe {
+            entry.set_pagetable(page);
+        }
     }
 
     // Lookup in top level page table
@@ -274,7 +275,13 @@ pub fn map_range_alloc(
             .alloc_one_raw()
             .expect("Could not alloc page")
             .cast::<Page>();
-        map(alloc, root, addr, mem::kernel_to_phys_ptr(page_addr).0 as usize, bits);
+        map(
+            alloc,
+            root,
+            addr,
+            mem::kernel_to_phys_ptr(page_addr).0 as usize,
+            bits,
+        );
         offset += 1;
     }
 }
@@ -317,10 +324,11 @@ pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
     }
 }
 
-
 /// identity maps lower half of address space using hugepages
 pub fn unmap_userspace(root: &mut PageTable) {
     for entry in root.entries[0..256].iter_mut() {
-        unsafe { entry.set(0, EntryBits::empty()); }
+        unsafe {
+            entry.set(0, EntryBits::empty());
+        }
     }
 }

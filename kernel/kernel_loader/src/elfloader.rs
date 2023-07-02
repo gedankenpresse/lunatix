@@ -24,7 +24,6 @@ impl KernelLoader {
         }
     }
 
-
     pub fn load_stack(&mut self, stack_low: usize, stack_high: usize) -> u64 {
         let rw = virtmem::EntryBits::Read | virtmem::EntryBits::Write;
         log::debug!("loading stack low: {stack_low:0x} high: {stack_high:0x}");
@@ -36,8 +35,7 @@ impl KernelLoader {
             rw,
         );
         return stack_high as u64;
-     }
-
+    }
 }
 
 impl ElfLoader for KernelLoader {

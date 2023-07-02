@@ -1,7 +1,6 @@
 use core::fmt;
 use core::fmt::Write;
 
-
 /// Dummy struct that makes converting [`fmt::Arguments`] easier to convert to strings
 /// by offloading that to the [`Write`] trait.
 struct SbiWriter {}

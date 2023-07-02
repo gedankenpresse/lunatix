@@ -33,7 +33,7 @@ impl BumpAllocator {
             None
         } else {
             self.start = unsafe { aligned_start.add(size) };
-            
+
             // zero content, this should actually be done in the elf loader...
             // TODO: don't do this step and initialize kernel correctly
             unsafe {

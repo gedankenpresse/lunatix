@@ -3,9 +3,8 @@
 #![no_main]
 
 mod allocator;
-mod logging;
-mod virtmem;
 mod argv_iter;
+mod virtmem;
 
 #[path = "arch/riscv64imac/mod.rs"]
 mod arch;
@@ -13,12 +12,12 @@ mod elfloader;
 
 use crate::allocator::BumpAllocator;
 use crate::elfloader::KernelLoader;
-use crate::logging::KernelLogger;
 use crate::virtmem::{PageTable, PAGESIZE};
 use ::elfloader::ElfBinary;
-use fdt_rs::base::DevTree;
 use core::panic::PanicInfo;
+use fdt_rs::base::DevTree;
 use log::Level;
+use sbi_log::KernelLogger;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
@@ -37,12 +36,13 @@ struct Args {
 }
 
 impl Args {
-    fn from_args(args: impl Iterator<Item=&'static str>) -> Self {
+    fn from_args(args: impl Iterator<Item = &'static str>) -> Self {
         let mut phys_fdt_addr = None;
         for arg in args {
             if let Some(addr_s) = arg.strip_prefix("fdt_addr=") {
-               let addr = usize::from_str_radix(addr_s, 16).expect("fdt_addr should be in base 16");
-               phys_fdt_addr = Some(addr as *const u8);
+                let addr =
+                    usize::from_str_radix(addr_s, 16).expect("fdt_addr should be in base 16");
+                phys_fdt_addr = Some(addr as *const u8);
             }
         }
         Self {
@@ -78,7 +78,10 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let stack_start: usize = 0xfffffffffff7a000;
     kernel_loader.load_stack(stack_start - 0x5000, stack_start);
     let entry_point = binary.entry_point();
-    let KernelLoader { mut allocator, root_pagetable } = kernel_loader;
+    let KernelLoader {
+        mut allocator,
+        root_pagetable,
+    } = kernel_loader;
 
     // a small hack, so that we don't run into problems when enabling virtual memory
     // TODO: the kernel has to clean up lower address space later
@@ -87,17 +90,22 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("mapping physical memory to kernel");
     virtmem::kernel_map_phys_huge(root_pagetable);
 
-
     log::info!("Enabling Virtual Memory!");
-    unsafe { virtmem::use_pagetable(root_pagetable as *mut PageTable); }
+    unsafe {
+        virtmem::use_pagetable(root_pagetable as *mut PageTable);
+    }
 
     log::debug!("Parsing device tree");
     let device_tree = unsafe { DevTree::from_raw_pointer(args.phys_fdt_addr).unwrap() };
-    let phys_dev_tree_ptr = allocator.alloc(device_tree.buf().len(), virtmem::PAGESIZE).unwrap();
-    unsafe { for (i, &byte) in device_tree.buf().iter().enumerate() {
-        *phys_dev_tree_ptr.add(i) = byte;
-    } };
-    assert!(unsafe { DevTree::from_raw_pointer(phys_dev_tree_ptr)}.is_ok());
+    let phys_dev_tree_ptr = allocator
+        .alloc(device_tree.buf().len(), virtmem::PAGESIZE)
+        .unwrap();
+    unsafe {
+        for (i, &byte) in device_tree.buf().iter().enumerate() {
+            *phys_dev_tree_ptr.add(i) = byte;
+        }
+    };
+    assert!(unsafe { DevTree::from_raw_pointer(phys_dev_tree_ptr) }.is_ok());
 
     // waste a page or two so we get back to page alignment
     allocator.alloc(PAGESIZE, PAGESIZE);
@@ -108,18 +116,20 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let (phys_free_start, phys_free_end) = allocator.into_raw();
 
     log::info!("Starting Kernel, entry point: {entry_point:0x}");
-    unsafe { core::arch::asm!(
-        "mv gp, x0",
-        "mv sp, {stack}",
-        "jr {entry}",
-        stack = in(reg) stack_start - 16,
-        entry = in(reg) entry_point,
-        in("a0") argc,
-        in("a1") argv,
-        in("a2") phys_dev_tree_ptr,
-        in("a3") phys_free_start,
-        in("a4") phys_free_end,
-    ); }
+    unsafe {
+        core::arch::asm!(
+            "mv gp, x0",
+            "mv sp, {stack}",
+            "jr {entry}",
+            stack = in(reg) stack_start - 16,
+            entry = in(reg) entry_point,
+            in("a0") argc,
+            in("a1") argv,
+            in("a2") phys_dev_tree_ptr,
+            in("a3") phys_free_start,
+            in("a4") phys_free_end,
+        );
+    }
 
     unreachable!()
 }

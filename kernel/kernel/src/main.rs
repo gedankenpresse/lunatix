@@ -5,26 +5,24 @@
 mod arch;
 mod caps;
 mod init;
-mod logging;
-mod printk;
 mod mem;
+mod printk;
 mod virtmem;
 
-
-use crate::arch::cpu::Satp;
 use crate::arch::cpu::SStatusFlags;
+use crate::arch::cpu::Satp;
 use crate::arch::trap::TrapFrame;
-use crate::mem::kernel_to_phys_mut_ptr;
-use crate::virtmem::PageTable;
 use crate::caps::CSlot;
-use crate::logging::KernelLogger;
-use crate::mem::{Page, phys_to_kernel_mut_ptr, PhysConstPtr, PhysMutPtr};
+use crate::mem::kernel_to_phys_mut_ptr;
+use crate::mem::{phys_to_kernel_mut_ptr, Page, PhysConstPtr, PhysMutPtr};
+use crate::virtmem::PageTable;
 
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use log::Level;
 use memory::Arena;
+use sbi_log::KernelLogger;
 
 pub struct InitCaps {
     mem: CSlot,
@@ -48,7 +46,8 @@ unsafe impl Send for InitCaps {}
 
 pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
-pub static mut KERNEL_ROOT_PT:  mem::PhysConstPtr<virtmem::PageTable> = mem::PhysConstPtr(0x0 as *const virtmem::PageTable);
+pub static mut KERNEL_ROOT_PT: mem::PhysConstPtr<virtmem::PageTable> =
+    mem::PhysConstPtr(0x0 as *const virtmem::PageTable);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -58,7 +57,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
     // shutdown the device
     use sbi::system_reset::*;
     match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => crate::println!("Shutdown error: {}", e),
     };
     arch::shutdown()
@@ -76,14 +75,7 @@ extern "C" fn kernel_main_elf(
     log::info!("Hello world from the kernel!");
     let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
 
-
-    kernel_main(
-        0,
-        0,
-        fdt_addr,
-        phys_mem_start,
-        phys_mem_end,
-    );
+    kernel_main(0, 0, fdt_addr, phys_mem_start, phys_mem_end);
 
     use sbi::system_reset::*;
     system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
@@ -101,7 +93,9 @@ extern "C" fn kernel_main(
     let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
     let kernel_root_pt = init_kernel_pagetable();
-    unsafe { KERNEL_ROOT_PT = mem::kernel_to_phys_ptr(kernel_root_pt as *mut PageTable); }
+    unsafe {
+        KERNEL_ROOT_PT = mem::kernel_to_phys_ptr(kernel_root_pt as *mut PageTable);
+    }
 
     let mut allocator = init_alloc(phys_mem_start, phys_mem_end);
 
@@ -111,36 +105,42 @@ extern "C" fn kernel_main(
     log::debug!("enabled interrupts");
     arch::trap::enable_interrupts();
 
-
     log::debug!("creating init caps");
     init::create_init_caps(allocator);
-    
+
     log::debug!("switching to userspace");
     run_init(trap_stack);
 }
-
-
 
 fn init_kernel_pagetable() -> &'static mut PageTable {
     // clean up userspace mapping from kernel loader
     log::debug!("Cleaning up userspace mapping from kernel loader");
     let root_pagetable_phys = (Satp::read().ppn << 12) as *mut PageTable;
     log::debug!("Kernel Pagetable Phys: {root_pagetable_phys:p}");
-    let root_pt = unsafe { &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)  };
+    let root_pt = unsafe {
+        &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)
+    };
     virtmem::unmap_userspace(root_pt);
-    unsafe { core::arch::asm!("sfence.vma"); }
-    return root_pt
+    unsafe {
+        core::arch::asm!("sfence.vma");
+    }
+    return root_pt;
 }
 
-fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) -> Arena<'static, Page> {
+fn init_alloc(
+    phys_mem_start: PhysMutPtr<u8>,
+    phys_mem_end: PhysMutPtr<u8>,
+) -> Arena<'static, Page> {
     log::debug!("start: {phys_mem_start:?}, end: {phys_mem_end:?}");
     let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page;
     let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut Page;
     log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
-    let mem_slice: &mut [Page] = unsafe { 
+    let mem_slice: &mut [Page] = unsafe {
         core::slice::from_raw_parts_mut(
             phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page,
-            (phys_to_kernel_mut_ptr(phys_mem_end) as usize - phys_to_kernel_mut_ptr(phys_mem_start) as usize) / mem::PAGESIZE,
+            (phys_to_kernel_mut_ptr(phys_mem_end) as usize
+                - phys_to_kernel_mut_ptr(phys_mem_start) as usize)
+                / mem::PAGESIZE,
         )
     };
 
@@ -153,14 +153,16 @@ fn init_trap_handler_stack(allocator: &mut Arena<'static, Page>) -> *mut () {
     let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
     let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
     log::debug!("trap_stack: {stack_start:p}");
-    return stack_start
+    return stack_start;
 }
 
 fn init_kernel_trap_handler(allocator: &mut Arena<'static, Page>, trap_stack_start: *mut ()) {
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
     unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
-    unsafe { arch::cpu::SScratch::write(trap_frame as usize); }
-    log::debug!("trap frame: {trap_frame:p}"); 
+    unsafe {
+        arch::cpu::SScratch::write(trap_frame as usize);
+    }
+    log::debug!("trap frame: {trap_frame:p}");
 }
 
 fn run_init(trap_stack: *mut ()) {

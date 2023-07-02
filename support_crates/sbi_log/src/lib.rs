@@ -1,3 +1,6 @@
+//! A logging implementation which uses an OpenSBI syscall to print characters
+#![no_std]
+
 use core::fmt;
 use core::fmt::Write;
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
