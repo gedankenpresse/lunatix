@@ -43,8 +43,6 @@ impl Write for SyscallWriter {
     }
 }
 
-
-
 #[no_mangle]
 fn _start() {
     main();

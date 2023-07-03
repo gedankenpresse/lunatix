@@ -4,6 +4,7 @@
 mod caps;
 mod init;
 mod mem;
+mod trap;
 mod virtmem;
 
 use crate::caps::CSlot;
@@ -100,17 +101,12 @@ extern "C" fn kernel_main(
     let trap_stack = init_trap_handler_stack(&mut allocator);
     init_kernel_trap_handler(&mut allocator, trap_stack);
 
-    log::debug!("enabled interrupts");
-    enable_interrupts();
-    arch::timers::set_next_timer(5_000_000).unwrap();
-    println!("waiting for interrupt");
-    unsafe {
-        wait_for_interrupt();
-    }
-    println!("successfully returned from interrupt");
-
     log::debug!("creating init caps");
     init::create_init_caps(allocator);
+
+    log::debug!("enabling interrupts");
+    //arch::timers::set_next_timer(0).unwrap();
+    enable_interrupts();
 
     log::debug!("switching to userspace");
     run_init(trap_stack);

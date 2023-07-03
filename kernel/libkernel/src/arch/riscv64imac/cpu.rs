@@ -424,7 +424,6 @@ pub enum TrapEvent {
 
 impl From<u64> for TrapEvent {
     fn from(value: u64) -> Self {
-        log::debug!("trap event value: {value:0x}");
         let is_interrupt = value >> 63 == 0b1; // highest 1 bit
         let cause = value & !(0b1 << 31); // lowest 31 bits
         if is_interrupt {

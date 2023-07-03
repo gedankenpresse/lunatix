@@ -1,6 +1,7 @@
 use super::cpu;
 use super::cpu::{Exception, InterruptBits, SStatusFlags, StVecData, TrapEvent};
 use crate::arch::cpu::Interrupt;
+use crate::arch::timers::set_next_timer;
 use crate::println;
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
@@ -132,31 +133,6 @@ extern "C" fn rust_trap_handler(tf: &mut TrapFrame) -> TrapReturn {
 
     // return the new TrapFrame in the format expected by `trap.S`
     res
-}
-
-#[no_mangle]
-fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
-    let last_trap = tf.last_trap.as_ref().unwrap();
-
-    match last_trap.cause {
-        TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            println!(
-                "Got call from user: {}",
-                tf.general_purpose_regs[10] as u8 as char
-            );
-            tf.start_pc = last_trap.epc + 4;
-            tf
-        }
-        TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
-            println!("Got kicked by timer");
-            tf.start_pc = last_trap.epc;
-            tf
-        }
-        _ => {
-            println!("Interrupt!: Cause: {:#x?}", last_trap);
-            panic!("interrupt type is not handled yet");
-        }
-    }
 }
 
 /// Instruct the CPU to call our trap handler for interrupts and enable triggering of traps.
