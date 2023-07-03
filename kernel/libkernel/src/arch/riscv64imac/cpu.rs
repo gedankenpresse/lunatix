@@ -352,6 +352,18 @@ impl Sie {
 
 // TODO Implement Timers and Counters
 
+/// The Time register always holds the current cpu time
+#[allow(unused)]
+pub struct Time {}
+
+impl Time {
+    pub fn read() -> u64 {
+        let res: u64;
+        unsafe { asm!("rdtime {}", out(reg) res) };
+        res
+    }
+}
+
 /// Supervisor Scratch Register
 ///
 /// A read/write register, dedicated for use by the supervisor.

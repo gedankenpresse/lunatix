@@ -15,6 +15,7 @@ use allocators::Arena;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
+use libkernel::arch::asm_utils::wait_for_interrupt;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
 use libkernel::{arch, println};
@@ -101,6 +102,12 @@ extern "C" fn kernel_main(
 
     log::debug!("enabled interrupts");
     enable_interrupts();
+    arch::timers::set_next_timer(5_000_000).unwrap();
+    println!("waiting for interrupt");
+    unsafe {
+        wait_for_interrupt();
+    }
+    println!("successfully returned from interrupt");
 
     log::debug!("creating init caps");
     init::create_init_caps(allocator);

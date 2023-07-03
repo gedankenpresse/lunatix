@@ -1,5 +1,6 @@
 use super::cpu;
 use super::cpu::{Exception, InterruptBits, SStatusFlags, StVecData, TrapEvent};
+use crate::arch::cpu::Interrupt;
 use crate::println;
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
@@ -146,9 +147,14 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             tf.start_pc = last_trap.epc + 4;
             tf
         }
+        TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
+            println!("Got kicked by timer");
+            tf.start_pc = last_trap.epc;
+            tf
+        }
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);
-            panic!("no interrupt handler specified");
+            panic!("interrupt type is not handled yet");
         }
     }
 }
@@ -173,24 +179,11 @@ pub fn enable_interrupts() {
         });
         // configure certain interrupt sources to actually trigger an interrupt
         cpu::Sie::write(
-            InterruptBits::SupervisorExternalInterrupt | InterruptBits::SupervisorSoftwareInterrupt,
+            InterruptBits::SupervisorExternalInterrupt
+                | InterruptBits::SupervisorSoftwareInterrupt
+                | InterruptBits::SupervisorTimerInterrupt,
         );
         //  globally enable interrupts for the previous configuration now
         cpu::SStatus::write(SStatusFlags::SIE);
     }
 }
-
-// pub fn enable_timer_interrupts() {
-//     use super::asm_utils::*;
-//     use InterruptBits::*;
-//     unsafe {
-//         clear_sip(STIE as usize);
-//     }
-//
-//     unsafe {
-//         set_sie(STIE as usize);
-//     }
-//
-//     use super::sbi::time;
-//     time::set_timer(1 << 22);
-// }
