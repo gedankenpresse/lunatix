@@ -3,6 +3,10 @@
 version = 3
 
 [[package]]
+name = "allocators"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -68,13 +72,14 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "allocators",
  "bitflags 2.3.2",
  "cc",
  "elfloader",
  "fdt-rs",
  "ksync",
+ "libkernel",
  "log",
- "memory",
  "r0",
  "regs",
  "rlibc",
@@ -88,10 +93,12 @@ dependencies = [
 name = "kernel_loader"
 version = "0.1.0"
 dependencies = [
+ "allocators",
  "bitflags 2.3.2",
  "cc",
  "elfloader",
  "fdt-rs",
+ "libkernel",
  "log",
  "sbi",
  "sbi_log",
@@ -100,6 +107,23 @@ dependencies = [
 [[package]]
 name = "ksync"
 version = "0.1.0"
+
+[[package]]
+name = "libkernel"
+version = "0.1.0"
+dependencies = [
+ "allocators",
+ "bitflags 2.3.2",
+ "cc",
+ "elfloader",
+ "fdt-rs",
+ "log",
+ "r0",
+ "rlibc",
+ "sbi",
+ "static_assertions",
+ "thiserror-no-std",
+]
 
 [[package]]
 name = "log"
@@ -115,10 +139,6 @@ checksum = "043175f069eda7b85febe4a74abbaeff828d9f8b448515d3151a14a3542811aa"
 dependencies = [
  "autocfg",
 ]
-
-[[package]]
-name = "memory"
-version = "0.1.0"
 
 [[package]]
 name = "num-derive"

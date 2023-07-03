@@ -9,6 +9,7 @@
 .option norelax
 .balign 4
 
+
 .global read_mstatus
 read_mstatus:
 	csrr a0, mstatus
@@ -19,3 +20,9 @@ wait_for_interrupt:
 	wfi
 	ret
 .option pop
+
+
+.globl wfi_spin
+wfi_spin:
+	wfi
+	j wfi_spin

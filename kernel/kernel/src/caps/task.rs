@@ -1,9 +1,9 @@
-use crate::arch;
 use crate::caps;
 use core::ptr;
+use libkernel::arch::trap::TrapFrame;
 
 pub struct TaskState {
-    pub frame: arch::trap::TrapFrame,
+    pub frame: TrapFrame,
     pub cspace: caps::CSlot,
     pub vspace: caps::CSlot,
 }
@@ -23,7 +23,7 @@ impl TaskState {
         unsafe {
             ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::default());
             ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::default());
-            ptr::addr_of_mut!((*ptr).frame).write(arch::trap::TrapFrame::null());
+            ptr::addr_of_mut!((*ptr).frame).write(TrapFrame::null());
         }
 
         Ok(ptr)

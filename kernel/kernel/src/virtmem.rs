@@ -1,6 +1,7 @@
+use allocators::Arena;
 use bitflags::bitflags;
 use core::mem::MaybeUninit;
-use memory::Arena;
+use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 
 use crate::mem::{self, Page, PAGESIZE};
 
@@ -155,7 +156,7 @@ fn vpn_segments(vaddr: usize) -> [usize; 3] {
 }
 
 pub fn map(
-    alloc: &mut memory::Arena<'static, Page>,
+    alloc: &mut Arena<'static, Page>,
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
@@ -200,7 +201,9 @@ pub fn map(
 
     // Now we are ready to point v to our physical address
     assert!(v.is_invalid());
-    unsafe { v.set(paddr as u64, flags | EntryBits::Valid); }
+    unsafe {
+        v.set(paddr as u64, flags | EntryBits::Valid);
+    }
 }
 
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
@@ -233,7 +236,6 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     return Some(address | (vaddr & PBIT_MASK));
 }
 
-
 pub fn map_range_alloc(
     alloc: &mut Arena<'static, Page>,
     root: &mut PageTable,
@@ -263,8 +265,6 @@ pub fn map_range_alloc(
 }
 
 pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
-    use crate::arch::cpu::*;
-
     // enable MXR (make Executable readable) bit
     // enable SUM (premit Supervisor User Memory access) bit
     unsafe {

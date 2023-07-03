@@ -1,5 +1,6 @@
 use super::cpu;
 use super::cpu::{Exception, InterruptBits, SStatusFlags, StVecData, TrapEvent};
+use crate::println;
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
 /// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support
@@ -138,7 +139,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            crate::println!(
+            println!(
                 "Got call from user: {}",
                 tf.general_purpose_regs[10] as u8 as char
             );
@@ -146,7 +147,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             tf
         }
         _ => {
-            crate::println!("Interrupt!: Cause: {:#x?}", last_trap);
+            println!("Interrupt!: Cause: {:#x?}", last_trap);
             panic!("no interrupt handler specified");
         }
     }

@@ -1,16 +1,17 @@
 use crate::caps;
 use crate::caps::errors::*;
 use crate::mem::Page;
+use allocators::Arena;
 
 pub struct Memory {
-    pub(crate) inner: memory::Arena<'static, crate::mem::Page>,
+    pub(crate) inner: Arena<'static, crate::mem::Page>,
 }
 
 impl Memory {
     pub fn init_sz(mem: &mut caps::Memory, pages: usize) -> Result<caps::Cap<Self>, NoMem> {
         let ptr = mem.alloc_pages_raw(pages)?;
         let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
-        let inner = memory::Arena::new(slice);
+        let inner = Arena::new(slice);
         let cap = caps::Cap::from_content(Self { inner });
         Ok(cap)
     }

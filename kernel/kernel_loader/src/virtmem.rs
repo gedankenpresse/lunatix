@@ -1,5 +1,5 @@
-use crate::allocator::BumpAllocator;
 use crate::arch::cpu::*;
+use allocators::BumpAllocator;
 use bitflags::{bitflags, Flags};
 use core::fmt::Write;
 use core::mem;

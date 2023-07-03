@@ -2,7 +2,6 @@
 #![no_std]
 #![no_main]
 
-mod allocator;
 mod argv_iter;
 mod virtmem;
 
@@ -10,10 +9,10 @@ mod virtmem;
 mod arch;
 mod elfloader;
 
-use crate::allocator::BumpAllocator;
 use crate::elfloader::KernelLoader;
 use crate::virtmem::{PageTable, PAGESIZE};
 use ::elfloader::ElfBinary;
+use allocators::BumpAllocator;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use log::Level;
@@ -90,12 +89,12 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("mapping physical memory to kernel");
     virtmem::kernel_map_phys_huge(root_pagetable);
 
-    log::info!("Enabling Virtual Memory!");
+    log::info!("enabling virtual memory!");
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
 
-    log::debug!("Parsing device tree");
+    log::debug!("parsing device tree");
     let device_tree = unsafe { DevTree::from_raw_pointer(args.phys_fdt_addr).unwrap() };
     let phys_dev_tree_ptr = allocator
         .alloc(device_tree.buf().len(), virtmem::PAGESIZE)
@@ -115,7 +114,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     let (phys_free_start, phys_free_end) = allocator.into_raw();
 
-    log::info!("Starting Kernel, entry point: {entry_point:0x}");
+    log::info!("starting Kernel, entry point: {entry_point:0x}");
     unsafe {
         core::arch::asm!(
             "mv gp, x0",

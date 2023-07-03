@@ -26,22 +26,4 @@ fn main() {
 
     // set "-C link-arg=-Tlink.ldS" argument when linking to use the custom linker script
     println!("cargo:rustc-link-arg-bins=-Tlink.ldS");
-
-    // compile raw assembly files
-    let mut asm = arch_dir.clone();
-    asm.push("asm");
-    for entry in fs::read_dir(asm).unwrap() {
-        let entry = entry.unwrap();
-        let file_name = entry.file_name().into_string().unwrap();
-        let name = file_name.split(".").next().unwrap();
-        println!("{}", name);
-        println!("cargo:rerun-if-changed={}", entry.path().display());
-        cc::Build::new()
-            .file(entry.path())
-            .flag("-no-pie")
-            .flag("-fno-pic")
-            .compiler("riscv64-elf-gcc")
-            .target("riscv64imac")
-            .compile(name);
-    }
 }

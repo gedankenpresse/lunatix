@@ -5,6 +5,7 @@ use crate::mem;
 use crate::virtmem;
 use crate::InitCaps;
 
+use allocators::Arena;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
@@ -137,7 +138,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
 }
 
 // Fill INIT_CAPS with appropriate capabilities
-pub(crate) fn create_init_caps(alloc: memory::Arena<'static, mem::Page>) {
+pub(crate) fn create_init_caps(alloc: Arena<'static, mem::Page>) {
     // create capability objects for userspace code
     log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();

@@ -2,8 +2,8 @@
 
 use crate::virtmem;
 
-use crate::allocator::BumpAllocator;
 use crate::virtmem::{map_range_alloc, virt_to_phys, EntryBits, PageTable};
+use allocators::BumpAllocator;
 use elfloader::arch::riscv::RelocationTypes;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,

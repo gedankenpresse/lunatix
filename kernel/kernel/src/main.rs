@@ -1,27 +1,25 @@
 #![no_std]
 #![no_main]
 
-#[path = "arch/riscv64imac/mod.rs"]
-mod arch;
 mod caps;
 mod init;
 mod mem;
 mod printk;
 mod virtmem;
 
-use crate::arch::cpu::SStatusFlags;
-use crate::arch::cpu::Satp;
-use crate::arch::trap::TrapFrame;
 use crate::caps::CSlot;
 use crate::mem::kernel_to_phys_mut_ptr;
 use crate::mem::{phys_to_kernel_mut_ptr, Page, PhysConstPtr, PhysMutPtr};
 use crate::virtmem::PageTable;
 
+use allocators::Arena;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
+use libkernel::arch;
+use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
+use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
 use log::Level;
-use memory::Arena;
 use sbi_log::KernelLogger;
 
 pub struct InitCaps {
@@ -64,7 +62,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
 }
 
 #[no_mangle]
-extern "C" fn kernel_main_elf(
+extern "C" fn _start(
     _argc: u32,
     _argv: *const *const core::ffi::c_char,
     phys_fdt: PhysConstPtr<u8>,
@@ -103,7 +101,7 @@ extern "C" fn kernel_main(
     init_kernel_trap_handler(&mut allocator, trap_stack);
 
     log::debug!("enabled interrupts");
-    arch::trap::enable_interrupts();
+    enable_interrupts();
 
     log::debug!("creating init caps");
     init::create_init_caps(allocator);
@@ -160,7 +158,7 @@ fn init_kernel_trap_handler(allocator: &mut Arena<'static, Page>, trap_stack_sta
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
     unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
     unsafe {
-        arch::cpu::SScratch::write(trap_frame as usize);
+        SScratch::write(trap_frame as usize);
     }
     log::debug!("trap frame: {trap_frame:p}");
 }
@@ -185,10 +183,10 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
         virtmem::use_pagetable(kernel_to_phys_mut_ptr(root_pt));
     }
     log::debug!("restoring trap frame");
-    arch::trap::trap_frame_restore(trap_frame as *mut TrapFrame);
+    trap_frame_restore(trap_frame as *mut TrapFrame);
 }
 
 unsafe fn set_return_to_user() {
     log::debug!("clearing sstatus.SPP flag to enable returning to user code");
-    arch::cpu::SStatus::clear(SStatusFlags::SPP);
+    SStatus::clear(SStatusFlags::SPP);
 }
