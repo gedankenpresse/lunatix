@@ -8,3 +8,5 @@ pub mod argv_iter;
 #[macro_export]
 #[macro_use]
 pub mod print;
+pub mod caps;
+pub mod mem;
