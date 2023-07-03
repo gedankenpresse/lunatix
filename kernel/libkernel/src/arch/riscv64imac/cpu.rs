@@ -422,14 +422,15 @@ pub enum TrapEvent {
     Exception(Exception),
 }
 
-impl From<u32> for TrapEvent {
-    fn from(value: u32) -> Self {
-        let is_interrupt = value >> 31 == 0b1; // highest 1 bit
+impl From<u64> for TrapEvent {
+    fn from(value: u64) -> Self {
+        log::debug!("trap event value: {value:0x}");
+        let is_interrupt = value >> 63 == 0b1; // highest 1 bit
         let cause = value & !(0b1 << 31); // lowest 31 bits
         if is_interrupt {
-            TrapEvent::Interrupt(Interrupt::from(cause))
+            TrapEvent::Interrupt(Interrupt::from(cause as u32))
         } else {
-            TrapEvent::Exception(Exception::from(cause))
+            TrapEvent::Exception(Exception::from(cause as u32))
         }
     }
 }
@@ -502,8 +503,8 @@ pub struct Scause {}
 
 impl Scause {
     /// Read the raw 32 bits value from the register
-    pub fn read_raw() -> u32 {
-        unsafe { read_reg!("scause", u32) }
+    pub fn read_raw() -> u64 {
+        unsafe { read_reg!("scause", u64) }
     }
 
     /// Read the cause of the triggered trap from the register
