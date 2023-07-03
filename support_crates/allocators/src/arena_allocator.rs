@@ -1,10 +1,5 @@
-#![no_std]
-
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
-
-#[cfg(feature = "std")]
-extern crate std;
 
 /// A free and unallocated block of memory that points to the next free and unallocated block.
 #[derive(Copy, Clone, Debug)]
