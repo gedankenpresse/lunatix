@@ -2,7 +2,6 @@
 #![no_std]
 #![no_main]
 
-mod argv_iter;
 mod virtmem;
 
 #[path = "arch/riscv64imac/mod.rs"]
@@ -55,7 +54,7 @@ impl Args {
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
     log::info!("Hello World from Kernel Loader");
-    let args = Args::from_args(argv_iter::arg_iter(argc, argv));
+    let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
 
     const MEM_START: usize = 0x82500000 + 0x1000000;
     let mut allocator =
