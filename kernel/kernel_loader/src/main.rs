@@ -2,11 +2,8 @@
 #![no_std]
 #![no_main]
 
-mod virtmem;
-
-#[path = "arch/riscv64imac/mod.rs"]
-mod arch;
 mod elfloader;
+mod virtmem;
 
 use crate::elfloader::KernelLoader;
 use crate::virtmem::{PageTable, PAGESIZE};

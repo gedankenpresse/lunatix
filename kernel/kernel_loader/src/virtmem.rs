@@ -1,9 +1,9 @@
-use crate::arch::cpu::*;
 use allocators::BumpAllocator;
 use bitflags::{bitflags, Flags};
 use core::fmt::Write;
 use core::mem;
 use core::mem::MaybeUninit;
+use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 
 pub const PAGESIZE: usize = 4096;
 

@@ -7,4 +7,4 @@ pub mod argv_iter;
 
 #[macro_export]
 #[macro_use]
-mod print;
+pub mod print;

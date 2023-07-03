@@ -4,7 +4,6 @@
 mod caps;
 mod init;
 mod mem;
-mod printk;
 mod virtmem;
 
 use crate::caps::CSlot;
@@ -16,9 +15,9 @@ use allocators::Arena;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
-use libkernel::arch;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
+use libkernel::{arch, println};
 use log::Level;
 use sbi_log::KernelLogger;
 
@@ -50,13 +49,13 @@ pub static mut KERNEL_ROOT_PT: mem::PhysConstPtr<virtmem::PageTable> =
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
-    crate::println!("!!! Kernel Panic !!!\n  {}", info);
+    println!("!!! Kernel Panic !!!\n  {}", info);
 
     // shutdown the device
     use sbi::system_reset::*;
     match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
         Ok(_) => {}
-        Err(e) => crate::println!("Shutdown error: {}", e),
+        Err(e) => println!("Shutdown error: {}", e),
     };
     arch::shutdown()
 }
