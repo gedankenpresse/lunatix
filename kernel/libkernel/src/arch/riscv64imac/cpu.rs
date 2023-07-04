@@ -674,8 +674,8 @@ impl Satp {
 
     pub unsafe fn write_raw(val: u64) {
         asm!("
-            csrw satp, {}
             sfence.vma
+            csrw satp, {}
         ", in(reg) val);
     }
 

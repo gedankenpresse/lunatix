@@ -32,7 +32,7 @@ impl KernelLoader {
             &mut self.root_pagetable,
             stack_low,
             stack_high - stack_low,
-            rw,
+            rw | EntryBits::Accessed | EntryBits::Dirty,
         );
         return stack_high as u64;
     }
@@ -65,7 +65,7 @@ impl ElfLoader for KernelLoader {
                 &mut self.root_pagetable,
                 header.virtual_addr() as usize,
                 header.mem_size() as usize,
-                flags,
+                flags | EntryBits::Accessed | EntryBits::Dirty,
             );
         }
         Ok(())

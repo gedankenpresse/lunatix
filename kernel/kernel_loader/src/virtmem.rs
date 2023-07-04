@@ -298,7 +298,7 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
     for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe {
-            entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid);
+            entry.set(base * i as u64, EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid);
         }
     }
 }
@@ -309,7 +309,7 @@ pub fn kernel_map_phys_huge(root: &mut PageTable) {
     for (i, entry) in root.entries[256..256 + 128].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe {
-            entry.set(base * i as u64, EntryBits::RWX | EntryBits::Valid);
+            entry.set(base * i as u64, EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid);
         }
     }
 }
