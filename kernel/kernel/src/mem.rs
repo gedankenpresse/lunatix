@@ -7,7 +7,7 @@ use core::{
 pub type Page = [u8; 4096];
 pub const PAGESIZE: usize = core::mem::size_of::<Page>();
 
-const GB: usize = 1 << 30;
+const GB: usize = 1024 * 1024 * 1024;
 // only valid with rv39
 const KERNEL_BASE: usize = !(256 * GB - 1);
 
@@ -69,7 +69,7 @@ impl<'a, T> DerefMut for PhysMutRef<'a, T> {
 }
 
 pub fn phys_to_kernel_usize(addr: usize) -> usize {
-    assert!(addr < (128 * GB));
+    assert!(addr < (64 * GB));
     if addr == 0 {
         return 0;
     }
@@ -79,7 +79,7 @@ pub fn phys_to_kernel_usize(addr: usize) -> usize {
 pub fn kernel_to_phys_usize(addr: usize) -> usize {
     assert!(addr >= KERNEL_BASE);
     let phys = addr - KERNEL_BASE;
-    assert!(phys < (128 * GB));
+    assert!(phys < (64 * GB));
     return phys;
 }
 

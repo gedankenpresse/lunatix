@@ -80,19 +80,6 @@ impl<'mem> BumpAllocator<'mem> {
         split.1
     }
 
-    /// Return the remaining free memory as a half open [start, end) interval
-    ///
-    /// # Safety
-    /// Ensure that either no more objects are allocated through this allocator or that
-    /// no other allocations are performed on the memory which is given out.
-    pub unsafe fn remaining_mem(self) -> (*mut u8, *mut u8) {
-        todo!()
-        //let start = self.backing_mem.as_mut_ptr().add(self.bytes_allocated);
-        //let end = self.backing_mem.as_mut_ptr().add(self.backing_mem.len());
-
-        //(start, end)
-    }
-
     /// Allocate a slice of the given size aligned to `alignment` bytes.
     pub fn allocate<'alloc>(
         &'alloc self,

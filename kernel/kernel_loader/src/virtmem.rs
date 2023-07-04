@@ -304,12 +304,12 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
 
 /// maps physical memory into lower half of kernel memory
 pub fn kernel_map_phys_huge(root: &mut PageTable) {
-    let base: u64 = 1 << 30;
-    for (i, entry) in root.entries[256..256 + 128].iter_mut().enumerate() {
+    const GB: u64 = 1024 * 1024 * 1024;
+    for (i, entry) in root.entries[256..256 + 64].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe {
             entry.set(
-                base * i as u64,
+                i as u64 * GB,
                 EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid,
             );
         }
