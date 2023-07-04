@@ -16,7 +16,7 @@ use sbi_log::KernelLogger;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
-const KERNEL_BIN: &[u8] =
+static KERNEL_BIN: &[u8] =
     include_bytes!("../../../target/riscv64imac-unknown-none-elf/debug/kernel");
 
 #[panic_handler]
