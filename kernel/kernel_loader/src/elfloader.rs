@@ -80,13 +80,15 @@ impl ElfLoader for KernelLoader {
         );
 
         // copy the memory region byte for byte
-        for (offset, byte) in region.iter().enumerate() {
+        let mut offset = 0;
+        while offset < region.len() {
             let vaddr = base + offset as u64;
             let paddr = virt_to_phys(self.root_pagetable, vaddr as usize)
                 .expect("Memory mapping was not allocated before being loaded");
             unsafe {
-                *(paddr as *mut u8) = *byte;
+                *(paddr as *mut u8) = region[offset];
             }
+            offset += 1;
         }
 
         Ok(())
