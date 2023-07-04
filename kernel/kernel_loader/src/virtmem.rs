@@ -1,4 +1,4 @@
-use allocators::BumpAllocator;
+use allocators::{AllocInit, BumpAllocator};
 use bitflags::{bitflags, Flags};
 use core::fmt::Write;
 use core::mem;
@@ -6,6 +6,9 @@ use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 
 pub const PAGESIZE: usize = 4096;
+
+#[repr(C, align(4096))]
+pub struct MemoryPage([u8; PAGESIZE]);
 
 /// An entry of a page table responsible for mapping virtual to phyiscal adresses.
 #[derive(Copy, Clone)]
@@ -32,17 +35,15 @@ pub struct PageTable {
 
 impl PageTable {
     pub fn empty(alloc: &mut BumpAllocator) -> Option<*mut PageTable> {
-        let page = alloc.alloc(mem::size_of::<PageTable>(), PAGESIZE)?.cast();
-        Some(Self::init(page))
-    }
-
-    pub fn init(page: *mut MaybeUninit<PageTable>) -> *mut PageTable {
-        unsafe {
-            for i in 0..PAGESIZE {
-                *page.cast::<u8>().add(i) = 0;
-            }
-        }
-        page.cast::<PageTable>()
+        // TODO Transform this into a result
+        let page = alloc
+            .allocate(
+                mem::size_of::<PageTable>(),
+                mem::align_of::<MemoryPage>(),
+                AllocInit::Zeroed,
+            )
+            .ok()?;
+        Some(page.as_mut_ptr().cast())
     }
 }
 
@@ -226,13 +227,8 @@ fn alloc_missing_pagetable(entry: &mut Entry, alloc: &mut BumpAllocator) {
     assert!(!entry.is_valid());
 
     // Allocate enough space for a new PageTale
-    let loc = alloc
-        .alloc(mem::size_of::<PageTable>(), PAGESIZE)
-        .expect("could not allocate page")
-        .cast::<MaybeUninit<PageTable>>();
-    let page = PageTable::init(loc);
-
-    entry.entry = (page as u64 >> 2) | EntryBits::Valid.bits();
+    let page = PageTable::empty(alloc).expect("Could not allocate missing pagetable");
+    unsafe { entry.set(page as u64, EntryBits::Valid) };
 }
 
 /// Convert a given virtual address to the mapped physical address
@@ -298,7 +294,10 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
     for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe {
-            entry.set(base * i as u64, EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid);
+            entry.set(
+                base * i as u64,
+                EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid,
+            );
         }
     }
 }
@@ -309,7 +308,10 @@ pub fn kernel_map_phys_huge(root: &mut PageTable) {
     for (i, entry) in root.entries[256..256 + 128].iter_mut().enumerate() {
         assert!(!entry.is_valid());
         unsafe {
-            entry.set(base * i as u64, EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid);
+            entry.set(
+                base * i as u64,
+                EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid,
+            );
         }
     }
 }
@@ -329,9 +331,13 @@ pub fn map_range_alloc(
         let addr = unsafe { ptr.add(offset) } as usize;
         log::trace!("mapping page {:x}", addr);
         let page_addr = alloc
-            .alloc(PAGESIZE, PAGESIZE)
+            .allocate(
+                mem::size_of::<MemoryPage>(),
+                mem::align_of::<MemoryPage>(),
+                AllocInit::Zeroed,
+            )
             .expect("Could not alloc page")
-            .cast::<u8>();
+            .as_mut_ptr();
         map(alloc, root, addr, page_addr as usize, flags);
         offset += 1;
     }

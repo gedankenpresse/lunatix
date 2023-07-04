@@ -5,6 +5,11 @@ version = 3
 [[package]]
 name = "allocators"
 version = "0.1.0"
+dependencies = [
+ "ksync",
+ "log",
+ "thiserror-no-std",
+]
 
 [[package]]
 name = "autocfg"

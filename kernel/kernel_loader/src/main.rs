@@ -8,8 +8,9 @@ mod virtmem;
 use crate::elfloader::KernelLoader;
 use crate::virtmem::{PageTable, PAGESIZE};
 use ::elfloader::ElfBinary;
-use allocators::BumpAllocator;
+use allocators::{AllocInit, BumpAllocator, BumpBox};
 use core::panic::PanicInfo;
+use core::ptr::eq;
 use fdt_rs::base::DevTree;
 use log::Level;
 use sbi_log::KernelLogger;
@@ -50,12 +51,12 @@ impl Args {
 #[no_mangle]
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
-    log::info!("Hello World from Kernel Loader");
     let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
 
-    const MEM_START: usize = 0x82500000 + 0x1000000;
-    let mut allocator =
-        unsafe { BumpAllocator::new(MEM_START as *mut u8, (MEM_START + 0x20000000) as *mut u8) };
+    const GB: usize = 1024 * 1024 * 1024;
+    const MEM_START: usize = 0x8000_0000 + GB / 2; // we just chose a high value that is larger than the kernel_loader binary
+    const MEM_END: usize = 0xc0000000; // if we give 1GB of memory during qemu start, this is the last address
+    let mut allocator = unsafe { BumpAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
 
     let root_table = unsafe {
         PageTable::empty(&mut allocator)
@@ -92,23 +93,28 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     log::debug!("parsing device tree");
     let device_tree = unsafe { DevTree::from_raw_pointer(args.phys_fdt_addr).unwrap() };
-    let phys_dev_tree_ptr = allocator
-        .alloc(device_tree.buf().len(), virtmem::PAGESIZE)
-        .unwrap();
-    unsafe {
+
+    log::debug!("moving device tree");
+    let mut phys_dev_tree = BumpBox::new_uninit_slice(device_tree.buf().len(), &allocator).unwrap();
+    let phys_dev_tree = unsafe {
         for (i, &byte) in device_tree.buf().iter().enumerate() {
-            *phys_dev_tree_ptr.add(i) = byte;
+            phys_dev_tree[i].write(byte);
         }
+        phys_dev_tree.assume_init()
     };
-    assert!(unsafe { DevTree::from_raw_pointer(phys_dev_tree_ptr) }.is_ok());
+
+    assert!(unsafe { DevTree::new(&phys_dev_tree) }.is_ok());
 
     // waste a page or two so we get back to page alignment
-    allocator.alloc(PAGESIZE, PAGESIZE);
+    let x = allocator
+        .allocate(PAGESIZE, PAGESIZE, AllocInit::Uninitialized)
+        .unwrap();
 
     // TODO: relocate and map argv
     // TODO: add phys mem to argv
 
-    let (phys_free_start, phys_free_end) = allocator.into_raw();
+    let phys_free_mem = allocator.steal_remaining_mem().as_mut_ptr_range();
+    log::debug!("{:?}", phys_free_mem);
 
     log::info!("starting Kernel, entry point: {entry_point:0x}");
     unsafe {
@@ -120,9 +126,9 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
             entry = in(reg) entry_point,
             in("a0") argc,
             in("a1") argv,
-            in("a2") phys_dev_tree_ptr,
-            in("a3") phys_free_start,
-            in("a4") phys_free_end,
+            in("a2") phys_dev_tree.into_raw() as *mut u8,
+            in("a3") phys_free_mem.start,
+            in("a4") phys_free_mem.end,
         );
     }
 

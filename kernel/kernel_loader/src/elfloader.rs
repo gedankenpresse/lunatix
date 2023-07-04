@@ -12,12 +12,12 @@ use elfloader::{
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader {
-    pub allocator: BumpAllocator,
+    pub allocator: BumpAllocator<'static>,
     pub root_pagetable: &'static mut PageTable,
 }
 
 impl KernelLoader {
-    pub fn new(allocator: BumpAllocator, root_pagetable: &'static mut PageTable) -> Self {
+    pub fn new(allocator: BumpAllocator<'static>, root_pagetable: &'static mut PageTable) -> Self {
         Self {
             allocator,
             root_pagetable,
@@ -29,7 +29,7 @@ impl KernelLoader {
         log::debug!("loading stack low: {stack_low:0x} high: {stack_high:0x}");
         virtmem::map_range_alloc(
             &mut self.allocator,
-            &mut self.root_pagetable,
+            self.root_pagetable,
             stack_low,
             stack_high - stack_low,
             rw | EntryBits::Accessed | EntryBits::Dirty,
@@ -42,7 +42,7 @@ impl ElfLoader for KernelLoader {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for header in load_headers {
             log::debug!(
-                "allocate base = {:#x} end = {:#x} flags = {}",
+                "allocating memory for section base = {:#x} end = {:#x} flags = {}",
                 header.virtual_addr(),
                 header.virtual_addr() + header.mem_size(),
                 header.flags(),
@@ -73,7 +73,7 @@ impl ElfLoader for KernelLoader {
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         log::debug!(
-            "loading elf region into = {:#x} -- {:#x}, {}",
+            "loading elf section data = {:#x} -- {:#x}, {}",
             base,
             base + region.len() as u64,
             flags
