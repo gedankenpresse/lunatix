@@ -2,7 +2,7 @@
 #rustflags = [
 #    "-C", "link-arg=-Tlink.ldS"
 #]
-runner = "./run_kernel.sh"
+runner = "./run_kernel.sh target/riscv64imac-unknown-none-elf/release/kernel_loader"
 
 [build]
 target = "riscv64imac-unknown-none-elf"

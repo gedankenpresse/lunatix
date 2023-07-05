@@ -12,7 +12,7 @@ use elfloader::{
 };
 use libkernel::mem::MemoryPage;
 
-const INIT_BIN: &[u8] = include_bytes!("../../../userspace/init_main");
+static INIT_BIN: &[u8] = include_bytes!("../../../userspace/init_main");
 
 struct StackLoader<'a, 'b> {
     vbase: u64,

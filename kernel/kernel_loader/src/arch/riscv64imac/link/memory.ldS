@@ -4,7 +4,7 @@
 
 MEMORY {
     /* Contains the executable code */
-    REGION_CODE (rx) : ORIGIN = 0x80200000, LENGTH = 2M
+    REGION_CODE (rx) : ORIGIN = 0x80200000, LENGTH = 1M
     /* Contains all static variables (bss + data) */
-    REGION_STATIC : ORIGIN = 0x80400000, LENGTH = 16M
+    REGION_STATIC : ORIGIN =    0x80300000, LENGTH = 1M
 }

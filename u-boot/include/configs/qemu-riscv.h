@@ -36,7 +36,7 @@
 #define BOOTENV_DEV_ELF(devtypeu, devtypel, instance) \
 	"bootcmd_elf=" \
 		"setenv autostart yes; " \
-		"bootelf fdt_addr=${fdt_addr};\0"
+		"bootelf fdt_addr=${fdt_addr} image_addr=${image_addr} image_size=${image_size};\0"
 
 #define BOOTENV_DEV_NAME_ELF(devtypeu, devtypel, instance) \
 	"elf "
@@ -48,6 +48,8 @@
 	"fdt_high=0xffffffffffffffff\0" \
 	"initrd_high=0xffffffffffffffff\0" \
 	"kernel_addr_r=0x84000000\0" \
+	"image_addr=84800000\0" \
+	"image_size=800000\0" \
 	"kernel_comp_addr_r=0x88000000\0" \
 	"kernel_comp_size=0x4000000\0" \
 	"fdt_addr_r=0x8c000000\0" \

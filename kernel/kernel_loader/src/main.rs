@@ -21,9 +21,6 @@ use sbi_log::KernelLogger;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
 
-static KERNEL_BIN: &[u8] =
-    include_bytes!("../../../target/riscv64imac-unknown-none-elf/debug/kernel");
-
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
@@ -33,21 +30,41 @@ fn panic_handler(info: &PanicInfo) -> ! {
 
 struct Args {
     phys_fdt_addr: *const u8,
+    image_addr: *const u8,
+    image_size: Option<usize>,
 }
 
 impl Args {
     fn from_args(args: impl Iterator<Item = &'static str>) -> Self {
         let mut phys_fdt_addr = None;
+        let mut image_addr = None;
+        let mut image_size = None;
         for arg in args {
             if let Some(addr_s) = arg.strip_prefix("fdt_addr=") {
                 let addr =
                     usize::from_str_radix(addr_s, 16).expect("fdt_addr should be in base 16");
                 phys_fdt_addr = Some(addr as *const u8);
             }
+            if let Some(addr_s) = arg.strip_prefix("image_addr=") {
+                let addr =
+                usize::from_str_radix(addr_s, 16).expect("image_addr should be in base 16");
+                image_addr = Some(addr as *const u8);
+            }
+            if let Some(size_s) = arg.strip_prefix("image_size=") {
+                let size = usize::from_str_radix(size_s, 16).expect("image size should be in base 16");
+                image_size = Some(size);
+            }
         }
         Self {
             phys_fdt_addr: phys_fdt_addr.expect("no fdt_addr given"),
+            image_addr: image_addr.expect("no kernel image addr given"),
+            image_size,
         }
+    }
+
+    fn get_kernel_bin(&self) -> &[u8] {
+        const MB: usize = 1024 * 1024;
+        unsafe { core::slice::from_raw_parts(self.image_addr, self.image_size.unwrap_or(2 * MB)) }
     }
 }
 
@@ -56,7 +73,6 @@ impl Args {
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
     let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
-
     const GB: usize = 1024 * 1024 * 1024;
     const MEM_START: usize = 0x8000_0000 + GB / 2; // we just chose a high value that is larger than the kernel_loader binary
     const MEM_END: usize = 0xc0000000; // if we give 1GB of memory during qemu start, this is the last address
@@ -72,7 +88,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("root_table addr: {:p}", root_table);
 
     let mut kernel_loader = KernelLoader::new(allocator, root_table);
-    let binary = ElfBinary::new(KERNEL_BIN).expect("Could not load kernel as elf object");
+    let binary = ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
     binary
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
