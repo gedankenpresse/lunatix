@@ -31,6 +31,36 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
+/// The virtual memory address at which userspace tasks are mapped
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_USER_START: usize = 0x0;
+
+/// The last virtual memory address at which userspace tasks are mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_USER_END: usize = 0x0000003fffffffff;
+
+/// The virtual memory address at which physical memory starts being mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_PHYS_MAP_START: usize = 0xFFFFFFC000000000;
+
+/// The last virtual memory address at which physical memory is mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_PHYS_MAP_END: usize = 0xFFFFFFEFFFFFFFFF;
+
+/// The virtual memory address at which the kernel binary is mapped and where the kernel stack is located
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_KERNEL_START: usize = 0xFFFFFFFF00000000;
+
+/// The virtual memory address at which the kernel memory ends.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_KERNEL_END: usize = 0xFFFFFFFFFFFFFFFF;
+
 /// How large each memory page is
 ///
 /// This effects the alignment and sizes of some data structures that directly interface with the CPU e.g. PageTables
