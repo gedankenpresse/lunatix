@@ -2,8 +2,9 @@ use allocators::Arena;
 use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
+use libkernel::mem::{MemoryPage, PAGESIZE};
 
-use crate::mem::{self, Page, PAGESIZE};
+use crate::mem::{self};
 
 #[derive(Copy, Clone)]
 pub struct Entry {
@@ -24,7 +25,7 @@ impl core::fmt::Debug for Entry {
 }
 
 impl PageTable {
-    pub fn empty(alloc: &mut Arena<'static, Page>) -> Option<*mut PageTable> {
+    pub fn empty(alloc: &mut Arena<'static, MemoryPage>) -> Option<*mut PageTable> {
         let page = alloc.alloc_one_raw()?;
         unsafe {
             for i in 0..PAGESIZE {
@@ -34,7 +35,7 @@ impl PageTable {
         Some(page.cast::<PageTable>())
     }
 
-    pub fn init(page: *mut MaybeUninit<Page>) -> *mut PageTable {
+    pub fn init(page: *mut MaybeUninit<MemoryPage>) -> *mut PageTable {
         unsafe {
             for i in 0..PAGESIZE {
                 *page.cast::<u8>().add(i) = 0;
@@ -44,7 +45,7 @@ impl PageTable {
     }
 
     // This doesn't do a deep copy, so it should only be used for global mappings
-    pub fn init_copy(page: *mut MaybeUninit<Page>, orig: &PageTable) -> *mut PageTable {
+    pub fn init_copy(page: *mut MaybeUninit<MemoryPage>, orig: &PageTable) -> *mut PageTable {
         log::debug!("unit page: {page:p}, orig: {orig:p}");
         let root = PageTable::init(page);
         let root_ref = unsafe { root.as_mut().unwrap() };
@@ -156,7 +157,7 @@ fn vpn_segments(vaddr: usize) -> [usize; 3] {
 }
 
 pub fn map(
-    alloc: &mut Arena<'static, Page>,
+    alloc: &mut Arena<'static, MemoryPage>,
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
@@ -175,7 +176,7 @@ pub fn map(
     let vpn = vpn_segments(vaddr);
 
     // Helper to allocate intermediate page tables
-    fn alloc_missing_page(entry: &mut Entry, alloc: &mut Arena<'static, Page>) {
+    fn alloc_missing_page(entry: &mut Entry, alloc: &mut Arena<'static, MemoryPage>) {
         log::debug!("alloc missing: entry {entry:0p}");
         assert!(entry.is_invalid());
 
@@ -183,7 +184,7 @@ pub fn map(
         let page = alloc
             .alloc_one_raw()
             .expect("could not allocate page")
-            .cast::<MaybeUninit<Page>>();
+            .cast::<MaybeUninit<MemoryPage>>();
         let page = PageTable::init(page);
 
         unsafe {
@@ -237,14 +238,14 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
 }
 
 pub fn map_range_alloc(
-    alloc: &mut Arena<'static, Page>,
+    alloc: &mut Arena<'static, MemoryPage>,
     root: &mut PageTable,
     virt_base: usize,
     size: usize,
     flags: EntryBits,
 ) {
     log::debug!("[map range alloc] virt_base {virt_base:0x} size {size:0x}");
-    let ptr: *mut Page = (virt_base & !(PAGESIZE - 1)) as *mut Page;
+    let ptr: *mut MemoryPage = (virt_base & !(PAGESIZE - 1)) as *mut MemoryPage;
     let mut offset = 0;
     while unsafe { (ptr.add(offset) as usize) < (virt_base + size) } {
         let addr = unsafe { ptr.add(offset) } as usize;
@@ -252,7 +253,7 @@ pub fn map_range_alloc(
         let page_addr = alloc
             .alloc_one_raw()
             .expect("Could not alloc page")
-            .cast::<Page>();
+            .cast::<MemoryPage>();
         map(
             alloc,
             root,

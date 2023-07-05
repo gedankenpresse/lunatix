@@ -1,6 +1,7 @@
 use crate::caps;
 use crate::caps::errors::*;
 use crate::caps::CSlot;
+use libkernel::mem::PAGESIZE;
 
 pub struct CSpace {
     bits: usize,
@@ -14,7 +15,7 @@ fn cspace_pages(bits: usize) -> usize {
         return (a + b - 1) / b;
     }
     let nslot = 1 << bits;
-    return ceildiv(nslot * SLOTSIZE, crate::mem::PAGESIZE);
+    return ceildiv(nslot * SLOTSIZE, PAGESIZE);
 }
 
 impl CSpace {

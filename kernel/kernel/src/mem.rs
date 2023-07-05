@@ -4,9 +4,6 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-pub type Page = [u8; 4096];
-pub const PAGESIZE: usize = core::mem::size_of::<Page>();
-
 const GB: usize = 1024 * 1024 * 1024;
 // only valid with rv39
 const KERNEL_BASE: usize = !(256 * GB - 1);

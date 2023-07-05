@@ -31,6 +31,11 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
+/// How large each memory page is
+///
+/// This effects the alignment and sizes of some data structures that directly interface with the CPU e.g. PageTables
 pub const PAGESIZE: usize = 4096;
-// TODO make this a wrapper struct and add the repr(C, align(4096)) attribute to it
-pub type MemoryPage = [u8; PAGESIZE];
+
+/// Type definition for a slice of bytes that is exactly one page large
+#[repr(C, align(4096))]
+pub struct MemoryPage([u8; PAGESIZE]);

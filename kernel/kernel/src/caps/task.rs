@@ -1,6 +1,7 @@
 use crate::caps;
 use core::ptr;
 use libkernel::arch::trap::TrapFrame;
+use libkernel::mem::PAGESIZE;
 
 pub struct TaskState {
     pub frame: TrapFrame,
@@ -16,7 +17,7 @@ impl TaskState {
     pub fn init(mem: &mut caps::Memory) -> Result<*mut TaskState, caps::errors::NoMem> {
         // allocate a pointer from memory to store our task state
         use core::mem::size_of;
-        assert!(size_of::<Self>() <= crate::mem::PAGESIZE);
+        assert!(size_of::<Self>() <= PAGESIZE);
         let ptr: *mut TaskState = mem.alloc_pages_raw(1)?.cast();
 
         // initialize the task state

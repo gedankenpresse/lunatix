@@ -10,6 +10,7 @@ use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
 };
+use libkernel::mem::MemoryPage;
 
 const INIT_BIN: &[u8] = include_bytes!("../../../userspace/init_main");
 
@@ -138,7 +139,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
 }
 
 // Fill INIT_CAPS with appropriate capabilities
-pub(crate) fn create_init_caps(alloc: Arena<'static, mem::Page>) {
+pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     // create capability objects for userspace code
     log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();

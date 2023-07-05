@@ -4,11 +4,7 @@ use core::fmt::Write;
 use core::mem;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
-
-pub const PAGESIZE: usize = 4096;
-
-#[repr(C, align(4096))]
-pub struct MemoryPage([u8; PAGESIZE]);
+use libkernel::mem::{MemoryPage, PAGESIZE};
 
 /// An entry of a page table responsible for mapping virtual to phyiscal adresses.
 #[derive(Copy, Clone)]

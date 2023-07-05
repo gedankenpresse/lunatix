@@ -9,7 +9,7 @@ mod virtmem;
 
 use crate::caps::CSlot;
 use crate::mem::kernel_to_phys_mut_ptr;
-use crate::mem::{phys_to_kernel_mut_ptr, Page, PhysConstPtr, PhysMutPtr};
+use crate::mem::{phys_to_kernel_mut_ptr, PhysConstPtr, PhysMutPtr};
 use crate::virtmem::PageTable;
 
 use allocators::Arena;
@@ -19,6 +19,7 @@ use ksync::SpinLock;
 use libkernel::arch::asm_utils::wait_for_interrupt;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
+use libkernel::mem::{MemoryPage, PAGESIZE};
 use libkernel::{arch, println};
 use log::Level;
 use sbi_log::KernelLogger;
@@ -130,17 +131,17 @@ fn init_kernel_pagetable() -> &'static mut PageTable {
 fn init_alloc(
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
-) -> Arena<'static, Page> {
+) -> Arena<'static, MemoryPage> {
     log::debug!("start: {phys_mem_start:?}, end: {phys_mem_end:?}");
-    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page;
-    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut Page;
+    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut MemoryPage;
+    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut MemoryPage;
     log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
-    let mem_slice: &mut [Page] = unsafe {
+    let mem_slice: &mut [MemoryPage] = unsafe {
         core::slice::from_raw_parts_mut(
-            phys_to_kernel_mut_ptr(phys_mem_start) as *mut Page,
+            phys_to_kernel_mut_ptr(phys_mem_start) as *mut MemoryPage,
             (phys_to_kernel_mut_ptr(phys_mem_end) as usize
                 - phys_to_kernel_mut_ptr(phys_mem_start) as usize)
-                / mem::PAGESIZE,
+                / PAGESIZE,
         )
     };
 
@@ -149,14 +150,14 @@ fn init_alloc(
     return allocator;
 }
 
-fn init_trap_handler_stack(allocator: &mut Arena<'static, Page>) -> *mut () {
-    let trap_handler_stack: *mut Page = allocator.alloc_many_raw(10).unwrap().cast();
+fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
+    let trap_handler_stack: *mut MemoryPage = allocator.alloc_many_raw(10).unwrap().cast();
     let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
     log::debug!("trap_stack: {stack_start:p}");
     return stack_start;
 }
 
-fn init_kernel_trap_handler(allocator: &mut Arena<'static, Page>, trap_stack_start: *mut ()) {
+fn init_kernel_trap_handler(allocator: &mut Arena<'static, MemoryPage>, trap_stack_start: *mut ()) {
     let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
     unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
     unsafe {

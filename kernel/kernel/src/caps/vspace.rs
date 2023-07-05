@@ -2,6 +2,7 @@ use core::mem::MaybeUninit;
 
 use crate::{caps, mem};
 use caps::errors::NoMem;
+use libkernel::mem::MemoryPage;
 
 use crate::virtmem;
 
@@ -14,7 +15,7 @@ impl VSpace {
         log::debug!("alloc");
         let root = mem.alloc_pages_raw(1)?;
         log::debug!("init copy");
-        let root = virtmem::PageTable::init_copy(root.cast::<MaybeUninit<mem::Page>>(), unsafe {
+        let root = virtmem::PageTable::init_copy(root.cast::<MaybeUninit<MemoryPage>>(), unsafe {
             mem::phys_to_kernel_ptr(crate::KERNEL_ROOT_PT)
                 .as_ref()
                 .expect("No Kernel Root Page Table found")

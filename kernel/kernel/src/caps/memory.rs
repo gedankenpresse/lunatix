@@ -1,10 +1,10 @@
 use crate::caps;
 use crate::caps::errors::*;
-use crate::mem::Page;
 use allocators::Arena;
+use libkernel::mem::MemoryPage;
 
 pub struct Memory {
-    pub(crate) inner: Arena<'static, crate::mem::Page>,
+    pub(crate) inner: Arena<'static, MemoryPage>,
 }
 
 impl Memory {
@@ -16,7 +16,7 @@ impl Memory {
         Ok(cap)
     }
 
-    pub fn alloc_pages_raw(&mut self, pages: usize) -> Result<*mut Page, NoMem> {
+    pub fn alloc_pages_raw(&mut self, pages: usize) -> Result<*mut MemoryPage, NoMem> {
         let alloc = self.inner.alloc_many_raw(pages).ok_or(NoMem)?;
         // TODO: Make this more safe. We only initialize this page later so just assuming that it is now initialized is clearly unsafe
         Ok(unsafe { core::mem::transmute(alloc) })

@@ -6,12 +6,13 @@ mod elfloader;
 mod virtmem;
 
 use crate::elfloader::KernelLoader;
-use crate::virtmem::{PageTable, PAGESIZE};
+use crate::virtmem::PageTable;
 use ::elfloader::ElfBinary;
 use allocators::{AllocInit, BumpAllocator, BumpBox};
 use core::panic::PanicInfo;
 use core::ptr::eq;
 use fdt_rs::base::DevTree;
+use libkernel::mem::PAGESIZE;
 use log::Level;
 use sbi_log::KernelLogger;
 
