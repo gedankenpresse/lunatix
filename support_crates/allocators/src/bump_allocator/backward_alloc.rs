@@ -16,9 +16,9 @@ struct AllocatorState<'mem> {
 /// ```text
 ///   ┌────────────────── backing memory ────────────────────┐
 ///   │                                                      │
-/// [0x5, 0x7, 0xD, 0xA, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
-///                  ^
-///       marker ────┘
+/// [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x7, 0xD, 0xA]
+///                                           ^
+///                                           └──── marker
 /// ```
 ///
 /// # Performance Note
@@ -28,11 +28,11 @@ struct AllocatorState<'mem> {
 /// This impacts performance when allocating and deallocating memory in parallel but  the lock is never returned to the
 /// user so that a timely unlock is always ensured.
 #[derive(Debug)]
-pub struct ForwardBumpingAllocator<'mem> {
+pub struct BackwardBumpingAllocator<'mem> {
     state: SpinLock<AllocatorState<'mem>>,
 }
 
-impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
+impl<'mem> BumpAllocator<'mem> for BackwardBumpingAllocator<'mem> {
     fn new(backing_mem: &'mem mut [u8]) -> Self {
         Self {
             state: SpinLock::new(AllocatorState {
@@ -59,10 +59,14 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
             let mut state = self.state.spin_lock();
 
             unsafe {
-                let unaligned_ptr =
-                    state.backing_mem.as_mut_ptr().add(state.bytes_allocated) as usize;
-                let aligned_ptr = (unaligned_ptr + alignment - 1) & !(alignment - 1);
-                let bytes_to_allocate = aligned_ptr - unaligned_ptr + size;
+                let unaligned_ptr = state
+                    .backing_mem
+                    .as_mut_ptr()
+                    .add(state.backing_mem.len())
+                    .sub(state.bytes_allocated)
+                    .sub(size) as usize;
+                let aligned_ptr = unaligned_ptr & !(alignment - 1);
+                let bytes_to_allocate = (unaligned_ptr - aligned_ptr) + size;
 
                 // check that there even is enough space to allocate the requested amount
                 if state
@@ -126,7 +130,7 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
         mem::swap(&mut dummy, &mut state.backing_mem);
 
         let mut split = dummy.split_at_mut(state.bytes_allocated);
-        mem::swap(&mut split.0, &mut state.backing_mem);
-        split.1
+        mem::swap(&mut split.1, &mut state.backing_mem);
+        split.0
     }
 }

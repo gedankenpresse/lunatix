@@ -8,7 +8,9 @@ mod virtmem;
 use crate::elfloader::KernelLoader;
 use crate::virtmem::PageTable;
 use ::elfloader::ElfBinary;
-use allocators::bump_allocator::{BumpAllocator, BumpBox, ForwardBumpingAllocator};
+use allocators::bump_allocator::{
+    BackwardBumpingAllocator, BumpAllocator, BumpBox, ForwardBumpingAllocator,
+};
 use allocators::AllocInit;
 use core::panic::PanicInfo;
 use core::ptr::eq;
@@ -17,7 +19,7 @@ use libkernel::mem::PAGESIZE;
 use log::Level;
 use sbi_log::KernelLogger;
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
 
 static KERNEL_BIN: &[u8] =
     include_bytes!("../../../target/riscv64imac-unknown-none-elf/debug/kernel");
@@ -59,7 +61,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     const MEM_START: usize = 0x8000_0000 + GB / 2; // we just chose a high value that is larger than the kernel_loader binary
     const MEM_END: usize = 0xc0000000; // if we give 1GB of memory during qemu start, this is the last address
     let mut allocator =
-        unsafe { ForwardBumpingAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
+        unsafe { BackwardBumpingAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
 
     let root_table = unsafe {
         PageTable::empty(&mut allocator)
@@ -98,7 +100,8 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let device_tree = unsafe { DevTree::from_raw_pointer(args.phys_fdt_addr).unwrap() };
 
     log::debug!("moving device tree");
-    let mut phys_dev_tree = BumpBox::new_uninit_slice(device_tree.buf().len(), &allocator).unwrap();
+    let mut phys_dev_tree =
+        BumpBox::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, &allocator).unwrap();
     let phys_dev_tree = unsafe {
         for (i, &byte) in device_tree.buf().iter().enumerate() {
             phys_dev_tree[i].write(byte);
@@ -106,6 +109,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         phys_dev_tree.assume_init()
     };
 
+    log::debug!("{:?}", unsafe { DevTree::new(&phys_dev_tree) });
     assert!(unsafe { DevTree::new(&phys_dev_tree) }.is_ok());
 
     // waste a page or two so we get back to page alignment

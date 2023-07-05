@@ -51,12 +51,23 @@ impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [T]> {
         len: usize,
         allocator: &'alloc A,
     ) -> Result<BumpBox<'alloc, 'mem, A, [MaybeUninit<T>]>, AllocFailed> {
+        Self::new_uninit_slice_with_alignment(len, mem::align_of::<T>(), allocator)
+    }
+
+    /// Construct a new boxed slice with uninitialized contents.
+    ///
+    /// The slice is guaranteed to start at an explicitly aligned address.
+    pub fn new_uninit_slice_with_alignment(
+        len: usize,
+        alignment: usize,
+        allocator: &'alloc A,
+    ) -> Result<BumpBox<'alloc, 'mem, A, [MaybeUninit<T>]>, AllocFailed> {
         // allocate enough space from the allocator
         let mem = ptr::slice_from_raw_parts_mut(
             allocator
                 .allocate(
                     mem::size_of::<T>() * len,
-                    mem::align_of::<T>(),
+                    alignment,
                     AllocInit::Uninitialized,
                 )?
                 .as_mut_ptr()
