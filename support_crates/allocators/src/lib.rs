@@ -4,9 +4,29 @@
 extern crate std;
 
 mod arena_allocator;
-mod bump_allocator;
-mod bump_box;
+pub mod bump_allocator;
 
 pub use arena_allocator::Arena;
-pub use bump_allocator::{AllocError, AllocInit, BumpAllocator};
-pub use bump_box::BumpBox;
+use thiserror_no_std::Error;
+
+/// The error returned when an allocation fails
+#[derive(Debug, Error)]
+pub enum AllocFailed {
+    #[error("the allocator has insufficient free memory to allocate the requested amount")]
+    InsufficientMemory,
+}
+
+/// A desired initial state for allocated memory
+#[derive(Default, Debug, Eq, PartialEq)]
+pub enum AllocInit {
+    /// The memory is returned as-is from the allocator.
+    /// It may potentially contain old data and treating it as valid is undefined behavior.
+    Uninitialized,
+
+    /// Memory is filled with zeros before being returned to the caller.
+    #[default]
+    Zeroed,
+
+    /// Memory is filled with a repetition of the given byte before being returned to the caller.
+    Data(u8),
+}

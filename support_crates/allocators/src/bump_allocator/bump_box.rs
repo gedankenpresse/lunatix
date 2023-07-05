@@ -1,19 +1,19 @@
-use crate::{AllocError, AllocInit, BumpAllocator};
-use core::marker::PhantomData;
+use crate::bump_allocator::bump_alloc_trait::BumpAllocator;
+use crate::{AllocFailed, AllocInit};
 use core::mem;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 
 /// A box-like struct allocated from a [`BumpAllocator`]
-pub struct BumpBox<'alloc, 'mem, T: ?Sized> {
+pub struct BumpBox<'alloc, 'mem, A: BumpAllocator<'mem>, T: ?Sized> {
     inner: &'mem mut T,
-    source: &'alloc BumpAllocator<'mem>,
+    source: &'alloc A,
 }
 
-impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, T> {
+impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, T> {
     /// Allocate memory from the given allocator and store the given data in it.
-    pub fn new(data: T, allocator: &'alloc BumpAllocator<'mem>) -> Result<Self, AllocError> {
+    pub fn new(data: T, allocator: &'alloc A) -> Result<Self, AllocFailed> {
         let result = Self::new_uninit(allocator)?;
         Ok(unsafe {
             result.inner.as_mut_ptr().cast::<T>().write(data);
@@ -23,8 +23,8 @@ impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, T> {
 
     /// Construct a new box with uninitialized content
     pub fn new_uninit(
-        allocator: &'alloc BumpAllocator<'mem>,
-    ) -> Result<BumpBox<'alloc, 'mem, MaybeUninit<T>>, AllocError> {
+        allocator: &'alloc A,
+    ) -> Result<BumpBox<'alloc, 'mem, A, MaybeUninit<T>>, AllocFailed> {
         // allocate enough space from the allocator
         let mem = allocator
             .allocate(
@@ -45,12 +45,12 @@ impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, T> {
     }
 }
 
-impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, [T]> {
+impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [T]> {
     /// Constructs a new boxed slice with uninitialized contents.
     pub fn new_uninit_slice(
         len: usize,
-        allocator: &'alloc BumpAllocator<'mem>,
-    ) -> Result<BumpBox<'alloc, 'mem, [MaybeUninit<T>]>, AllocError> {
+        allocator: &'alloc A,
+    ) -> Result<BumpBox<'alloc, 'mem, A, [MaybeUninit<T>]>, AllocFailed> {
         // allocate enough space from the allocator
         let mem = ptr::slice_from_raw_parts_mut(
             allocator
@@ -74,19 +74,19 @@ impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, [T]> {
     }
 }
 
-impl<'alloc, 'mem, T: ?Sized> BumpBox<'alloc, 'mem, T> {
+impl<'alloc, 'mem, A: BumpAllocator<'mem>, T: ?Sized> BumpBox<'alloc, 'mem, A, T> {
     pub fn into_raw(self) -> *mut T {
         self.inner as *mut T
     }
 }
 
-impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, MaybeUninit<T>> {
+impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, MaybeUninit<T>> {
     /// Converts to `BumpBox<T>`
     ///
     /// # Safety
     /// As with [`MaybeUninit::assume_init`], it is up to the caller to guarantee that the value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
-    pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, T> {
+    pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, A, T> {
         BumpBox {
             inner: &mut *self.inner.as_mut_ptr().cast(),
             source: self.source,
@@ -94,13 +94,13 @@ impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, MaybeUninit<T>> {
     }
 }
 
-impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, [MaybeUninit<T>]> {
+impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [MaybeUninit<T>]> {
     /// Converts to `BumpBox<T>`
     ///
     /// # Safety
     /// As with [`MaybeUninit::assume_init`], it is up to the caller to guarantee that the value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
-    pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, [T]> {
+    pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, A, [T]> {
         BumpBox {
             inner: &mut *ptr::slice_from_raw_parts_mut(
                 self.inner.as_mut_ptr() as *mut T,
@@ -111,7 +111,7 @@ impl<'alloc, 'mem, T> BumpBox<'alloc, 'mem, [MaybeUninit<T>]> {
     }
 }
 
-impl<T: ?Sized> Deref for BumpBox<'_, '_, T> {
+impl<'mem, A: BumpAllocator<'mem>, T: ?Sized> Deref for BumpBox<'_, 'mem, A, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -119,13 +119,13 @@ impl<T: ?Sized> Deref for BumpBox<'_, '_, T> {
     }
 }
 
-impl<T: ?Sized> DerefMut for BumpBox<'_, '_, T> {
+impl<'mem, A: BumpAllocator<'mem>, T: ?Sized> DerefMut for BumpBox<'_, 'mem, A, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner
     }
 }
 
-impl<T: ?Sized> Drop for BumpBox<'_, '_, T> {
+impl<'mem, A: BumpAllocator<'mem>, T: ?Sized> Drop for BumpBox<'_, 'mem, A, T> {
     fn drop(&mut self) {
         unsafe { self.source.deallocate(self.inner as *mut T as *mut u8) }
     }

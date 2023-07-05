@@ -1,92 +1,54 @@
+use crate::bump_allocator::bump_alloc_trait::BumpAllocator;
+use crate::{AllocFailed, AllocInit};
 use core::{mem, ptr};
 use ksync::SpinLock;
-use thiserror_no_std::Error;
-
-#[derive(Debug, Error)]
-pub enum AllocError {
-    #[error("the allocator has insufficient free memory to allocate the requested amount")]
-    InsufficientMemory,
-}
-
-/// A desired initial state for allocated memory
-#[derive(Default, Debug, Eq, PartialEq)]
-pub enum AllocInit {
-    #[default]
-    Uninitialized,
-    Zeroed,
-    Data(u8),
-}
 
 #[derive(Debug, Eq, PartialEq, Hash)]
-pub struct AllocatorState<'mem> {
+struct AllocatorState<'mem> {
     backing_mem: &'mem mut [u8],
     bytes_allocated: usize,
     num_allocations: usize,
 }
 
-/// A simple allocator implementation which bumps a marker in the backing memory to denote what has already been allocated.
+/// A [`BumpAllocator`] which starts allocations from the beginning of the backing memory and bumps the allocation
+/// marker forwards.
 ///
-/// As a consequence of the simple allocator design, arbitrary size & alignment allocations are support but de-allocation
-/// does immediately make the allocated memory available to be allocated again.
-/// Only when *all* allocations have been de-allocated, the backing memory is made available again.
+/// ```text
+///   ┌────────────────── backing memory ────────────────────┐
+///   │                                                      │
+/// [0x5, 0x7, 0xD, 0xA, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
+///                  ^
+///       marker ────┘
+/// ```
 ///
 /// # Performance Note
 /// The implementation internally uses a [`SpinLock`] to achieve interior thread-safe mutability which is needed
-/// for some atomicity requirements involving [`allocate`](BumpAllocator::allocate) and [`deallocate`](BumpAllocator::deallocate).
+/// for some atomicity requirements involving [`allocate`](ForwardBumpingAllocator::allocate) and [`deallocate`](ForwardBumpingAllocator::deallocate).
 ///
 /// This impacts performance when allocating and deallocating memory in parallel but  the lock is never returned to the
 /// user so that a timely unlock is always ensured.
 #[derive(Debug)]
-pub struct BumpAllocator<'mem> {
+pub struct ForwardBumpingAllocator<'mem> {
     state: SpinLock<AllocatorState<'mem>>,
 }
 
-impl<'mem> BumpAllocator<'mem> {
-    /// Create a new allocator that allocates from the memory region between `start` and `end`
-    ///
-    /// # Safety
-    /// The entire memory area must be accessible and otherwise completely unused.
-    pub unsafe fn new_raw(start: *mut u8, end: *mut u8) -> Self {
-        assert!(start <= end);
+impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
+    fn new(backing_mem: &'mem mut [u8]) -> Self {
         Self {
             state: SpinLock::new(AllocatorState {
-                backing_mem: &mut *ptr::slice_from_raw_parts_mut(
-                    start,
-                    end as usize - start as usize,
-                ),
+                backing_mem,
                 num_allocations: 0,
                 bytes_allocated: 0,
             }),
         }
     }
 
-    /// How much free space (in bytes) remains in the allocators backing memory
-    pub fn capacity(&self) -> usize {
-        let state = self.state.spin_lock();
-        state.backing_mem.len() - state.bytes_allocated
-    }
-
-    /// Steal the remaining free memory from the allocator.
-    ///
-    /// This makes the stolen memory unavailable to the allocator so that no further regions are allocated from it.
-    pub fn steal_remaining_mem(&self) -> &'mem mut [u8] {
-        let mut state = self.state.spin_lock();
-
-        let mut dummy = [0u8; 0].as_mut_slice();
-        mem::swap(&mut dummy, &mut state.backing_mem);
-
-        let mut split = dummy.split_at_mut(state.bytes_allocated);
-        mem::swap(&mut split.0, &mut state.backing_mem);
-        split.1
-    }
-
-    /// Allocate a slice of the given size aligned to `alignment` bytes.
-    pub fn allocate<'alloc>(
-        &'alloc self,
+    fn allocate(
+        &self,
         size: usize,
         alignment: usize,
         init: AllocInit,
-    ) -> Result<&'mem mut [u8], AllocError> {
+    ) -> Result<&'mem mut [u8], AllocFailed> {
         assert!(
             alignment.is_power_of_two(),
             "alignment must be a power of two"
@@ -109,7 +71,7 @@ impl<'mem> BumpAllocator<'mem> {
                     .saturating_sub(state.bytes_allocated)
                     < bytes_to_allocate
                 {
-                    return Err(AllocError::InsufficientMemory);
+                    return Err(AllocFailed::InsufficientMemory);
                 }
 
                 // update state to include the now allocated bytes
@@ -135,18 +97,7 @@ impl<'mem> BumpAllocator<'mem> {
         Ok(result)
     }
 
-    /// Deallocate the given data.
-    ///
-    /// # Panics
-    /// This function panics if the given `data_ptr` does not lie within the bounds of the allocators backing memory.
-    ///
-    /// # Safety
-    /// The given data must be *currently allocated* from this allocator.
-    ///
-    /// This means that:
-    /// - it was previously returned by [`allocate`](BumpAllocator::allocate)
-    /// - it has not yet been deallocated
-    pub unsafe fn deallocate(&self, data_ptr: *mut u8) {
+    unsafe fn deallocate(&self, data_ptr: *mut u8) {
         let mut state = self.state.spin_lock();
         assert!(data_ptr as usize >= state.backing_mem.as_ptr() as usize, "deallocate was called with a data_ptr that does not point inside the allocators backing memory");
         assert!((data_ptr as usize) < state.backing_mem.as_ptr() as usize + state.backing_mem.len(), "deallocate was called with a data_ptr that does not point inside the allocators backing memory");
@@ -159,5 +110,16 @@ impl<'mem> BumpAllocator<'mem> {
         if state.num_allocations == 0 {
             state.bytes_allocated = 0;
         }
+    }
+
+    fn steal_remaining_mem(&self) -> &'mem mut [u8] {
+        let mut state = self.state.spin_lock();
+
+        let mut dummy = [0u8; 0].as_mut_slice();
+        mem::swap(&mut dummy, &mut state.backing_mem);
+
+        let mut split = dummy.split_at_mut(state.bytes_allocated);
+        mem::swap(&mut split.0, &mut state.backing_mem);
+        split.1
     }
 }

@@ -1,4 +1,5 @@
-use allocators::{AllocInit, BumpAllocator};
+use allocators::bump_allocator::BumpAllocator;
+use allocators::AllocInit;
 use bitflags::{bitflags, Flags};
 use core::fmt::Write;
 use core::mem;
@@ -30,7 +31,7 @@ pub struct PageTable {
 }
 
 impl PageTable {
-    pub fn empty(alloc: &mut BumpAllocator) -> Option<*mut PageTable> {
+    pub fn empty<'a>(alloc: &mut impl BumpAllocator<'a>) -> Option<*mut PageTable> {
         // TODO Transform this into a result
         let page = alloc
             .allocate(
@@ -163,8 +164,8 @@ const fn vpn_segments(vaddr: usize) -> [usize; 3] {
 ///
 /// - One of Read, Write or Execute Bits must be set
 /// - The paddr must be page aligned (4096 bits)
-pub fn map(
-    alloc: &mut BumpAllocator,
+pub fn map<'a>(
+    alloc: &mut impl BumpAllocator<'a>,
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
@@ -218,7 +219,7 @@ pub fn map(
 ///
 /// `entry` is an existing entry in an existing [`PageTable`] which is currently not used.
 /// It will be changed to point to a newly allocated one.
-fn alloc_missing_pagetable(entry: &mut Entry, alloc: &mut BumpAllocator) {
+fn alloc_missing_pagetable<'a>(entry: &mut Entry, alloc: &mut impl BumpAllocator<'a>) {
     // if the entry was valid, there's no missing PageTable
     assert!(!entry.is_valid());
 
@@ -265,8 +266,8 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
 }
 
 /// Identity-map the address range described by `start` and `end` to the same location in virtual memory
-pub fn id_map_range(
-    alloc: &mut BumpAllocator,
+pub fn id_map_range<'a>(
+    alloc: &mut impl BumpAllocator<'a>,
     root: &mut PageTable,
     start: usize,
     end: usize,
@@ -314,8 +315,8 @@ pub fn kernel_map_phys_huge(root: &mut PageTable) {
 
 /// Map a range of phyiscal addresses described by `start` and `size` to virtual memory starting at `virt_base`.
 /// Effectively this allocates a region in virtual memory starting at `virt_base` with `size` bytes space.
-pub fn map_range_alloc(
-    alloc: &mut BumpAllocator,
+pub fn map_range_alloc<'a>(
+    alloc: &mut impl BumpAllocator<'a>,
     root: &mut PageTable,
     virt_base: usize,
     size: usize,

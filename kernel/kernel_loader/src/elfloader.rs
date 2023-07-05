@@ -3,7 +3,7 @@
 use crate::virtmem;
 
 use crate::virtmem::{map_range_alloc, virt_to_phys, EntryBits, PageTable};
-use allocators::BumpAllocator;
+use allocators::bump_allocator::BumpAllocator;
 use elfloader::arch::riscv::RelocationTypes;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
@@ -11,13 +11,13 @@ use elfloader::{
 };
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
-pub struct KernelLoader {
-    pub allocator: BumpAllocator<'static>,
+pub struct KernelLoader<A: BumpAllocator<'static>> {
+    pub allocator: A,
     pub root_pagetable: &'static mut PageTable,
 }
 
-impl KernelLoader {
-    pub fn new(allocator: BumpAllocator<'static>, root_pagetable: &'static mut PageTable) -> Self {
+impl<A: BumpAllocator<'static>> KernelLoader<A> {
+    pub fn new(allocator: A, root_pagetable: &'static mut PageTable) -> Self {
         Self {
             allocator,
             root_pagetable,
@@ -38,7 +38,7 @@ impl KernelLoader {
     }
 }
 
-impl ElfLoader for KernelLoader {
+impl<A: BumpAllocator<'static>> ElfLoader for KernelLoader<A> {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for header in load_headers {
             log::debug!(

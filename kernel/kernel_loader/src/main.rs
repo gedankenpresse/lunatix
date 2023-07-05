@@ -8,7 +8,8 @@ mod virtmem;
 use crate::elfloader::KernelLoader;
 use crate::virtmem::PageTable;
 use ::elfloader::ElfBinary;
-use allocators::{AllocInit, BumpAllocator, BumpBox};
+use allocators::bump_allocator::{BumpAllocator, BumpBox, ForwardBumpingAllocator};
+use allocators::AllocInit;
 use core::panic::PanicInfo;
 use core::ptr::eq;
 use fdt_rs::base::DevTree;
@@ -57,7 +58,8 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     const GB: usize = 1024 * 1024 * 1024;
     const MEM_START: usize = 0x8000_0000 + GB / 2; // we just chose a high value that is larger than the kernel_loader binary
     const MEM_END: usize = 0xc0000000; // if we give 1GB of memory during qemu start, this is the last address
-    let mut allocator = unsafe { BumpAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
+    let mut allocator =
+        unsafe { ForwardBumpingAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
 
     let root_table = unsafe {
         PageTable::empty(&mut allocator)
