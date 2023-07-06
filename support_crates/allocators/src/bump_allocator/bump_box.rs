@@ -43,6 +43,27 @@ impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, T> {
             }
         })
     }
+
+    /// Construct a new box with uninitialized content but the underlying memory being filled with `0` bytes.
+    ///
+    /// See [`MaybeUninit::zeroed`] for examples of correct and incorrect usage of this method.
+    pub fn new_zeroed(
+        allocator: &'alloc A,
+    ) -> Result<BumpBox<'alloc, 'mem, A, MaybeUninit<T>>, AllocFailed> {
+        // allocate enough space from the allocator
+        let mem = allocator
+            .allocate(mem::size_of::<T>(), mem::align_of::<T>(), AllocInit::Zeroed)?
+            .as_mut_ptr()
+            .cast::<MaybeUninit<T>>();
+
+        // put the given data into the allocated memory
+        Ok(unsafe {
+            BumpBox {
+                inner: &mut *mem,
+                source: allocator,
+            }
+        })
+    }
 }
 
 impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [T]> {

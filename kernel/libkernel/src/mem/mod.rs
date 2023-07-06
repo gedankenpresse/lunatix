@@ -31,6 +31,12 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
+mod page_table;
+mod page_table_entry;
+
+pub use page_table::PageTable;
+pub use page_table_entry::{EntryFlags, PageTableEntry};
+
 /// The virtual memory address at which userspace tasks are mapped
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
