@@ -107,8 +107,23 @@ impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [T]> {
 }
 
 impl<'alloc, 'mem, A: BumpAllocator<'mem>, T: ?Sized> BumpBox<'alloc, 'mem, A, T> {
+    /// Consumes the Box, returning a raw pointer to the underlying data.
+    ///
+    /// After calling this function, the caller is responsible for the memory previously managed by the Box.
+    /// In particular, the caller should properly destroy T and release the memory back to the allocator.
     pub fn into_raw(self) -> *mut T {
-        self.inner as *mut T
+        let result = self.inner as *mut T;
+        mem::forget(self);
+        result
+    }
+
+    /// Consumes the box and leaks the contained value, returning a mutable reference to it.
+    ///
+    /// Note that dropping the returned reference will produce a memory leak.
+    pub fn leak(self) -> &'mem mut T {
+        let value_ptr = self.inner as *mut T;
+        mem::forget(self);
+        unsafe { &mut *value_ptr }
     }
 }
 
@@ -119,9 +134,10 @@ impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, MaybeUnin
     /// As with [`MaybeUninit::assume_init`], it is up to the caller to guarantee that the value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
     pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, A, T> {
+        let mut old = mem::ManuallyDrop::new(self);
         BumpBox {
-            inner: &mut *self.inner.as_mut_ptr().cast(),
-            source: self.source,
+            inner: &mut *old.inner.as_mut_ptr().cast(),
+            source: old.source,
         }
     }
 }
@@ -133,12 +149,13 @@ impl<'alloc, 'mem, A: BumpAllocator<'mem>, T> BumpBox<'alloc, 'mem, A, [MaybeUni
     /// As with [`MaybeUninit::assume_init`], it is up to the caller to guarantee that the value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
     pub unsafe fn assume_init(self) -> BumpBox<'alloc, 'mem, A, [T]> {
+        let mut old = mem::ManuallyDrop::new(self);
         BumpBox {
             inner: &mut *ptr::slice_from_raw_parts_mut(
-                self.inner.as_mut_ptr() as *mut T,
-                self.inner.len(),
+                old.inner.as_mut_ptr() as *mut T,
+                old.inner.len(),
             ),
-            source: self.source,
+            source: old.source,
         }
     }
 }

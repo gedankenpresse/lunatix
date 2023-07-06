@@ -119,6 +119,7 @@ impl<'mem> BumpAllocator<'mem> for BackwardBumpingAllocator<'mem> {
         // reset allocation marker if there is now nothing allocated
         // this effectively makes all memory available again for allocation
         if state.num_allocations == 0 {
+            log::trace!("all allocations have been returned, resetting bump allocator");
             state.bytes_allocated = 0;
         }
     }
