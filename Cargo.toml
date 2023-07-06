@@ -4,7 +4,7 @@ members = [
     "support_crates/*",
 ]
 
-[profile.debug]
+[profile.dev]
 panic = 'abort'
 
 [profile.release]
@@ -13,7 +13,7 @@ panic = 'abort'     # Abort on panic
 codegen-units = 1   # Reduce number of codegen units to increase optimizations
 
 
-# for extra small binaries, set: 
+# for extra small binaries, set:
 #   opt-level = 's'
 # or even:
-#   opt-level = 'z' 
+#   opt-level = 'z'
