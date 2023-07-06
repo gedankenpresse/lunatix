@@ -3,6 +3,8 @@ use crate::caps::errors::*;
 use crate::caps::CSlot;
 use libkernel::mem::PAGESIZE;
 
+use super::Capability;
+
 pub struct CSpace {
     bits: usize,
     slots: *mut caps::CSlot,
@@ -19,24 +21,22 @@ fn cspace_pages(bits: usize) -> usize {
 }
 
 impl CSpace {
-    pub(crate) fn init_sz(mem: &mut caps::Memory, bits: usize) -> Result<caps::Cap<Self>, NoMem> {
+    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, bits: usize) -> Result<(), NoMem> {
+        let memref = mem.get_memory_mut().unwrap();
         let pages = cspace_pages(bits);
         let slots = {
-            let ptr = mem.alloc_pages_raw(pages)? as *mut caps::CSlot;
-            for i in 0..1 << bits {
-                unsafe { *ptr.add(i) = CSlot::default() }
+            let ptr = memref.elem.alloc_pages_raw(pages)? as *mut caps::CSlot;
+            for i in 0..(1 << bits) {
+                unsafe { *ptr.add(i) = CSlot::empty() }
             }
             let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
             slots
         };
-        for slot in slots.iter_mut() {
-            *slot = caps::CSlot::default();
-        }
-        let cap = caps::Cap::from_content(Self {
-            bits,
-            slots: slots.as_mut_ptr(),
-        });
-        Ok(cap)
+
+        slot.set(Self { bits, slots: slots.as_mut_ptr() });
+        unsafe { mem.link_derive(slot.cap.as_link()) };
+
+        Ok(())
     }
 
     pub(crate) fn get_slots(&self) -> &[caps::CSlot] {

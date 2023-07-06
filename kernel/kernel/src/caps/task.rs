@@ -22,8 +22,8 @@ impl TaskState {
 
         // initialize the task state
         unsafe {
-            ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::default());
-            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::default());
+            ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::empty());
+            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::empty());
             ptr::addr_of_mut!((*ptr).frame).write(TrapFrame::null());
         }
 
@@ -32,11 +32,10 @@ impl TaskState {
 }
 
 impl Task {
-    pub fn init(slot: &mut caps::CSlot, mem: &mut caps::Memory) -> Result<(), caps::Error> {
-        let cap = caps::Cap::from_content(Self {
-            state: TaskState::init(mem)?,
-        });
-        slot.set(cap)?;
+    pub fn init(slot: &mut caps::CSlot, mem: &mut caps::CNode) -> Result<(), caps::Error> {
+        let memref  = mem.get_memory_mut().unwrap();
+        slot.set(Self { state: TaskState::init(memref.elem)? })?;
+        unsafe { mem.link_derive(slot.cap.as_link()) };
         Ok(())
     }
 }

@@ -8,12 +8,15 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn init_sz(mem: &mut caps::Memory, pages: usize) -> Result<caps::Cap<Self>, NoMem> {
-        let ptr = mem.alloc_pages_raw(pages)?;
+    pub fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, pages: usize) -> Result<(), NoMem> {
+        let memref = mem.get_memory_mut().unwrap();
+        let ptr = memref.elem.alloc_pages_raw(pages)?;
         let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
         let inner = Arena::new(slice);
-        let cap = caps::Cap::from_content(Self { inner });
-        Ok(cap)
+
+        slot.set(Self { inner });
+        unsafe { mem.link_derive(slot.cap.as_link()) };
+        Ok(())
     }
 
     pub fn alloc_pages_raw(&mut self, pages: usize) -> Result<*mut MemoryPage, NoMem> {

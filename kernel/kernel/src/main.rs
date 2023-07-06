@@ -168,17 +168,18 @@ fn run_init(trap_stack: *mut ()) {
     unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();
-        let task = guard.init_task.cap.get_task_mut().unwrap();
+        let task = &mut guard.init_task.cap;
         yield_to_task(trap_stack as *mut u8, task);
     };
 }
 
 /// Yield to the task that owns the given `trap_frame`
-unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
-    let state = unsafe { task.state.as_mut().unwrap() };
+unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CNode) -> ! {
+    let taskref = task.get_task_mut().unwrap();
+    let state = unsafe { taskref.elem.state.as_mut().unwrap() };
     let trap_frame = &mut state.frame;
     trap_frame.trap_handler_stack = trap_handler_stack.cast();
-    let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
+    let root_pt = state.vspace.cap.get_vspace_mut().unwrap().elem.root;
     log::debug!("enabling task pagetable");
     unsafe {
         virtmem::use_pagetable(MappedMutPtr::from(root_pt).as_direct());

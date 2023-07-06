@@ -34,7 +34,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
                     .cap
                     .get_task_mut()
                     .unwrap()
-                    .content
+                    .elem
                     .state))
                     .frame
             }
