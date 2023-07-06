@@ -17,9 +17,9 @@ use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use libkernel::device_info::DeviceInfo;
 use libkernel::mem::PAGESIZE;
+use libkernel::sbi_log::KernelLogger;
 use log::Level;
 use sbi::system_reset::{ResetReason, ResetType};
-use sbi_log::KernelLogger;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 

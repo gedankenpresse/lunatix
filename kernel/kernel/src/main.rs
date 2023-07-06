@@ -16,13 +16,12 @@ use allocators::Arena;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
-use libkernel::arch::asm_utils::wait_for_interrupt;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
 use libkernel::mem::{MemoryPage, PAGESIZE};
+use libkernel::sbi_log::KernelLogger;
 use libkernel::{arch, println};
 use log::Level;
-use sbi_log::KernelLogger;
 
 pub struct InitCaps {
     mem: CSlot,

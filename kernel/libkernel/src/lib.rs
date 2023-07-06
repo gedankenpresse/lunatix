@@ -10,3 +10,4 @@ pub mod print;
 pub mod caps;
 pub mod device_info;
 pub mod mem;
+pub mod sbi_log;

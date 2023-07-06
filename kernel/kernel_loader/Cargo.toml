@@ -11,7 +11,6 @@ libkernel = { path = "../libkernel" }
 allocators = { path = "../../support_crates/allocators" }
 elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
 log = { version = "0.4.19", default-features = false, features = ["release_max_level_debug"] }
-sbi_log = { path = "../../support_crates/sbi_log" }
 sbi = "0.2.0"
 bitflags = "2.2.1"
 #kernel = { path = "../kernel", artifact = "bin" }  # only works with nightly cargo
