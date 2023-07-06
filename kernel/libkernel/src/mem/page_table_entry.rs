@@ -64,16 +64,14 @@ impl PageTableEntry {
 
 impl Debug for PageTableEntry {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Entry")
-            .field(
-                "ppn",
-                &match self.get_addr() {
-                    Ok(addr) => format_args!("{:#x}", addr),
-                    Err(_) => format_args!("(omitted)"),
-                },
-            )
-            .field("flags", &self.get_flags())
-            .finish()
+        let mut debug = f.debug_struct("Entry");
+
+        match self.get_addr() {
+            Err(_) => debug.field("ppn", &"invalid"),
+            Ok(addr) => debug.field("ppn", &format_args!("{:#x}", addr)),
+        };
+
+        debug.field("flags", &self.get_flags()).finish()
     }
 }
 

@@ -6,7 +6,6 @@ mod elfloader;
 mod virtmem;
 
 use crate::elfloader::KernelLoader;
-use crate::virtmem::PageTable;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator, BumpBox};
 use allocators::AllocInit;
@@ -16,12 +15,12 @@ use core::ops::Add;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use libkernel::device_info::DeviceInfo;
-use libkernel::mem::PAGESIZE;
+use libkernel::mem::{PageTable, PAGESIZE};
 use libkernel::sbi_log::KernelLogger;
 use log::Level;
 use sbi::system_reset::{ResetReason, ResetType};
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -104,24 +103,23 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         mem_end,
         mem_end as usize - mem_start as usize
     );
-    let mut allocator = unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
+    let allocator = unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    let root_table = unsafe {
-        PageTable::empty(&mut allocator)
-            .expect("Could not setup root PageTable")
-            .as_mut()
-            .unwrap()
-    };
+    log::debug!("allocating root table");
+    let root_table = PageTable::new(&allocator)
+        .expect("Could not setup root PageTable")
+        .leak();
     log::debug!("root_table addr: {:p}", root_table);
 
     // load the kernel ELF file
-    let mut kernel_loader = KernelLoader::new(allocator, root_table);
+    let mut kernel_loader = KernelLoader::new(&allocator, root_table);
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
     binary
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
+
     let stack_start: usize = 0xfffffffffff7a000;
     kernel_loader.load_stack(stack_start - 0x5000, stack_start);
     let entry_point = binary.entry_point();
@@ -134,6 +132,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // TODO: the kernel has to clean up lower address space later
     log::debug!("identity mapping lower memory region");
     virtmem::id_map_lower_huge(root_pagetable);
+
     log::debug!("mapping physical memory to kernel");
     virtmem::kernel_map_phys_huge(root_pagetable);
 
@@ -147,7 +146,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     log::debug!("moving device tree");
     let mut phys_dev_tree =
-        BumpBox::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, &allocator).unwrap();
+        BumpBox::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, allocator).unwrap();
     let phys_dev_tree = unsafe {
         for (i, &byte) in device_tree.buf().iter().enumerate() {
             phys_dev_tree[i].write(byte);

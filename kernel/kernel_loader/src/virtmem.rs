@@ -5,100 +5,21 @@ use core::fmt::Write;
 use core::mem;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
-use libkernel::mem::{MemoryPage, PAGESIZE};
+use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
-/// An entry of a page table responsible for mapping virtual to phyiscal adresses.
-#[derive(Copy, Clone)]
-pub struct Entry {
-    entry: u64,
+pub trait PageTableEntryExt {
+    unsafe fn get_ptr(&self) -> *const PageTable;
+
+    unsafe fn get_ptr_mut(&mut self) -> *mut PageTable;
 }
 
-impl core::fmt::Debug for Entry {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Entry")
-            .field("ppn", unsafe { &self.get_ptr() })
-            .field("flags", &self.flags())
-            .finish()
+impl PageTableEntryExt for PageTableEntry {
+    unsafe fn get_ptr(&self) -> *const PageTable {
+        self.get_addr().unwrap() as *const PageTable // TODO Better error handling
     }
-}
 
-/// One virtual memory mapping page.
-///
-/// It exactly fills 4096 bytes which is also the size of mapped pages.
-#[derive(Debug)]
-pub struct PageTable {
-    pub entries: [Entry; 512],
-}
-
-impl PageTable {
-    pub fn empty<'a>(alloc: &mut impl BumpAllocator<'a>) -> Option<*mut PageTable> {
-        // TODO Transform this into a result
-        let page = alloc
-            .allocate(
-                mem::size_of::<PageTable>(),
-                mem::align_of::<MemoryPage>(),
-                AllocInit::Zeroed,
-            )
-            .ok()?;
-        Some(page.as_mut_ptr().cast())
-    }
-}
-
-bitflags! {
-    #[derive(Copy, Clone, Eq, PartialEq)]
-    pub struct EntryBits: u64 {
-        /// If set, the MMU considers this a valid entry in the page table and uses it for address mapping
-        const Valid = 1 << 0;
-        /// Allows reading from the mapped page
-        const Read = 1 << 1;
-        /// Allows writing from the mapped page
-        const Write = 1 << 2;
-        /// Allows executing code from the mapped page
-        const Execute = 1 << 3;
-        /// Allows reading from the mapped page **from user mode**
-        const UserReadable = 1 << 4;
-        /// If set, the MMU considers this entry to be present in **all** address space IDs and caches them accordingly.
-        /// It is safe to never set this but when setting it, care should be taken to do it correctly.
-        const Global = 1 << 5;
-        /// Set by the MMU when something has read from the page since the mapping was set up
-        const Accessed = 1 << 6;
-        /// Set by the MMU when something has written to the page since the mapping was set up
-        const Dirty = 1 << 7;
-
-        /// Custom bit available for use by us
-        const CUSTOM1 = 1 << 8;
-        /// Custom bit available for use by us
-        const CUSTOM2 = 1 << 9;
-
-        const RWX = Self::Read.bits() | Self::Write.bits() | Self::Execute.bits();
-    }
-}
-
-impl core::fmt::Debug for EntryBits {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fn write_bit(
-            flags: EntryBits,
-            bit: EntryBits,
-            c: char,
-            f: &mut core::fmt::Formatter<'_>,
-        ) -> core::fmt::Result {
-            if flags.contains(bit) {
-                f.write_char(c)
-            } else {
-                f.write_char(' ')
-            }
-        }
-        write_bit(*self, EntryBits::CUSTOM2, '2', f)?;
-        write_bit(*self, EntryBits::CUSTOM1, '1', f)?;
-        write_bit(*self, EntryBits::Dirty, 'D', f)?;
-        write_bit(*self, EntryBits::Accessed, 'A', f)?;
-        write_bit(*self, EntryBits::Global, 'G', f)?;
-        write_bit(*self, EntryBits::UserReadable, 'U', f)?;
-        write_bit(*self, EntryBits::Execute, 'X', f)?;
-        write_bit(*self, EntryBits::Write, 'W', f)?;
-        write_bit(*self, EntryBits::Read, 'R', f)?;
-        write_bit(*self, EntryBits::Valid, 'V', f)?;
-        Ok(())
+    unsafe fn get_ptr_mut(&mut self) -> *mut PageTable {
+        self.get_addr().unwrap() as *mut PageTable // TODO Better error handling
     }
 }
 
@@ -106,38 +27,6 @@ impl core::fmt::Debug for EntryBits {
 pub enum EntryError {
     EntryInvalid,
     EntryIsPage,
-}
-
-impl Entry {
-    pub fn is_valid(&self) -> bool {
-        self.entry & EntryBits::Valid.bits() != 0
-    }
-
-    pub fn flags(&self) -> EntryBits {
-        EntryBits::from_bits(self.entry & ((1 << 9) - 1)).unwrap()
-    }
-
-    /// Whether this is a leaf entry not pointing to further [`PageTable`]s.
-    pub fn is_leaf(&self) -> bool {
-        self.entry & EntryBits::RWX.bits() != 0
-    }
-
-    pub unsafe fn get_ptr(&self) -> *const PageTable {
-        self.get_ptr_raw() as *const PageTable
-    }
-
-    pub unsafe fn get_ptr_mut(&mut self) -> *mut PageTable {
-        self.get_ptr_raw() as *mut PageTable
-    }
-
-    pub unsafe fn get_ptr_raw(&self) -> usize {
-        // TODO: Is this correct?
-        ((self.entry << 2) & !PBIT_MASK as u64) as usize
-    }
-
-    pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
-        self.entry = (paddr >> 2) | (flags | EntryBits::Valid).bits();
-    }
 }
 
 const PBITS: usize = 12; // the page offset is 12 bits long
@@ -165,15 +54,15 @@ const fn vpn_segments(vaddr: usize) -> [usize; 3] {
 /// - One of Read, Write or Execute Bits must be set
 /// - The paddr must be page aligned (4096 bits)
 pub fn map<'a>(
-    alloc: &mut impl BumpAllocator<'a>,
+    alloc: &impl BumpAllocator<'a>,
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
-    mut flags: EntryBits,
+    mut flags: EntryFlags,
 ) {
     // Make sure that one of Read, Write, or Execute Bits is set.
     // Otherwise, entry is regarded as pointer to next page table level
-    assert_ne!((flags & EntryBits::RWX).bits(), 0);
+    assert_ne!((flags & EntryFlags::RWX).bits(), 0);
     // ensure that no higher bits are set then are permitted
     assert_eq!(flags.bits() & !((1 << 9) - 1), 0);
 
@@ -207,25 +96,25 @@ pub fn map<'a>(
     if v.is_valid() {
         log::debug!("expected invalid entry, got {v:?} {vaddr:0x}, new: {flags:?}");
         //assert!(!v.is_valid(), "remapping entry");
-        flags |= v.flags();
+        flags |= v.get_flags();
         log::debug!("new flags {flags:?}");
     }
 
     // Now we are ready to point v to our physical address
-    v.entry = ((paddr >> 2) | (flags | EntryBits::Valid).bits() as usize) as u64;
+    unsafe { v.set(paddr as u64, flags | EntryFlags::Valid) }
 }
 
 /// Allocate a missing page table if it is missing.
 ///
 /// `entry` is an existing entry in an existing [`PageTable`] which is currently not used.
 /// It will be changed to point to a newly allocated one.
-fn alloc_missing_pagetable<'a>(entry: &mut Entry, alloc: &mut impl BumpAllocator<'a>) {
-    // if the entry was valid, there's no missing PageTable
+fn alloc_missing_pagetable<'a>(entry: &mut PageTableEntry, alloc: &impl BumpAllocator<'a>) {
+    // if the entry was already valid, there's no missing PageTable
     assert!(!entry.is_valid());
 
     // Allocate enough space for a new PageTale
-    let page = PageTable::empty(alloc).expect("Could not allocate missing pagetable");
-    unsafe { entry.set(page as u64, EntryBits::Valid) };
+    let new_pagetable = PageTable::new(alloc).expect("Could not allocate missing PageTable");
+    unsafe { entry.set(new_pagetable.into_raw() as u64, EntryFlags::Valid) };
 }
 
 /// Convert a given virtual address to the mapped physical address
@@ -261,8 +150,8 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
         panic!("non leaf page where leaf was expected");
     }
 
-    let address = unsafe { v.get_ptr_raw() };
-    return Some(address | (vaddr & PBIT_MASK));
+    let address = v.get_addr().unwrap();
+    Some(address | (vaddr & PBIT_MASK))
 }
 
 /// Identity-map the address range described by `start` and `end` to the same location in virtual memory
@@ -271,7 +160,7 @@ pub fn id_map_range<'a>(
     root: &mut PageTable,
     start: usize,
     end: usize,
-    flags: EntryBits,
+    flags: EntryFlags,
 ) {
     let ptr: *mut PageTable = (start & !(PAGESIZE - 1)) as *mut PageTable;
     let endptr: *mut PageTable = end as *mut PageTable;
@@ -293,7 +182,7 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
         unsafe {
             entry.set(
                 base * i as u64,
-                EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid,
+                EntryFlags::Accessed | EntryFlags::Dirty | EntryFlags::RWX | EntryFlags::Valid,
             );
         }
     }
@@ -307,7 +196,7 @@ pub fn kernel_map_phys_huge(root: &mut PageTable) {
         unsafe {
             entry.set(
                 i as u64 * GB,
-                EntryBits::Accessed | EntryBits::Dirty | EntryBits::RWX | EntryBits::Valid,
+                EntryFlags::Accessed | EntryFlags::Dirty | EntryFlags::RWX | EntryFlags::Valid,
             );
         }
     }
@@ -316,11 +205,11 @@ pub fn kernel_map_phys_huge(root: &mut PageTable) {
 /// Map a range of phyiscal addresses described by `start` and `size` to virtual memory starting at `virt_base`.
 /// Effectively this allocates a region in virtual memory starting at `virt_base` with `size` bytes space.
 pub fn map_range_alloc<'a>(
-    alloc: &mut impl BumpAllocator<'a>,
+    alloc: &impl BumpAllocator<'a>,
     root: &mut PageTable,
     virt_base: usize,
     size: usize,
-    flags: EntryBits,
+    flags: EntryFlags,
 ) {
     let ptr: *mut PageTable = (virt_base & !(PAGESIZE - 1)) as *mut PageTable;
     let mut offset = 0;
