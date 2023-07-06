@@ -81,46 +81,41 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     LOGGER.install().expect("Could not install logger");
     let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
 
-    log::debug!("parsing device tree to find a usable general purpose memory region");
+    log::debug!("parsing device tree to get information about the host hardware");
     let mut device_info_index = [0u8; 10 * 1024]; // TODO The size was tested to work in our qemu boot environment but is not properly chosen
     let device_info =
         unsafe { DeviceInfo::from_device_tree(args.phys_fdt_addr, &mut device_info_index) }
             .expect("Could not parse device info from flattened device tree");
 
+    // extract usable memory from device information
     let (mem_start, mem_len) = device_info
         .get_usable_memory()
         .expect("Could not get usable memory from device tree");
+    let mem_end = unsafe { mem_start.add(mem_len) };
 
-    // TODO U-Boot places the device tree at the end of usable memory. we shouldn't overwrite it with our allocator
-    // mem_end = min(mem_end, args.phys_fdt_addr.cast_mut());
+    // u-boot places the device tree at the very end of physical memory and since we don't want to overwrite it,
+    // we fake mem_end to end before it
+    // mem_end = min(mem_end, args.phys_fdt_addr.cast_mut());   // TODO Re-add this
+
+    // create an allocator to allocate essential data structures from the end of usable memory
     log::debug!(
-        "creating allocator for general purpose memory start = {:p} end = {:p}",
+        "creating allocator for general purpose memory start = {:p} end = {:p} (len = {} bytes)",
         mem_start,
-        unsafe { mem_start.add(mem_len) }
+        mem_end,
+        mem_end as usize - mem_start as usize
     );
+    let mut allocator = unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
-    let mut allocator =
-        unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_start.add(mem_len)) };
-
-    // const GB: usize = 1024 * 1024 * 1024;
-    // const MEM_START: usize = 0x8000_0000 + GB / 2; // we just chose a high value that is larger than the kernel_loader binary
-    // const MEM_END: usize = 0xc0000000; // if we give 1GB of memory during qemu start, this is the last address
-    // log::debug!(
-    //     "creating allocator for general purpose memory start = {:#x} end = {:#x}",
-    //     MEM_START,
-    //     MEM_END
-    // );
-    // let mut allocator =
-    //     unsafe { BackwardBumpingAllocator::new_raw(MEM_START as *mut u8, MEM_END as *mut u8) };
-
+    // allocate a root PageTable for the initial kernel execution environment
     let root_table = unsafe {
         PageTable::empty(&mut allocator)
-            .expect("Could not setup root pagetable")
+            .expect("Could not setup root PageTable")
             .as_mut()
             .unwrap()
     };
     log::debug!("root_table addr: {:p}", root_table);
 
+    // load the kernel ELF file
     let mut kernel_loader = KernelLoader::new(allocator, root_table);
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
