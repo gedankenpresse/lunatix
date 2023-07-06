@@ -5,6 +5,7 @@ use crate::mem;
 use crate::virtmem;
 use crate::InitCaps;
 
+use align_data::{ Align16, include_aligned };
 use allocators::Arena;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
@@ -12,7 +13,7 @@ use elfloader::{
 };
 use libkernel::mem::MemoryPage;
 
-static INIT_BIN: &[u8] = include_bytes!("../../../userspace/init_main");
+static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");
 
 struct StackLoader<'a, 'b> {
     vbase: u64,
