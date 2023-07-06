@@ -1,18 +1,16 @@
-use crate::mem::PageTable;
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use core::fmt::{Debug, Write};
-use log::debug;
 use thiserror_no_std::Error;
 
 // TODO Refactor these variable to be more descriptive
 const PBITS: usize = 12; // the page offset is 12 bits long
 const PBIT_MASK: usize = (1 << PBITS) - 1;
-const PPN_BITS: usize = 56;
-const PADDR_MASK: usize = (1 << PPN_BITS) - 1;
+// const PPN_BITS: usize = 56;
+// const PADDR_MASK: usize = (1 << PPN_BITS) - 1;
 
 // For Sv39 and Sv48, each VPN section has 9 bits in length;
-const VPN_BITS: usize = 9;
-const VPN_MASK: usize = (1 << VPN_BITS) - 1;
+// const VPN_BITS: usize = 9;
+// const VPN_MASK: usize = (1 << VPN_BITS) - 1;
 
 #[derive(Debug, Error)]
 #[error("The PageTableEntry is not set as valid")]

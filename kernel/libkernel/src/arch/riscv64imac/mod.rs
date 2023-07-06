@@ -57,8 +57,5 @@ pub unsafe extern "C" fn _start_rust(
 }
 
 pub fn shutdown() -> ! {
-    extern "C" {
-        fn wfi_spin() -> !;
-    }
-    unsafe { wfi_spin() }
+    unsafe { asm_utils::wfi_spin() }
 }

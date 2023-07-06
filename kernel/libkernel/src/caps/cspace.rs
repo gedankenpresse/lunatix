@@ -1,7 +1,6 @@
 use crate::caps::memory::Memory;
 use crate::caps::CapHolder;
 use core::mem::MaybeUninit;
-use core::ptr;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub enum CSlot {

@@ -9,9 +9,6 @@ use crate::elfloader::KernelLoader;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator, BumpBox};
 use allocators::AllocInit;
-use core::cmp::min;
-use core::mem::MaybeUninit;
-use core::ops::Add;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use libkernel::device_info::DeviceInfo;
@@ -124,7 +121,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     kernel_loader.load_stack(stack_start - 0x5000, stack_start);
     let entry_point = binary.entry_point();
     let KernelLoader {
-        mut allocator,
+        allocator,
         root_pagetable,
     } = kernel_loader;
 
@@ -156,7 +153,8 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     assert!(unsafe { DevTree::new(&phys_dev_tree) }.is_ok());
 
     // waste a page or two so we get back to page alignment
-    let x = allocator
+    // TODO: remove this when the kernel fixes alignment itself
+    let _x = allocator
         .allocate(PAGESIZE, PAGESIZE, AllocInit::Uninitialized)
         .unwrap();
 

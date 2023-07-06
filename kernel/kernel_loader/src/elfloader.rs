@@ -5,10 +5,7 @@ use crate::virtmem;
 use crate::virtmem::{map_range_alloc, virt_to_phys};
 use allocators::bump_allocator::BumpAllocator;
 use elfloader::arch::riscv::RelocationTypes;
-use elfloader::{
-    ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
-    VAddr,
-};
+use elfloader::{ ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr };
 use libkernel::mem::{EntryFlags, PageTable};
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator

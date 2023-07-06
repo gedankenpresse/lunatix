@@ -2,7 +2,7 @@
 
 use core::fmt;
 use core::fmt::Write;
-use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{Level, Log, Metadata, Record, SetLoggerError};
 
 pub struct KernelLogger {
     pub max_log_level: Level,

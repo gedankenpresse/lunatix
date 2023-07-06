@@ -1,6 +1,5 @@
 use core::{
     fmt::Pointer,
-    mem,
     ops::{Deref, DerefMut},
 };
 

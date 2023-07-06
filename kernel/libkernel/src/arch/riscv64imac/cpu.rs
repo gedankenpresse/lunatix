@@ -3,7 +3,7 @@
 //! This module implements some dummy structs which each model a certain cpu register as it is defined in
 //! Chapter 4 of the [Risc-V Privileged Specification](https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf)
 
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use core::arch::asm;
 use core::fmt::{Debug, Formatter};
 

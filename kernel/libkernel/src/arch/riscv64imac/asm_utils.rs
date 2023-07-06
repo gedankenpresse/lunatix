@@ -6,5 +6,5 @@
 extern "C" {
     pub fn read_mstatus() -> usize;
     pub fn wait_for_interrupt();
-    pub fn wfi_spin();
+    pub fn wfi_spin() -> !;
 }

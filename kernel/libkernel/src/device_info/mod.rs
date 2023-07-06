@@ -2,7 +2,7 @@ use core::cmp::{max, Ordering};
 use fdt_rs::base::DevTree;
 use fdt_rs::error::DevTreeError;
 use fdt_rs::index::DevTreeIndex;
-use fdt_rs::prelude::{FallibleIterator, PropReader};
+use fdt_rs::prelude::PropReader;
 use thiserror_no_std::Error;
 
 // TODO Maybe use the DevTreeIndex instead of the raw device tree to be more performant

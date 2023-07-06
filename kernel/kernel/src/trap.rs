@@ -1,9 +1,9 @@
 use crate::{InitCaps, INIT_CAPS};
-use core::ops::{Deref, DerefMut};
+use core::ops::DerefMut;
 use libkernel::arch::cpu::{Exception, Interrupt, TrapEvent};
 use libkernel::arch::timers::set_next_timer;
 use libkernel::arch::trap::TrapFrame;
-use libkernel::println;
+use libkernel::{print, println};
 
 #[no_mangle]
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
@@ -11,8 +11,8 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            println!(
-                "got call from user: {}",
+            print!(
+                "{}",
                 tf.general_purpose_regs[10] as u8 as char
             );
             tf.start_pc = last_trap.epc + 4;

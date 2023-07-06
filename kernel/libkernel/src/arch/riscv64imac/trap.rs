@@ -1,8 +1,5 @@
 use super::cpu;
-use super::cpu::{Exception, InterruptBits, SStatusFlags, StVecData, TrapEvent};
-use crate::arch::cpu::Interrupt;
-use crate::arch::timers::set_next_timer;
-use crate::println;
+use super::cpu::{InterruptBits, SStatusFlags, StVecData, TrapEvent};
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
 /// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support

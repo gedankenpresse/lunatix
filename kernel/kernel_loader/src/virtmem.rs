@@ -1,9 +1,6 @@
 use allocators::bump_allocator::BumpAllocator;
 use allocators::AllocInit;
-use bitflags::{bitflags, Flags};
-use core::fmt::Write;
 use core::mem;
-use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
