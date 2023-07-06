@@ -4,7 +4,10 @@
 
 MEMORY {
     /* Contains the executable code */
-    REGION_CODE (rx) : ORIGIN = 0xffffffff00000000, LENGTH = 1M
+    /* Minimum required size for debug builds, as of now 108K */
+    REGION_CODE (rx) : ORIGIN = 0xffffffff00000000, LENGTH = 128K
+    
     /* Contains all static variables (bss + data) */
-    REGION_STATIC : ORIGIN = 0xffffffff10000000, LENGTH = 2M
+    /* Minimum required size for debug bilds, as of now 57K, without init included */
+    REGION_STATIC : ORIGIN = 0xffffffff10000000, LENGTH = 64K
 }

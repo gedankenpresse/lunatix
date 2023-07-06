@@ -3,3 +3,17 @@ members = [
     "kernel/*",
     "support_crates/*",
 ]
+
+[profile.debug]
+panic = 'abort'
+
+[profile.release]
+strip = "symbols"   # Strip all symbols from final binary
+panic = 'abort'     # Abort on panic
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+
+
+# for extra small binaries, set: 
+#   opt-level = 's'
+# or even:
+#   opt-level = 'z' 
