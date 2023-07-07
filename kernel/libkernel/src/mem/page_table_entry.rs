@@ -1,3 +1,4 @@
+use crate::mem::PAGESIZE;
 use bitflags::bitflags;
 use core::fmt::{Debug, Write};
 use thiserror_no_std::Error;
@@ -38,15 +39,42 @@ impl PageTableEntry {
         }
     }
 
-    /// Set the content of this entry
+    /// Set the content of this entry.
+    ///
+    /// Since function also automatically enables the entry by setting the [`Valid`](EntryFlags::Valid) flag.
+    ///
+    /// If you want to disable the entry use [`clear()`](PageTableEntry::clear) instead.
     ///
     /// # Safety
     /// Changing the entry of a PageTable inherently changes virtual address mappings.
     /// This can make other, completely unrelated, references and pointers invalid and must always be done with
     /// care.
     pub unsafe fn set(&mut self, paddr: u64, flags: EntryFlags) {
+        log::debug!(
+            "setting page table entry {:#x}:{} to {:#x}",
+            (self as *mut Self as usize) & !(PAGESIZE - 1),
+            ((self as *mut Self as usize) & (PAGESIZE - 1)) / 8,
+            paddr
+        );
+
         // TODO: Fix that an unaligned paddr leaks into flags
         self.entry = (paddr >> 2) | (flags | EntryFlags::Valid).bits();
+    }
+
+    /// Clear the content of this entry, setting it to 0x0 and removing all flags.
+    ///
+    /// # Safety
+    /// Changing the entry of a PageTable inherently changes virtual address mappings.
+    /// This can make other, completely unrelated, references and pointers invalid and must always be done with
+    /// care.
+    pub unsafe fn clear(&mut self) {
+        log::trace!(
+            "clearing page table entry {:#x}:{}",
+            (self as *mut Self as usize) & !(PAGESIZE - 1),
+            ((self as *mut Self as usize) & (PAGESIZE - 1)) / 8,
+        );
+
+        self.entry = 0;
     }
 
     /// Whether this entry is currently valid (in other words whether it is considered active)

@@ -2,83 +2,9 @@ use allocators::Arena;
 use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
-use libkernel::mem::{MemoryPage, PAGESIZE};
+use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
-use crate::mem::{self};
-
-#[derive(Copy, Clone)]
-pub struct Entry {
-    entry: u64,
-}
-
-pub struct PageTable {
-    pub entries: [Entry; 512],
-}
-
-impl core::fmt::Debug for Entry {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Entry")
-            .field("ppn", unsafe { &self.get_ptr() })
-            .field("flags", &self.flags())
-            .finish()
-    }
-}
-
-impl PageTable {
-    pub fn empty(alloc: &mut Arena<'static, MemoryPage>) -> Option<*mut PageTable> {
-        let page = alloc.alloc_one_raw()?;
-        unsafe {
-            for i in 0..PAGESIZE {
-                *page.cast::<u8>().add(i) = 0;
-            }
-        }
-        Some(page.cast::<PageTable>())
-    }
-
-    pub fn init(page: *mut MaybeUninit<MemoryPage>) -> *mut PageTable {
-        unsafe {
-            for i in 0..PAGESIZE {
-                *page.cast::<u8>().add(i) = 0;
-            }
-        }
-        page.cast::<PageTable>()
-    }
-
-    // This doesn't do a deep copy, so it should only be used for global mappings
-    pub fn init_copy(page: *mut MaybeUninit<MemoryPage>, orig: &PageTable) -> *mut PageTable {
-        log::debug!("unit page: {page:p}, orig: {orig:p}");
-        let root = PageTable::init(page);
-        let root_ref = unsafe { root.as_mut().unwrap() };
-        for (i, &entry) in orig.entries.iter().enumerate() {
-            if entry.is_valid() {
-                root_ref.entries[i] = entry;
-            }
-        }
-        return root;
-    }
-}
-
-impl PageTable {
-    pub fn len() -> usize {
-        return 512;
-    }
-}
-
-bitflags! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    pub struct EntryBits: u64 {
-        const Valid = 1 << 0;
-        const Read = 1 << 1;
-        const Write = 1 << 2;
-        const Execute = 1 << 3;
-        const UserReadable = 1 << 4;
-        const Global = 1 << 5;
-        const Accessed = 1 << 6;
-        const Dirty = 1 << 7;
-
-        const RWX = Self::Read.bits() | Self::Write.bits() | Self::Execute.bits();
-    }
-}
+use crate::mem::{self, kernel_to_phys_mut_ptr, phys_to_kernel_usize};
 
 #[derive(Debug)]
 pub enum EntryError {
@@ -86,53 +12,25 @@ pub enum EntryError {
     EntryIsPage,
 }
 
-impl Entry {
-    pub fn is_valid(&self) -> bool {
-        self.entry & EntryBits::Valid.bits() != 0
+pub trait PageTableEntryExt {
+    fn get_ptr(&self) -> *const PageTable;
+
+    fn get_ptr_mut(&mut self) -> *mut PageTable;
+
+    unsafe fn set_pagetable(&mut self, ptr: *mut PageTable);
+}
+
+impl PageTableEntryExt for PageTableEntry {
+    fn get_ptr(&self) -> *const PageTable {
+        phys_to_kernel_usize(self.get_addr().unwrap()) as *const PageTable // TODO Better error handling
     }
 
-    pub fn is_invalid(&self) -> bool {
-        !self.is_valid()
-    }
-    pub fn is_leaf(&self) -> bool {
-        self.entry & EntryBits::RWX.bits() != 0
+    fn get_ptr_mut(&mut self) -> *mut PageTable {
+        phys_to_kernel_usize(self.get_addr().unwrap()) as *mut PageTable // TODO Better error handling
     }
 
-    pub fn flags(&self) -> EntryBits {
-        EntryBits::from_bits_retain(self.entry & EntryBits::all().bits())
-    }
-
-    pub unsafe fn get_ptr(&self) -> *const PageTable {
-        mem::phys_to_kernel_usize(self.get_phys_usize()) as *const PageTable
-    }
-
-    pub unsafe fn get_ptr_mut(&mut self) -> *mut PageTable {
-        mem::phys_to_kernel_usize(self.get_phys_usize()) as *mut PageTable
-    }
-
-    pub unsafe fn get_phys_usize(&self) -> usize {
-        // TODO: Is this correct?
-        let phys = ((self.entry << 2) & !((1 << 12) - 1)) as usize;
-        return phys;
-    }
-
-    pub fn get_pagetable_mut(&mut self) -> Result<&mut PageTable, EntryError> {
-        if self.is_invalid() {
-            return Err(EntryError::EntryInvalid);
-        }
-        if self.is_leaf() {
-            return Err(EntryError::EntryIsPage);
-        }
-
-        return Ok(unsafe { self.get_ptr_mut().as_mut() }.unwrap());
-    }
-
-    pub unsafe fn set(&mut self, paddr: u64, flags: EntryBits) {
-        self.entry = (paddr >> 2) | flags.bits();
-    }
-
-    pub unsafe fn set_pagetable(&mut self, pt: *mut PageTable) {
-        self.set(mem::kernel_to_phys_mut_ptr(pt).0 as u64, EntryBits::Valid);
+    unsafe fn set_pagetable(&mut self, ptr: *mut PageTable) {
+        self.set(kernel_to_phys_mut_ptr(ptr).0 as u64, EntryFlags::Valid)
     }
 }
 
@@ -161,13 +59,13 @@ pub fn map(
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
-    flags: EntryBits,
+    flags: EntryFlags,
 ) {
-    log::debug!("[map] root: {root:p} vaddr: {vaddr:0x} paddr: {paddr:0x} flags: {flags:?}");
+    log::debug!("[map] root: {root:p} vaddr: {vaddr:#x} paddr: {paddr:#x} flags: {flags:?}");
     // Make sure that one of Read, Write, or Execute Bits is set.
     // Otherwise, entry is regarded as pointer to next page table level
-    assert_eq!(flags.bits() & EntryBits::all().bits(), flags.bits());
-    assert_ne!((flags & EntryBits::RWX), EntryBits::empty());
+    assert_eq!(flags.bits() & EntryFlags::all().bits(), flags.bits());
+    assert_ne!((flags & EntryFlags::RWX), EntryFlags::empty());
 
     // physical address should be at least page aligned and in PPN range
     assert!(paddr & PBIT_MASK == 0);
@@ -176,9 +74,9 @@ pub fn map(
     let vpn = vpn_segments(vaddr);
 
     // Helper to allocate intermediate page tables
-    fn alloc_missing_page(entry: &mut Entry, alloc: &mut Arena<'static, MemoryPage>) {
+    fn alloc_missing_page(entry: &mut PageTableEntry, alloc: &mut Arena<'static, MemoryPage>) {
         log::debug!("alloc missing: entry {entry:0p}");
-        assert!(entry.is_invalid());
+        assert!(!entry.is_valid());
 
         // Allocate a page
         let page = alloc
@@ -194,23 +92,24 @@ pub fn map(
 
     let mut v = &mut root.entries[vpn[2]];
     for level in (0..2).rev() {
-        if v.is_invalid() {
-            alloc_missing_page(&mut v, alloc);
+        log::debug!("{:?}", v);
+        if !v.is_valid() {
+            alloc_missing_page(v, alloc);
         }
-        v = &mut v.get_pagetable_mut().unwrap().entries[vpn[level]];
+        v = &mut unsafe { v.get_ptr_mut().as_mut() }.unwrap().entries[vpn[level]];
     }
 
     // Now we are ready to point v to our physical address
-    assert!(v.is_invalid());
+    assert!(!v.is_valid());
     unsafe {
-        v.set(paddr as u64, flags | EntryBits::Valid);
+        v.set(paddr as u64, flags | EntryFlags::Valid);
     }
 }
 
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     let vpn = vpn_segments(vaddr);
     let v = &root.entries[vpn[2]];
-    if v.is_invalid() {
+    if !v.is_valid() {
         return None;
     }
     if v.is_leaf() {
@@ -218,7 +117,7 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     }
     let pt = unsafe { v.get_ptr().as_ref().unwrap() };
     let v = &pt.entries[vpn[1]];
-    if v.is_invalid() {
+    if !v.is_valid() {
         return None;
     }
     if v.is_leaf() {
@@ -226,15 +125,15 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     }
     let pt = unsafe { v.get_ptr().as_ref().unwrap() };
     let v = &pt.entries[vpn[0]];
-    if v.is_invalid() {
+    if !v.is_valid() {
         return None;
     }
     if !v.is_leaf() {
         panic!("non leaf page where leaf was expected");
     }
 
-    let address = unsafe { v.get_phys_usize() };
-    return Some(address | (vaddr & PBIT_MASK));
+    let address = v.get_addr().unwrap();
+    Some(address | (vaddr & PBIT_MASK))
 }
 
 pub fn map_range_alloc(
@@ -242,7 +141,7 @@ pub fn map_range_alloc(
     root: &mut PageTable,
     virt_base: usize,
     size: usize,
-    flags: EntryBits,
+    flags: EntryFlags,
 ) {
     log::debug!("[map range alloc] virt_base {virt_base:0x} size {size:0x}");
     let ptr: *mut MemoryPage = (virt_base & !(PAGESIZE - 1)) as *mut MemoryPage;
@@ -288,7 +187,7 @@ pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
 pub fn unmap_userspace(root: &mut PageTable) {
     for entry in root.entries[0..256].iter_mut() {
         unsafe {
-            entry.set(0, EntryBits::empty());
+            entry.clear();
         }
     }
 }

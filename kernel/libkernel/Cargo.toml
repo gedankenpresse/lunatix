@@ -14,7 +14,7 @@ thiserror-no-std = "2.0.2"
 elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
 sbi = "0.2.0"
 bitflags = "2.3.2"
-log = { version = "0.4.19", default-features = false, features = ["release_max_level_debug"] }
+log = { version = "0.4.19", default-features = false }
 static_assertions = "1.1.0"
 
 [build-dependencies]

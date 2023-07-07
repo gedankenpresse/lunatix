@@ -10,7 +10,6 @@ mod virtmem;
 use crate::caps::CSlot;
 use crate::mem::kernel_to_phys_mut_ptr;
 use crate::mem::{phys_to_kernel_mut_ptr, PhysConstPtr, PhysMutPtr};
-use crate::virtmem::PageTable;
 
 use allocators::Arena;
 use core::panic::PanicInfo;
@@ -18,7 +17,7 @@ use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
-use libkernel::mem::{MemoryPage, PAGESIZE};
+use libkernel::mem::{MemoryPage, PageTable, PAGESIZE};
 use libkernel::sbi_log::KernelLogger;
 use libkernel::{arch, println};
 use log::Level;
@@ -37,7 +36,7 @@ impl InitCaps {
     }
 }
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
 
 /// TODO: fix this somehow
 /// CSlot isn't send because raw pointers... meh
@@ -45,8 +44,8 @@ unsafe impl Send for InitCaps {}
 
 pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
-pub static mut KERNEL_ROOT_PT: mem::PhysConstPtr<virtmem::PageTable> =
-    mem::PhysConstPtr(0x0 as *const virtmem::PageTable);
+pub static mut KERNEL_ROOT_PT: mem::PhysConstPtr<PageTable> =
+    mem::PhysConstPtr(0x0 as *const PageTable);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {

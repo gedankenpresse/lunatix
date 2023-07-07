@@ -2,12 +2,12 @@ use core::mem::MaybeUninit;
 
 use crate::{caps, mem};
 use caps::errors::NoMem;
-use libkernel::mem::MemoryPage;
+use libkernel::mem::{EntryFlags, MemoryPage, PageTable};
 
 use crate::virtmem;
 
 pub struct VSpace {
-    pub(crate) root: *mut virtmem::PageTable,
+    pub(crate) root: *mut PageTable,
 }
 
 impl VSpace {
@@ -15,7 +15,7 @@ impl VSpace {
         log::debug!("alloc");
         let root = mem.alloc_pages_raw(1)?;
         log::debug!("init copy");
-        let root = virtmem::PageTable::init_copy(root.cast::<MaybeUninit<MemoryPage>>(), unsafe {
+        let root = PageTable::init_copy(root.cast::<MaybeUninit<MemoryPage>>(), unsafe {
             mem::phys_to_kernel_ptr(crate::KERNEL_ROOT_PT)
                 .as_ref()
                 .expect("No Kernel Root Page Table found")
@@ -40,7 +40,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
-            virtmem::EntryBits::from_bits_truncate(flags as u64),
+            EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
     }
@@ -59,7 +59,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr,
             phys_page as usize,
-            virtmem::EntryBits::from_bits_truncate(flags as u64),
+            EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
     }

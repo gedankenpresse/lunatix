@@ -5,13 +5,13 @@ use crate::mem;
 use crate::virtmem;
 use crate::InitCaps;
 
-use align_data::{ Align16, include_aligned };
+use align_data::{include_aligned, Align16};
 use allocators::Arena;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
 };
-use libkernel::mem::MemoryPage;
+use libkernel::mem::{EntryFlags, MemoryPage};
 
 static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");
 
@@ -27,8 +27,7 @@ impl<'a, 'b> StackLoader<'a, 'b> {
     fn load(self) -> Result<u64, caps::Error> {
         let vspace = self.vspace;
         let mem = self.mem;
-        let rw =
-            virtmem::EntryBits::Read | virtmem::EntryBits::Write | virtmem::EntryBits::UserReadable;
+        let rw = EntryFlags::Read | EntryFlags::Write | EntryFlags::UserReadable;
         vspace
             .map_range(
                 &mut mem.content,
@@ -60,15 +59,15 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
             );
 
             // maybe this should be done by the VSpace map operation
-            let mut bits: virtmem::EntryBits = virtmem::EntryBits::UserReadable;
+            let mut bits: EntryFlags = EntryFlags::UserReadable;
             if header.flags().is_execute() {
-                bits |= virtmem::EntryBits::Execute;
+                bits |= EntryFlags::Execute;
             }
             if header.flags().is_read() {
-                bits |= virtmem::EntryBits::Read;
+                bits |= EntryFlags::Read;
             }
             if header.flags().is_write() {
-                bits |= virtmem::EntryBits::Write;
+                bits |= EntryFlags::Write;
             }
 
             self.vspace

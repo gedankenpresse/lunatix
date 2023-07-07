@@ -11,10 +11,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            print!(
-                "{}",
-                tf.general_purpose_regs[10] as u8 as char
-            );
+            print!("{}", tf.general_purpose_regs[10] as u8 as char);
             tf.start_pc = last_trap.epc + 4;
             tf
         }
