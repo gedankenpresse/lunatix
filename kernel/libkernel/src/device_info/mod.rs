@@ -5,10 +5,6 @@ use fdt_rs::index::DevTreeIndex;
 use fdt_rs::prelude::PropReader;
 use thiserror_no_std::Error;
 
-// TODO Maybe use the DevTreeIndex instead of the raw device tree to be more performant
-// On the other hand. Interacting with the device description probably doesn't happen very often so this is probably
-// fine for now
-
 #[derive(Debug, Error)]
 pub enum DeviceInfoError {
     #[error("There is no node in the device tree describing the requested information")]
