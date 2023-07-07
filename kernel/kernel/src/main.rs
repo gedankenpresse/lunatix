@@ -3,20 +3,19 @@
 
 mod caps;
 mod init;
-mod mem;
 mod trap;
 mod virtmem;
 
 use crate::caps::CSlot;
-use crate::mem::kernel_to_phys_mut_ptr;
-use crate::mem::{phys_to_kernel_mut_ptr, PhysConstPtr, PhysMutPtr};
 
 use allocators::Arena;
 use core::panic::PanicInfo;
+use core::slice;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
 use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
+use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{MemoryPage, PageTable, PAGESIZE};
 use libkernel::sbi_log::KernelLogger;
 use libkernel::{arch, println};
@@ -44,8 +43,7 @@ unsafe impl Send for InitCaps {}
 
 pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
-pub static mut KERNEL_ROOT_PT: mem::PhysConstPtr<PageTable> =
-    mem::PhysConstPtr(0x0 as *const PageTable);
+pub static mut KERNEL_ROOT_PT: PhysConstPtr<PageTable> = PhysConstPtr::null();
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -70,10 +68,10 @@ extern "C" fn _start(
     phys_mem_end: PhysMutPtr<u8>,
 ) {
     LOGGER.install().expect("Could not install logger");
-    log::info!("Hello world from the kernel!");
-    let fdt_addr = mem::phys_to_kernel_ptr(phys_fdt);
 
-    kernel_main(0, 0, fdt_addr, phys_mem_start, phys_mem_end);
+    let fdt_addr = phys_fdt.as_mapped();
+
+    kernel_main(0, 0, fdt_addr.into(), phys_mem_start, phys_mem_end);
 
     use sbi::system_reset::*;
     system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
@@ -91,9 +89,7 @@ extern "C" fn kernel_main(
     let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
     let kernel_root_pt = init_kernel_pagetable();
-    unsafe {
-        KERNEL_ROOT_PT = mem::kernel_to_phys_ptr(kernel_root_pt as *mut PageTable);
-    }
+    unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
 
     let mut allocator = init_alloc(phys_mem_start, phys_mem_end);
 
@@ -117,13 +113,17 @@ fn init_kernel_pagetable() -> &'static mut PageTable {
     let root_pagetable_phys = (Satp::read().ppn << 12) as *mut PageTable;
     log::debug!("Kernel Pagetable Phys: {root_pagetable_phys:p}");
     let root_pt = unsafe {
-        &mut *(mem::phys_to_kernel_usize(root_pagetable_phys as usize) as *mut PageTable)
+        PhysMutPtr::from(root_pagetable_phys)
+            .as_mapped()
+            .raw()
+            .as_mut()
+            .unwrap()
     };
     virtmem::unmap_userspace(root_pt);
     unsafe {
         core::arch::asm!("sfence.vma");
     }
-    return root_pt;
+    root_pt
 }
 
 fn init_alloc(
@@ -131,15 +131,13 @@ fn init_alloc(
     phys_mem_end: PhysMutPtr<u8>,
 ) -> Arena<'static, MemoryPage> {
     log::debug!("start: {phys_mem_start:?}, end: {phys_mem_end:?}");
-    let virt_start = phys_to_kernel_mut_ptr(phys_mem_start) as *mut MemoryPage;
-    let virt_end = phys_to_kernel_mut_ptr(phys_mem_end) as *mut MemoryPage;
+    let virt_start = phys_mem_start.as_mapped().raw();
+    let virt_end = phys_mem_end.as_mapped().raw();
     log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
     let mem_slice: &mut [MemoryPage] = unsafe {
-        core::slice::from_raw_parts_mut(
-            phys_to_kernel_mut_ptr(phys_mem_start) as *mut MemoryPage,
-            (phys_to_kernel_mut_ptr(phys_mem_end) as usize
-                - phys_to_kernel_mut_ptr(phys_mem_start) as usize)
-                / PAGESIZE,
+        slice::from_raw_parts_mut(
+            virt_start.cast::<MemoryPage>(),
+            (virt_end as usize - virt_start as usize) / PAGESIZE,
         )
     };
 
@@ -181,7 +179,7 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
     let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
     log::debug!("enabling task pagetable");
     unsafe {
-        virtmem::use_pagetable(kernel_to_phys_mut_ptr(root_pt));
+        virtmem::use_pagetable(MappedMutPtr::from(root_pt).as_direct());
     }
     log::debug!("restoring trap frame");
     trap_frame_restore(trap_frame as *mut TrapFrame);

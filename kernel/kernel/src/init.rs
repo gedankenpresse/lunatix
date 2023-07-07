@@ -1,7 +1,6 @@
 //! Loading and execution of the init process
 
 use crate::caps;
-use crate::mem;
 use crate::virtmem;
 use crate::InitCaps;
 
@@ -11,6 +10,7 @@ use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
 };
+use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, MemoryPage};
 
 static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");
@@ -97,7 +97,10 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 virtmem::virt_to_phys(unsafe { self.vspace.root.as_ref().unwrap() }, addr as usize)
                     .expect("should have been mapped");
             unsafe {
-                *(mem::phys_to_kernel_usize(phys) as *mut u8) = *byte;
+                PhysMutPtr::from(phys as *mut u8)
+                    .as_mapped()
+                    .raw()
+                    .write(*byte)
             }
         }
         Ok(())
@@ -125,7 +128,10 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 )
                 .expect("should have been mapped");
                 unsafe {
-                    *(mem::phys_to_kernel_usize(phys) as *mut u64) = self.vbase + addend;
+                    PhysMutPtr::from(phys as *mut u64)
+                        .as_mapped()
+                        .raw()
+                        .write(self.vbase + addend)
                 }
                 Ok(())
             }

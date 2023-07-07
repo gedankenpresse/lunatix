@@ -2,9 +2,8 @@ use allocators::Arena;
 use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
+use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
-
-use crate::mem::{self, kernel_to_phys_mut_ptr, phys_to_kernel_usize};
 
 #[derive(Debug)]
 pub enum EntryError {
@@ -22,15 +21,24 @@ pub trait PageTableEntryExt {
 
 impl PageTableEntryExt for PageTableEntry {
     fn get_ptr(&self) -> *const PageTable {
-        phys_to_kernel_usize(self.get_addr().unwrap()) as *const PageTable // TODO Better error handling
+        // TODO Better error handling
+        PhysConstPtr::from(self.get_addr().unwrap() as *const PageTable)
+            .as_mapped()
+            .raw()
     }
 
     fn get_ptr_mut(&mut self) -> *mut PageTable {
-        phys_to_kernel_usize(self.get_addr().unwrap()) as *mut PageTable // TODO Better error handling
+        // TODO Better error handling
+        PhysMutPtr::from(self.get_addr().unwrap() as *mut PageTable)
+            .as_mapped()
+            .raw()
     }
 
     unsafe fn set_pagetable(&mut self, ptr: *mut PageTable) {
-        self.set(kernel_to_phys_mut_ptr(ptr).0 as u64, EntryFlags::Valid)
+        self.set(
+            MappedMutPtr::from(ptr).as_direct().raw() as u64,
+            EntryFlags::Valid,
+        )
     }
 }
 
@@ -153,32 +161,36 @@ pub fn map_range_alloc(
             .alloc_one_raw()
             .expect("Could not alloc page")
             .cast::<MemoryPage>();
+
         map(
             alloc,
             root,
             addr,
-            mem::kernel_to_phys_ptr(page_addr).0 as usize,
+            MappedConstPtr::from(page_addr as *const u8)
+                .as_direct()
+                .raw() as usize,
             flags,
         );
+
         offset += 1;
     }
 }
 
-pub unsafe fn use_pagetable(root: mem::PhysMutPtr<PageTable>) {
+pub unsafe fn use_pagetable(root: PhysMutPtr<PageTable>) {
     // enable MXR (make Executable readable) bit
     // enable SUM (premit Supervisor User Memory access) bit
     unsafe {
         SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM);
     }
 
-    log::debug!("enabling new pagetable {:p}", root.0);
+    log::debug!("enabling new pagetable {:p}", root);
 
     // Setup Root Page table in satp register
     unsafe {
         Satp::write(SatpData {
             mode: SatpMode::Sv39,
             asid: 0,
-            ppn: root.0 as u64 >> 12,
+            ppn: root.raw() as u64 >> 12,
         });
     }
 }

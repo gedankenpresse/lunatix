@@ -102,6 +102,7 @@ impl Debug for PageTableEntry {
 }
 
 bitflags! {
+    /// The flags that can be set on a [`PageTableEntry`]
     #[derive(Copy, Clone, Eq, PartialEq)]
     pub struct EntryFlags: u64 {
         /// If set, the MMU considers this a valid entry in the page table and uses it for address mapping

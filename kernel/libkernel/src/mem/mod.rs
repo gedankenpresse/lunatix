@@ -12,7 +12,7 @@
 //! | | | | **Misc** |
 //! | `0x0000004000000000` | `0xFFFFFFBFFFFFFFFF` | ~16M TB | unusable addresses
 //! | | | | **Kernel-space virtual memory. Shared between all user contexts** |
-//! | `0xFFFFFFC000000000` | `0xFFFFFFEFFFFFFFFF` | 64 GB | direct mapping of all physical memory
+//! | `0xFFFFFFC000000000` | `0xFFFFFFCFFFFFFFFF` | 64 GB | direct mapping of all physical memory
 //! | ... | ... | ... | currently unused
 //! | `0xFFFFFFFF00000000` | `0xFFFFFFFFFFFFFFFF` | 4 GB | Kernel
 //!
@@ -33,6 +33,7 @@
 
 mod page_table;
 mod page_table_entry;
+pub mod ptrs;
 
 pub use page_table::PageTable;
 pub use page_table_entry::{EntryFlags, PageTableEntry};
@@ -55,7 +56,7 @@ pub const VIRT_MEM_PHYS_MAP_START: usize = 0xFFFFFFC000000000;
 /// The last virtual memory address at which physical memory is mapped.
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
-pub const VIRT_MEM_PHYS_MAP_END: usize = 0xFFFFFFEFFFFFFFFF;
+pub const VIRT_MEM_PHYS_MAP_END: usize = 0xFFFFFFCFFFFFFFFF;
 
 /// The virtual memory address at which the kernel binary is mapped and where the kernel stack is located
 ///
