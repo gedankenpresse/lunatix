@@ -50,7 +50,7 @@ impl PageTableEntry {
     /// This can make other, completely unrelated, references and pointers invalid and must always be done with
     /// care.
     pub unsafe fn set(&mut self, paddr: u64, flags: EntryFlags) {
-        log::debug!(
+        log::trace!(
             "setting page table entry {:#x}:{} to {:#x}",
             (self as *mut Self as usize) & !(PAGESIZE - 1),
             ((self as *mut Self as usize) & (PAGESIZE - 1)) / 8,
