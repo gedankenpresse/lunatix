@@ -3,7 +3,7 @@
 //! This module implements some dummy structs which each model a certain cpu register as it is defined in
 //! Chapter 4 of the [Risc-V Privileged Specification](https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf)
 
-use bitflags::bitflags;
+use bitflags::{bitflags, Flags};
 use core::arch::asm;
 use core::fmt::{Debug, Formatter};
 
@@ -350,7 +350,71 @@ impl Sie {
     }
 }
 
-// TODO Implement Timers and Counters
+bitflags! {
+    /// When the `CY`, `TM`, `IR` or `HPMn` bit in the [`scounteren`](SCounterEn) register is clear, attempty to read
+    /// the `cycle`, `time` `instrset` or `hpmcountern` register while executing in U-mode will cause an illegal
+    /// instruction exception.
+    /// When one of these bits is set, access to the corresponding register is permitted.
+    #[derive(Debug, Eq, PartialEq)]
+    pub struct ScounterBits: u32 {
+        const CY = 0x0;
+        const TM = 0x1;
+        const IR = 0x2;
+    }
+}
+
+/// The counter-enable register `scounteren` is a 32-bit register that controls the availability of the hardware
+/// performance monitoring counters tu U-Mode.
+#[allow(unused)]
+pub struct SCounterEn {}
+
+impl SCounterEn {
+    /// Read the raw value contained in the register
+    pub fn read_raw() -> u32 {
+        unsafe { read_reg!("scounteren", u32) }
+    }
+
+    /// Read the value contained in the register.
+    ///
+    /// The returned `ScounterBits` retains additional values for the `HPMn` bits that are present in the raw register
+    /// value.
+    pub fn read() -> ScounterBits {
+        ScounterBits::from_bits_retain(Self::read_raw())
+    }
+
+    /// Write a raw value into the register.
+    ///
+    /// # Safety
+    /// Changing the register value affects the instructions available to other (U-mode) code and may suddenly break
+    /// it.
+    pub unsafe fn write_raw(value: u32) {
+        unsafe { write_reg!("scounteren", value) }
+    }
+
+    /// Write a value into the register.
+    ///
+    /// # Safety
+    /// Changing the register value affects the instructions available to other (U-mode) code and may suddenly break
+    /// it.
+    pub unsafe fn write(value: ScounterBits) {
+        Self::write_raw(value.bits())
+    }
+}
+
+/// Cycle counter register
+///
+/// This is the number of clock cycles executed by the processor core on which the hart is running from an arbitrary
+/// star time in the past.
+#[allow(unused)]
+pub struct Cycle {}
+
+impl Cycle {
+    pub fn read() -> u64 {
+        let res: u64;
+        unsafe { asm!("rdcycle {}", out(reg) res) };
+        res
+    }
+}
 
 /// The Time register always holds the current cpu time
 #[allow(unused)]
@@ -360,6 +424,20 @@ impl Time {
     pub fn read() -> u64 {
         let res: u64;
         unsafe { asm!("rdtime {}", out(reg) res) };
+        res
+    }
+}
+
+/// Instruction counter register
+///
+/// This counts the number of instructions retired by this hart from some arbitrary start point in the past.
+#[allow(unused)]
+pub struct InstRet {}
+
+impl InstRet {
+    pub fn read() -> u64 {
+        let res: u64;
+        unsafe { asm!("rdinstret {}", out(reg) res) };
         res
     }
 }
