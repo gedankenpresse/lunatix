@@ -13,10 +13,11 @@ use core::panic::PanicInfo;
 use core::slice;
 use fdt_rs::base::DevTree;
 use ksync::SpinLock;
-use libkernel::arch::cpu::{SScratch, SStatus, SStatusFlags, Satp};
+use libkernel::arch::cpu;
+use libkernel::arch::cpu::{InterruptBits, SScratch, SStatus, SStatusFlags, Satp, SatpMode};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
-use libkernel::mem::{MemoryPage, PageTable, PAGESIZE};
+use libkernel::mem::{MemoryPage, PageTable, PAGESIZE, VIRT_MEM_KERNEL_START};
 use libkernel::sbi_log::KernelLogger;
 use libkernel::{arch, println};
 use log::Level;
@@ -68,6 +69,7 @@ extern "C" fn _start(
     phys_mem_end: PhysMutPtr<u8>,
 ) {
     LOGGER.install().expect("Could not install logger");
+    assert_start_expectations();
 
     let fdt_addr = phys_fdt.as_mapped();
 
@@ -188,4 +190,33 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::
 unsafe fn set_return_to_user() {
     log::debug!("clearing sstatus.SPP flag to enable returning to user code");
     SStatus::clear(SStatusFlags::SPP);
+}
+
+/// Assert that all environment conditions under which the kernel expects to be started are met
+fn assert_start_expectations() {
+    // check address translation
+    assert_eq!(
+        Satp::read().mode,
+        SatpMode::Sv39,
+        "kernel was booted with unsupported address translation mode {:?}",
+        Satp::read().mode
+    );
+
+    // check that the kernel code was loaded into high memory
+    assert!(
+        kernel_main as *const u8 as usize >= VIRT_MEM_KERNEL_START,
+        "kernel code was not loaded into high memory"
+    );
+    let dummy = 0u8;
+    assert!(
+        &dummy as *const u8 as usize >= VIRT_MEM_KERNEL_START,
+        "kernel stack is not located in high memory"
+    );
+
+    // check that interrupts are not yet enabled
+    assert_eq!(
+        cpu::Sie::read(),
+        InterruptBits::empty(),
+        "kernel was started with interrupts already enabled"
+    );
 }

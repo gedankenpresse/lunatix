@@ -233,7 +233,7 @@ impl Debug for StVecData {
 bitflags! {
     /// A bitmap mapping the CSR scause (Section 4.1.8 of the Privileged Specification) entry number to a bit that is
     /// set in the [`Sip`] and [`Sie`] registers for that specific interrupt.
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq)]
     pub struct InterruptBits: u64 {
         /// Bits sip.SSIP and sie.SSIE are the interrupt-pending and interrupt-enable bits for supervisor-level software interrupts.
         /// If implemented, SSIP is writable in [sip](Sip) and may also be set to 1 by a platform-specific interrupt controller.
@@ -593,7 +593,7 @@ impl SEnvCfg {
 /// an address space identifier (ASID), which facilitates address-translation fences on a per-address-space basis; and the MODE field, which selects the current address-translation scheme.
 ///
 /// **Warning**: Read the mode variant descriptions carefully as they impose restrictions on valid values for the other fields.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SatpData {
     pub mode: SatpMode,
     pub asid: u64,
@@ -618,7 +618,7 @@ impl From<SatpData> for u64 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SatpMode {
     /// No translation or protection
     ///
