@@ -6,6 +6,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr;
 
 /// A box-like struct allocated from a [`BumpAllocator`]
+#[deprecated]
 pub struct BumpBox<'alloc, 'mem, A: BumpAllocator<'mem>, T: ?Sized> {
     inner: &'mem mut T,
     source: &'alloc A,
