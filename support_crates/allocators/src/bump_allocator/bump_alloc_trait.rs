@@ -1,4 +1,4 @@
-use crate::{AllocError, AllocInit, Allocator};
+use crate::Allocator;
 use core::ptr;
 
 /// A trait defining the common behavior between different bump allocators.

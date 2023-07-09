@@ -87,7 +87,7 @@ impl<'mem> Allocator<'mem> for ForwardBumpingAllocator<'mem> {
         Ok(result)
     }
 
-    unsafe fn deallocate(&self, data_ptr: *mut u8, layout: Layout) {
+    unsafe fn deallocate(&self, data_ptr: *mut u8, _layout: Layout) {
         let mut state = self.state.spin_lock();
         assert!(data_ptr as usize >= state.backing_mem.as_ptr() as usize, "deallocate was called with a data_ptr that does not point inside the allocators backing memory");
         assert!((data_ptr as usize) < state.backing_mem.as_ptr() as usize + state.backing_mem.len(), "deallocate was called with a data_ptr that does not point inside the allocators backing memory");

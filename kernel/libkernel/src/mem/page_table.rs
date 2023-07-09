@@ -1,8 +1,8 @@
 use crate::mem::page_table_entry::PageTableEntry;
 use crate::mem::{MemoryPage, PAGESIZE};
 use allocators::bump_allocator::BumpAllocator;
+use allocators::AllocError;
 use allocators::Box;
-use allocators::{AllocError, AllocFailed};
 use core::mem::MaybeUninit;
 use static_assertions::{assert_eq_align, assert_eq_size};
 

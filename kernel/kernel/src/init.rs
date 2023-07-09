@@ -10,7 +10,7 @@ use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
 };
-use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
+use libkernel::mem::ptrs::PhysMutPtr;
 use libkernel::mem::{EntryFlags, MemoryPage};
 
 static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");

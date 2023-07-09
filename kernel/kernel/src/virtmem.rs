@@ -1,15 +1,8 @@
 use allocators::Arena;
-use bitflags::bitflags;
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
-
-#[derive(Debug)]
-pub enum EntryError {
-    EntryInvalid,
-    EntryIsPage,
-}
 
 pub trait PageTableEntryExt {
     fn get_ptr(&self) -> *const PageTable;
