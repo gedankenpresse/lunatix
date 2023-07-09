@@ -1,5 +1,6 @@
 use crate::bump_allocator::bump_alloc_trait::BumpAllocator;
-use crate::{AllocFailed, AllocInit};
+use crate::{AllocError, AllocInit, Allocator};
+use core::alloc::Layout;
 use core::{mem, ptr};
 use ksync::SpinLock;
 
@@ -10,13 +11,13 @@ struct AllocatorState<'mem> {
     num_allocations: usize,
 }
 
-/// A [`BumpAllocator`] which starts allocations from the beginning of the backing memory and bumps the allocation
-/// marker forwards.
+/// A [`BumpAllocator`] which starts allocations from the beginning of the backing memory and bumps an allocation
+/// marker forwards to track the already allocated memory.
 ///
 /// ```text
 ///   ┌────────────────── backing memory ────────────────────┐
 ///   │                                                      │
-/// [0x5, 0x7, 0xD, 0xA, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
+/// [0xA, 0xA, 0xA, 0xA, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
 ///                  ^
 ///       marker ────┘
 /// ```
@@ -32,37 +33,19 @@ pub struct ForwardBumpingAllocator<'mem> {
     state: SpinLock<AllocatorState<'mem>>,
 }
 
-impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
-    fn new(backing_mem: &'mem mut [u8]) -> Self {
-        Self {
-            state: SpinLock::new(AllocatorState {
-                backing_mem,
-                num_allocations: 0,
-                bytes_allocated: 0,
-            }),
-        }
-    }
-
-    fn allocate(
-        &self,
-        size: usize,
-        alignment: usize,
-        init: AllocInit,
-    ) -> Result<&'mem mut [u8], AllocFailed> {
-        assert!(
-            alignment.is_power_of_two(),
-            "alignment must be a power of two"
-        );
-        assert!(size > 0, "must allocate at least 1 byte");
+impl<'mem> Allocator<'mem> for ForwardBumpingAllocator<'mem> {
+    fn allocate(&self, layout: Layout, init: AllocInit) -> Result<&'mem mut [u8], AllocError> {
+        assert!(layout.size() > 0, "must allocate at least 1 byte");
 
         let result = {
             let mut state = self.state.spin_lock();
 
             unsafe {
+                // TODO The Layout struct can calculate padding on its own. Maybe use that instead of doing it on our own
                 let unaligned_ptr =
                     state.backing_mem.as_mut_ptr().add(state.bytes_allocated) as usize;
-                let aligned_ptr = (unaligned_ptr + alignment - 1) & !(alignment - 1);
-                let bytes_to_allocate = aligned_ptr - unaligned_ptr + size;
+                let aligned_ptr = (unaligned_ptr + layout.align() - 1) & !(layout.align() - 1);
+                let bytes_to_allocate = aligned_ptr - unaligned_ptr + layout.size();
 
                 // check that there even is enough space to allocate the requested amount
                 if state
@@ -71,7 +54,7 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
                     .saturating_sub(state.bytes_allocated)
                     < bytes_to_allocate
                 {
-                    return Err(AllocFailed::InsufficientMemory);
+                    return Err(AllocError::InsufficientMemory);
                 }
 
                 // update state to include the now allocated bytes
@@ -83,15 +66,15 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
                 // slice but we give out multiple.
                 // however the allocator ensures that slices don't overlap via the `bytes_allocated` counter which makes this
                 // safe to do
-                &mut *ptr::slice_from_raw_parts_mut(aligned_ptr as *mut u8, size)
+                &mut *ptr::slice_from_raw_parts_mut(aligned_ptr as *mut u8, layout.size())
             }
         };
 
         log::trace!(
             "allocated {} bytes: {:p} -- {:p}",
-            size,
+            layout.size(),
             result.as_ptr(),
-            unsafe { result.as_ptr().add(size) }
+            unsafe { result.as_ptr().add(layout.size()) }
         );
 
         // initialize memory if required
@@ -104,7 +87,7 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
         Ok(result)
     }
 
-    unsafe fn deallocate(&self, data_ptr: *mut u8) {
+    unsafe fn deallocate(&self, data_ptr: *mut u8, layout: Layout) {
         let mut state = self.state.spin_lock();
         assert!(data_ptr as usize >= state.backing_mem.as_ptr() as usize, "deallocate was called with a data_ptr that does not point inside the allocators backing memory");
         assert!((data_ptr as usize) < state.backing_mem.as_ptr() as usize + state.backing_mem.len(), "deallocate was called with a data_ptr that does not point inside the allocators backing memory");
@@ -117,6 +100,18 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
         if state.num_allocations == 0 {
             log::trace!("all allocations have been returned, resetting bump allocator");
             state.bytes_allocated = 0;
+        }
+    }
+}
+
+impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
+    fn new(backing_mem: &'mem mut [u8]) -> Self {
+        Self {
+            state: SpinLock::new(AllocatorState {
+                backing_mem,
+                num_allocations: 0,
+                bytes_allocated: 0,
+            }),
         }
     }
 

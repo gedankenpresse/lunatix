@@ -1,5 +1,6 @@
 use allocators::bump_allocator::BumpAllocator;
 use allocators::AllocInit;
+use core::alloc::Layout;
 use core::mem;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
@@ -111,7 +112,12 @@ fn alloc_missing_pagetable<'a>(entry: &mut PageTableEntry, alloc: &impl BumpAllo
 
     // Allocate enough space for a new PageTale
     let new_pagetable = PageTable::new(alloc).expect("Could not allocate missing PageTable");
-    unsafe { entry.set(new_pagetable.into_raw() as u64, EntryFlags::Valid) };
+    unsafe {
+        entry.set(
+            new_pagetable.leak() as *mut PageTable as u64,
+            EntryFlags::Valid,
+        )
+    };
 }
 
 /// Convert a given virtual address to the mapped physical address
@@ -214,11 +220,7 @@ pub fn map_range_alloc<'a>(
         let addr = unsafe { ptr.add(offset) } as usize;
         log::trace!("mapping page {:x}", addr);
         let page_addr = alloc
-            .allocate(
-                mem::size_of::<MemoryPage>(),
-                mem::align_of::<MemoryPage>(),
-                AllocInit::Zeroed,
-            )
+            .allocate(Layout::new::<MemoryPage>(), AllocInit::Zeroed)
             .expect("Could not alloc page")
             .as_mut_ptr();
         map(alloc, root, addr, page_addr as usize, flags);

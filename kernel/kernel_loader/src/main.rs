@@ -7,8 +7,9 @@ mod virtmem;
 
 use crate::elfloader::KernelLoader;
 use ::elfloader::ElfBinary;
-use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator, BumpBox};
-use allocators::AllocInit;
+use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator};
+use allocators::{AllocInit, Allocator, Box};
+use core::alloc::Layout;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use libkernel::device_info::DeviceInfo;
@@ -143,7 +144,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     log::debug!("moving device tree");
     let mut phys_dev_tree =
-        BumpBox::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, allocator).unwrap();
+        Box::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, allocator).unwrap();
     let phys_dev_tree = unsafe {
         for (i, &byte) in device_tree.buf().iter().enumerate() {
             phys_dev_tree[i].write(byte);
@@ -155,7 +156,10 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // waste a page or two so we get back to page alignment
     // TODO: remove this when the kernel fixes alignment itself
     let _x = allocator
-        .allocate(PAGESIZE, PAGESIZE, AllocInit::Uninitialized)
+        .allocate(
+            Layout::from_size_align(PAGESIZE, PAGESIZE).unwrap(),
+            AllocInit::Uninitialized,
+        )
         .unwrap();
 
     // TODO: relocate and map argv
@@ -174,7 +178,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
             entry = in(reg) entry_point,
             in("a0") argc,
             in("a1") argv,
-            in("a2") phys_dev_tree.into_raw() as *mut u8,
+            in("a2") phys_dev_tree.leak().as_mut_ptr(),
             in("a3") phys_free_mem.start,
             in("a4") phys_free_mem.end,
         );

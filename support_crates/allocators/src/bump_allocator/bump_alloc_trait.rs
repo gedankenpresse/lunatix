@@ -1,4 +1,4 @@
-use crate::{AllocFailed, AllocInit};
+use crate::{AllocError, AllocInit, Allocator};
 use core::ptr;
 
 /// A trait defining the common behavior between different bump allocators.
@@ -21,7 +21,7 @@ use core::ptr;
 /// the capability to track free holes in the backing memory.
 /// However, when **all** allocations are returned to the allocator, the marker is reset to `0` thus making the whole
 /// memory available for allocations again.
-pub trait BumpAllocator<'mem>: Sized {
+pub trait BumpAllocator<'mem>: Sized + Allocator<'mem> {
     /// Create a new bump allocator that allocates from the given backing memory region.
     fn new(backing_mem: &'mem mut [u8]) -> Self;
 
@@ -36,32 +36,6 @@ pub trait BumpAllocator<'mem>: Sized {
             end as usize - start as usize,
         ))
     }
-
-    /// Allocate a slice of bytes of given `size` and aligned to `alignment` bytes.
-    ///
-    /// # Panics
-    /// This function panics if
-    /// - `alignment` is not a power of two, or
-    /// - `size` is less than one
-    fn allocate(
-        &self,
-        size: usize,
-        alignment: usize,
-        init: AllocInit,
-    ) -> Result<&'mem mut [u8], AllocFailed>;
-
-    /// Deallocate the given data.
-    ///
-    /// # Panics
-    /// This function panics if the given `data_ptr` does not lie within the bounds of the allocators backing memory.
-    ///
-    /// # Safety
-    /// The given data must be *currently allocated* from this allocator.
-    ///
-    /// This means that:
-    /// - it was previously returned by [`allocate`](BumpAllocator::allocate)
-    /// - it has not yet been deallocated
-    unsafe fn deallocate(&self, data_ptr: *mut u8);
 
     /// Steal the remaining free memory from the allocator.
     ///

@@ -1,7 +1,8 @@
 use crate::mem::page_table_entry::PageTableEntry;
 use crate::mem::{MemoryPage, PAGESIZE};
-use allocators::bump_allocator::{BumpAllocator, BumpBox};
-use allocators::AllocFailed;
+use allocators::bump_allocator::BumpAllocator;
+use allocators::Box;
+use allocators::{AllocError, AllocFailed};
 use core::mem::MaybeUninit;
 use static_assertions::{assert_eq_align, assert_eq_size};
 
@@ -21,9 +22,9 @@ impl PageTable {
     /// Create a new empty PageTable
     pub fn new<'mem, 'alloc, A: BumpAllocator<'mem>>(
         allocator: &'alloc A,
-    ) -> Result<BumpBox<'alloc, 'mem, A, Self>, AllocFailed> {
+    ) -> Result<Box<'alloc, 'mem, A, Self>, AllocError> {
         // this is safe because zero-initialized memory is a valid PageTable
-        Ok(unsafe { BumpBox::new_zeroed(allocator)?.assume_init() })
+        Ok(unsafe { Box::new_zeroed(allocator)?.assume_init() })
     }
 
     // TODO Maybe rework this api to be safer

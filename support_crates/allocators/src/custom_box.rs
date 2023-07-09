@@ -1,5 +1,6 @@
 use crate::traits::{AllocError, AllocInit, Allocator};
 use core::alloc::Layout;
+use core::fmt::{Display, Formatter};
 use core::mem;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
@@ -7,7 +8,7 @@ use core::ptr;
 
 /// A custom box implementation based on our own allocator implementation
 ///
-/// # Generic Arguments
+/// # Generic Argumentsy
 /// - `'alloc` is the lifetime of the allocator from which the underlying memory was borrowed.
 /// - `'mem` is the lifetime of the underlying memory from which the source allocator allocates.
 /// - `A` is the [`Allocator`] implementation.
@@ -245,5 +246,13 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> Deref for Box<'alloc, 'mem, A,
 impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> DerefMut for Box<'alloc, 'mem, A, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner
+    }
+}
+
+// Display impl
+
+impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized + Display> Display for Box<'alloc, 'mem, A, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.inner.fmt(f)
     }
 }
