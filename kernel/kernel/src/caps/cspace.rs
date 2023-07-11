@@ -3,8 +3,6 @@ use crate::caps::errors::*;
 use crate::caps::CSlot;
 use libkernel::mem::PAGESIZE;
 
-use super::Capability;
-
 pub struct CSpace {
     bits: usize,
     slots: *mut caps::CSlot,
@@ -33,10 +31,22 @@ impl CSpace {
             slots
         };
 
-        slot.set(Self { bits, slots: slots.as_mut_ptr() });
+        slot.set(Self { bits, slots: slots.as_mut_ptr() }).unwrap();
         unsafe { mem.link_derive(slot.cap.as_link()) };
 
         Ok(())
+    }
+
+    /// This function looks up capabilities in cspaces.
+    /// If we want to keep close to seL4 behaviour, we should recursively lookup caps.
+    /// 
+    /// TODO: fix interior mutability/aliasing
+    /// This should only return non-aliasing cslots, and actually have &mut type, but
+    /// that's not possible without rc, which I'm not going to bother with right now...
+    pub(crate) fn lookup(&self, cap: usize) -> Result<&mut caps::CSlot, InvalidCAddr> {
+        let mutself: &mut Self = unsafe { (self as *const Self as *mut Self).as_mut().unwrap() };
+        let slot = mutself.get_slot_mut(cap)?;
+        return Ok(slot);
     }
 
     pub(crate) fn get_slots(&self) -> &[caps::CSlot] {

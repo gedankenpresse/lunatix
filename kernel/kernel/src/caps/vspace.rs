@@ -24,7 +24,7 @@ impl VSpace {
                 .expect("No Kernel Root Page Table found")
         });
 
-        slot.set(Self { root });
+        slot.set(Self { root }).unwrap();
         unsafe { mem.link_derive(slot.cap.as_link())};
         Ok(())
     }

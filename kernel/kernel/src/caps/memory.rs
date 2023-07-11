@@ -3,6 +3,7 @@ use crate::caps::errors::*;
 use allocators::Arena;
 use libkernel::mem::MemoryPage;
 
+
 pub struct Memory {
     pub(crate) inner: Arena<'static, MemoryPage>,
 }
@@ -14,7 +15,7 @@ impl Memory {
         let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
         let inner = Arena::new(slice);
 
-        slot.set(Self { inner });
+        slot.set(Self { inner }).unwrap();
         unsafe { mem.link_derive(slot.cap.as_link()) };
         Ok(())
     }
@@ -24,4 +25,35 @@ impl Memory {
         // TODO: Make this more safe. We only initialize this page later so just assuming that it is now initialized is clearly unsafe
         Ok(unsafe { core::mem::transmute(alloc) })
     }
+
+    pub fn send(mem: &mut caps::CNode, label: usize, caps: &[*mut caps::CSlot], params: &[usize]) -> Result<usize, caps::Error> {
+        const ALLOC: usize = 0;
+        match label {
+            ALLOC => {
+                if caps.len() != 1 {
+                    return Err(caps::Error::InvalidArg);
+                }
+                if params.len() < 1 {
+                    return Err(caps::Error::InvalidArg);
+                }
+
+                let target_slot = unsafe { caps[0].as_mut().unwrap() };
+                let captype = params[0];
+                let size = params.get(1).copied().unwrap_or(0);
+
+                alloc_impl(mem, target_slot, captype, size)
+            },
+            _ => Err(caps::Error::InvalidOp)
+        }
+    }
 }
+
+fn alloc_impl(
+    mem: &mut caps::Node<caps::Capability>,
+    target_slot: &mut caps::CSlot,
+    captype: usize,
+    size: usize
+) -> Result<usize, Error> {
+    todo!()
+}
+

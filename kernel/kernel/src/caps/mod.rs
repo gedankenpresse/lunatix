@@ -44,6 +44,8 @@ pub enum Capability {
     Uninit,
 }
 
+
+
 impl<T> Node<T> {
     unsafe fn as_link(&self) -> Link<T> {
         return self as *const Node<T> as Link<T>;
@@ -197,11 +199,25 @@ macro_rules! cap_get_mut {
 cap_get_mut!(Memory, get_memory_mut, Memory);
 cap_get_mut!(Task, get_task_mut, Task);
 cap_get_mut!(VSpace, get_vspace_mut, VSpace);
-
+cap_get_mut!(CSpace, get_cspace_mut, CSpace);
 
 pub struct CSlot {
     pub cap: Node<Capability>,
 }
+
+impl CNode {
+    pub fn send(&mut self, label: usize, caps: &[*mut CSlot], params: &[usize]) -> Result<usize, Error> {
+        match &mut self.elem {
+            Capability::CSpace(_cspace) => todo!("implement cspace send"),
+            Capability::Memory(_mem) => Memory::send(self, label, caps, params),
+            Capability::Task(_task) => todo!("implement task send"),
+            Capability::VSpace(_vspace) => todo!("implement vspace send"),
+            Capability::Uninit => Err(Error::InvalidCap),
+        }
+    }
+}
+
+
 
 impl CSlot {
     pub(crate) fn set(&mut self, v: impl Into<Capability>) -> Result<(), OccupiedSlot> {
@@ -225,48 +241,44 @@ impl CSlot {
 }
 
 mod errors {
-
+    #[repr(usize)]
     #[derive(Debug)]
     pub enum Error {
-        InvalidCAddr,
-        NoMem,
-        OccupiedSlot,
-        InvalidCap,
+        InvalidCAddr = 1,
+        NoMem = 2,
+        OccupiedSlot = 3,
+        InvalidCap = 4,
+        InvalidOp = 5,
+        InvalidArg = 6,
     }
-
-    impl From<InvalidCAddr> for Error {
-        fn from(_value: InvalidCAddr) -> Self {
-            Self::InvalidCAddr
+    
+    /// macro to implement From Instances from Singletons to Error
+    /// invoking with `err_from_impl!(Variant, Type)` results in an impl
+    /// that converts Type to Variant
+    macro_rules! err_from_impl {
+        ($v:ident, $t:ty) => {
+            impl From<$t> for Error {
+                fn from(_value: $t) -> Self {
+                    Self::$v
+                }
+            }
         }
     }
 
-    impl From<NoMem> for Error {
-        fn from(_value: NoMem) -> Self {
-            Self::NoMem
+    macro_rules! singleton_variant {
+        ($t:ident) => {
+            #[derive(Debug)]
+            pub struct $t;
         }
     }
 
-    impl From<OccupiedSlot> for Error {
-        fn from(_value: OccupiedSlot) -> Self {
-            Self::OccupiedSlot
-        }
-    }
+    singleton_variant!(InvalidCAddr);
+    singleton_variant!(NoMem);
+    singleton_variant!(OccupiedSlot);
+    singleton_variant!(InvalidCap);
 
-    impl From<InvalidCap> for Error {
-        fn from(_value: InvalidCap) -> Self {
-            Self::InvalidCap
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct InvalidCAddr;
-
-    #[derive(Debug)]
-    pub struct NoMem;
-
-    #[derive(Debug)]
-    pub struct OccupiedSlot;
-
-    #[derive(Debug)]
-    pub struct InvalidCap;
+    err_from_impl!(InvalidCAddr, InvalidCAddr);
+    err_from_impl!(NoMem, NoMem);
+    err_from_impl!(OccupiedSlot, OccupiedSlot);
+    err_from_impl!(InvalidCap, InvalidCap);
 }

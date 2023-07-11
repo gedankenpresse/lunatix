@@ -2,6 +2,9 @@
 #![no_std]
 #![no_main]
 
+// TODO: remove dead code
+#![allow(dead_code)]
+
 mod elfloader;
 mod virtmem;
 

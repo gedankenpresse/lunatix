@@ -1,10 +1,17 @@
 #![no_std]
 #![no_main]
 
+// TODO: remove dead code
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
+
 mod caps;
 mod init;
 mod trap;
 mod virtmem;
+mod sched;
+mod ipc;
 
 use crate::caps::CSlot;
 
