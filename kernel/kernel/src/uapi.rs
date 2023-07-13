@@ -10,9 +10,10 @@ use core::cell::RefCell;
 const SYS_DEBUG_LOG: usize = 0;
 const SYS_DEBUG_PUTC: usize = 1;
 const SYS_SEND: usize = 2;
+const SYS_IDENTIFY: usize = 3;
 
 
-fn send(cspace: &mut caps::CNode, cap: usize, tag: ipc::Tag, args: &[usize]) -> Result<usize, caps::Error> {
+fn send(cspace: &mut caps::CNode, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc::IpcResult {
     let raw = ipc::RawMessage::from_args(tag, args);
     let cspaceref = cspace.get_cspace_mut().unwrap();
     // TODO check if object has send rights
@@ -28,6 +29,14 @@ fn send(cspace: &mut caps::CNode, cap: usize, tag: ipc::Tag, args: &[usize]) -> 
     let object = cspaceref.elem.lookup(cap).unwrap();
     let res = object.try_borrow_mut()?.cap.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
     Ok(res)
+}
+
+fn identify(cspace: &mut caps::CNode, cap: usize) -> ipc::IpcResult {
+    let cspaceref = cspace.get_cspace_mut().unwrap();
+    let capslot = cspaceref.elem.lookup(cap)?;
+    let cap = capslot.try_borrow()?;
+    let variant = cap.cap.elem.get_variant();
+    return Ok(variant as usize);  
 }
 
 #[inline(always)]
@@ -50,6 +59,10 @@ pub (crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
         SYS_SEND => {
             let cspace = sched::cspace();
             send(cspace, args[1], ipc::Tag(args[2]), &args[3..])
+        },
+        SYS_IDENTIFY => {
+            let cspace = sched::cspace();
+            identify(cspace, args[1])
         },
         no => { panic!("unsupported syscall: {}", no); }
     };

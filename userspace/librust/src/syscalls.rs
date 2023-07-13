@@ -1,10 +1,11 @@
 use core::arch::asm;
 
-const SYS_DEBUG_LOG: usize = 0;
-const SYS_DEBUG_PUTC: usize = 1;
+pub (crate) const SYS_DEBUG_LOG: usize = 0;
+pub (crate) const SYS_DEBUG_PUTC: usize = 1;
+pub (crate) const SYS_IDENTIFY: usize = 2;
 
 #[inline(always)]
-fn syscall(
+pub (crate) fn raw_syscall(
     syscallno: usize,
     a1: usize,
     a2: usize,
@@ -30,18 +31,20 @@ fn syscall(
     return (out0, out1);
 }
 
-pub(crate) fn syscall_writeslice(s: &[u8]) {
-    const REG_SIZE: usize = core::mem::size_of::<usize>();
-    let mut reg_buf: [usize; 6] = [0usize; 6];
-    unsafe { 
-        let buf: &mut [u8] = core::slice::from_raw_parts_mut(reg_buf.as_mut_ptr().cast(), REG_SIZE * reg_buf.len());
-        assert!(s.len() <= buf.len());
-        buf[..s.len()].clone_from_slice(s);
+#[inline(always)]
+pub (crate) fn syscall(
+    syscallno: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+    a6: usize,
+    a7: usize,
+) -> Result<usize, crate::Error> {
+    let (a0, a1) = raw_syscall(syscallno, a1, a2, a3, a4, a5, a6, a7);
+    if a0 == 0 {
+        return Ok(a1);
     }
-    let [a2, a3, a4, a5, a6, a7] = reg_buf;
-    syscall(SYS_DEBUG_LOG, s.len(), a2, a3, a4, a5, a6, a7);
-}
-
-pub (crate) fn syscall_putc(c: u8) {
-    unsafe { asm!("ecall", in("x10") SYS_DEBUG_PUTC, in("x11") c) }
+    return Err(a0.into());
 }

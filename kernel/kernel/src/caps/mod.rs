@@ -46,6 +46,27 @@ pub enum Capability {
     Uninit,
 }
 
+#[repr(usize)]
+pub enum Variant {
+    Uninit = 0,
+    Memory = 1,
+    CSpace = 2,
+    VSpace = 3,
+    Task = 4,
+}
+
+impl Capability {
+    pub(crate) fn get_variant(&self) -> Variant {
+        match self {
+            Capability::CSpace(_) => Variant::CSpace,
+            Capability::Memory(_) => Variant::Memory,
+            Capability::Task(_) => Variant::Task,
+            Capability::VSpace(_) => Variant::VSpace,
+            Capability::Uninit => Variant::Uninit,
+        }
+    }
+}
+
 
 
 impl<T> Node<T> {
@@ -253,6 +274,7 @@ mod errors {
         InvalidOp = 5,
         InvalidArg = 6,
         AliasingCSlot = 7,
+        InvalidReturn = 8,
     }
     
     /// macro to implement From Instances from Singletons to Error
@@ -286,4 +308,5 @@ mod errors {
     err_from_impl!(InvalidCap, InvalidCap);
 
     err_from_impl!(AliasingCSlot, core::cell::BorrowMutError);
+    err_from_impl!(AliasingCSlot, core::cell::BorrowError);
 }
