@@ -12,6 +12,7 @@ mod trap;
 mod virtmem;
 mod sched;
 mod ipc;
+mod uapi;
 
 use crate::caps::CSlot;
 

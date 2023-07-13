@@ -1,4 +1,4 @@
-use core::cell::{RefMut, RefCell};
+use core::cell::RefCell;
 use core::ops::DerefMut;
 
 use crate::caps;

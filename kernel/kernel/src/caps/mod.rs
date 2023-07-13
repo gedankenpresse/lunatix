@@ -3,7 +3,7 @@ pub mod memory;
 pub mod task;
 pub mod vspace;
 
-use core::cell::{RefMut, RefCell};
+use core::cell::RefCell;
 
 use self::errors::OccupiedSlot;
 pub use self::memory::Memory;
