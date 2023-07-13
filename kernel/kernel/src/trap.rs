@@ -1,6 +1,8 @@
 use crate::caps;
 use crate::ipc;
 use crate::{InitCaps, INIT_CAPS, sched};
+use core::cell::RefCell;
+use core::cell::RefMut;
 use core::ops::DerefMut;
 use libkernel::arch::cpu::{Exception, Interrupt, TrapEvent};
 use libkernel::arch::timers::set_next_timer;
@@ -20,13 +22,13 @@ fn send(cspace: &mut caps::CNode, cap: usize, tag: ipc::Tag, args: &[usize]) -> 
 
     // TODO: resolve cap references
     assert!(tag.ncaps() <= 8, "too many caps");
-    let mut resolved: [*mut caps::CSlot; 8] = [core::ptr::null_mut(); 8]; 
+    let mut resolved: [Option<&RefCell<caps::CSlot>>; 8] = [None, None, None, None, None, None, None, None]; 
     for (i, &addr) in raw.cap_addresses.iter().enumerate() {
-        resolved[i] = cspaceref.elem.lookup(addr)? as *mut caps::CSlot;
+        resolved[i] = Some(cspaceref.elem.lookup(addr)?);
     }
 
     let object = cspaceref.elem.lookup(cap).unwrap();
-    let res = object.cap.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
+    let res = object.try_borrow_mut()?.cap.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
     Ok(res)
 }
 

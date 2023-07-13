@@ -3,6 +3,8 @@ pub mod memory;
 pub mod task;
 pub mod vspace;
 
+use core::cell::{RefMut, RefCell};
+
 use self::errors::OccupiedSlot;
 pub use self::memory::Memory;
 pub use cspace::CSpace;
@@ -206,7 +208,7 @@ pub struct CSlot {
 }
 
 impl CNode {
-    pub fn send(&mut self, label: usize, caps: &[*mut CSlot], params: &[usize]) -> Result<usize, Error> {
+    pub fn send(&mut self, label: usize, caps: &[Option<&RefCell<CSlot>>], params: &[usize]) -> Result<usize, Error> {
         match &mut self.elem {
             Capability::CSpace(_cspace) => todo!("implement cspace send"),
             Capability::Memory(_mem) => Memory::send(self, label, caps, params),
@@ -250,6 +252,7 @@ mod errors {
         InvalidCap = 4,
         InvalidOp = 5,
         InvalidArg = 6,
+        AliasingCSlot = 7,
     }
     
     /// macro to implement From Instances from Singletons to Error
@@ -281,4 +284,6 @@ mod errors {
     err_from_impl!(NoMem, NoMem);
     err_from_impl!(OccupiedSlot, OccupiedSlot);
     err_from_impl!(InvalidCap, InvalidCap);
+
+    err_from_impl!(AliasingCSlot, core::cell::BorrowMutError);
 }

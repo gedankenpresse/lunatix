@@ -80,6 +80,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "init"
+version = "0.1.0"
+dependencies = [
+ "librust",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -134,6 +141,10 @@ dependencies = [
  "static_assertions",
  "thiserror-no-std",
 ]
+
+[[package]]
+name = "librust"
+version = "0.1.0"
 
 [[package]]
 name = "log"

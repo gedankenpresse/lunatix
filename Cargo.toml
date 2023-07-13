@@ -2,6 +2,8 @@
 members = [
     "kernel/*",
     "support_crates/*",
+    "userspace/librust",
+    "userspace/init",
 ]
 
 [profile.dev]

@@ -1,3 +1,5 @@
+use core::cell::RefCell;
+
 use crate::caps;
 use crate::caps::errors::*;
 use crate::caps::CSlot;
@@ -5,7 +7,7 @@ use libkernel::mem::PAGESIZE;
 
 pub struct CSpace {
     bits: usize,
-    slots: *mut caps::CSlot,
+    slots: *mut RefCell<caps::CSlot>,
 }
 
 fn cspace_pages(bits: usize) -> usize {
@@ -23,9 +25,9 @@ impl CSpace {
         let memref = mem.get_memory_mut().unwrap();
         let pages = cspace_pages(bits);
         let slots = {
-            let ptr = memref.elem.alloc_pages_raw(pages)? as *mut caps::CSlot;
+            let ptr = memref.elem.alloc_pages_raw(pages)? as *mut RefCell<caps::CSlot>;
             for i in 0..(1 << bits) {
-                unsafe { *ptr.add(i) = CSlot::empty() }
+                unsafe { *ptr.add(i) = RefCell::new(CSlot::empty()) }
             }
             let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
             slots
@@ -43,27 +45,18 @@ impl CSpace {
     /// TODO: fix interior mutability/aliasing
     /// This should only return non-aliasing cslots, and actually have &mut type, but
     /// that's not possible without rc, which I'm not going to bother with right now...
-    pub(crate) fn lookup(&self, cap: usize) -> Result<&mut caps::CSlot, InvalidCAddr> {
+    pub(crate) fn lookup(&self, cap: usize) -> Result<&RefCell<caps::CSlot>, InvalidCAddr> {
         let mutself: &mut Self = unsafe { (self as *const Self as *mut Self).as_mut().unwrap() };
-        let slot = mutself.get_slot_mut(cap)?;
+        let slot = mutself.get_slot(cap)?;
         return Ok(slot);
     }
 
-    pub(crate) fn get_slots(&self) -> &[caps::CSlot] {
+    pub(crate) fn get_slots(&self) -> &[RefCell<caps::CSlot>] {
         let nslots = 1 << self.bits;
         unsafe { core::slice::from_raw_parts(self.slots, nslots) }
     }
 
-    pub(crate) fn get_slots_mut(&mut self) -> &mut [caps::CSlot] {
-        let nslots = 1 << self.bits;
-        unsafe { core::slice::from_raw_parts_mut(self.slots, nslots) }
-    }
-
-    pub(crate) fn get_slot(&self, slot: usize) -> Result<&caps::CSlot, InvalidCAddr> {
+    pub(crate) fn get_slot(&self, slot: usize) -> Result<&RefCell<caps::CSlot>, InvalidCAddr> {
         self.get_slots().get(slot).ok_or(InvalidCAddr)
-    }
-
-    pub(crate) fn get_slot_mut(&mut self, slot: usize) -> Result<&mut caps::CSlot, InvalidCAddr> {
-        self.get_slots_mut().get_mut(slot).ok_or(InvalidCAddr)
     }
 }

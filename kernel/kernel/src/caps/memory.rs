@@ -1,3 +1,6 @@
+use core::cell::{RefMut, RefCell};
+use core::ops::DerefMut;
+
 use crate::caps;
 use crate::caps::errors::*;
 use allocators::Arena;
@@ -26,7 +29,7 @@ impl Memory {
         Ok(unsafe { core::mem::transmute(alloc) })
     }
 
-    pub fn send(mem: &mut caps::CNode, label: usize, caps: &[*mut caps::CSlot], params: &[usize]) -> Result<usize, caps::Error> {
+    pub fn send(mem: &mut caps::CNode, label: usize, caps: &[Option<&RefCell<caps::CSlot>>], params: &[usize]) -> Result<usize, caps::Error> {
         const ALLOC: usize = 0;
         match label {
             ALLOC => {
@@ -37,11 +40,11 @@ impl Memory {
                     return Err(caps::Error::InvalidArg);
                 }
 
-                let target_slot = unsafe { caps[0].as_mut().unwrap() };
+                let mut target_slot = caps[0].as_ref().unwrap().try_borrow_mut()?;
                 let captype = params[0];
                 let size = params.get(1).copied().unwrap_or(0);
 
-                alloc_impl(mem, target_slot, captype, size)
+                alloc_impl(mem, target_slot.deref_mut(), captype, size)
             },
             _ => Err(caps::Error::InvalidOp)
         }

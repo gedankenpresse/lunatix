@@ -13,7 +13,7 @@ use elfloader::{
 use libkernel::mem::ptrs::PhysMutPtr;
 use libkernel::mem::{EntryFlags, MemoryPage};
 
-static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");
+static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../target/riscv64imac-unknown-none-elf/release/init");
 
 struct StackLoader<'v, 'm> {
     vbase: u64,
