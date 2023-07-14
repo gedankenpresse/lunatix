@@ -11,7 +11,7 @@ pub struct VSpace {
 }
 
 impl VSpace {
-    pub(crate) fn init(slot: &mut caps::CSlot, mem: &mut caps::CNode) -> Result<(), NoMem> {
+    pub(crate) fn init(slot: &mut caps::CSlot, mem: &mut caps::CNode) -> Result<(), caps::Error> {
         let memref  = mem.get_memory_mut().unwrap();
         log::debug!("alloc");
         let root = memref.elem.alloc_pages_raw(1)?;

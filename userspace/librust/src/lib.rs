@@ -11,6 +11,7 @@ pub use print::print;
 pub use print::put_c;
 pub use identify::identify;
 pub use memory::allocate;
+pub use ipc::IpcResult;
 
 #[repr(usize)]
 #[derive(Debug, PartialEq, Eq)]

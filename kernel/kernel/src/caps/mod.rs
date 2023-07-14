@@ -18,6 +18,12 @@ pub struct Chain<T> {
     pub depth: usize,
 }
 
+impl<T> core::fmt::Debug for Chain<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Chain").field("prev", &self.prev).field("next", &self.next).field("depth", &self.depth).finish()
+    }
+}
+
 pub struct Node<T> {
     pub chain: Chain<T>,
     pub elem: T,
@@ -56,6 +62,21 @@ pub enum Variant {
     Task = 4,
 }
 
+impl TryFrom<usize> for Variant {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Uninit),
+            1 => Ok(Self::Memory),
+            2 => Ok(Self::CSpace),
+            3 => Ok(Self::VSpace),
+            4 => Ok(Self::Task),
+            _ => Err(Error::InvalidArg),
+        }
+    }
+}
+
 impl Capability {
     pub(crate) fn get_variant(&self) -> Variant {
         match self {
@@ -68,9 +89,24 @@ impl Capability {
     }
 }
 
+pub trait Comparable {
+    fn compare(this: &Self, other: &Self) -> bool;
+}
 
+impl Comparable for Capability {
+    fn compare(this: &Self, other: &Self) -> bool {
+        match (this.get_variant(), other.get_variant()) {
+            (Variant::Uninit, Variant::Uninit) => todo!(),
+            (Variant::Memory, Variant::Memory) => todo!("implement memory cap compare"),
+            (Variant::CSpace, Variant::CSpace) => todo!("implement cspace cap compare"),
+            (Variant::VSpace, Variant::VSpace) => todo!("implement vspace cap compare"),
+            (Variant::Task, Variant::Task) => todo!("implement task cap compare"),
+            _ => false
+        }
+    }
+}
 
-impl<T> Node<T> {
+impl<T: Comparable> Node<T> {
     unsafe fn as_link(&self) -> Link<T> {
         return self as *const Node<T> as Link<T>;
     }
@@ -111,6 +147,7 @@ impl<T> Node<T> {
             }
 
             let copychain = &mut copy.as_mut().unwrap().chain;
+            log::debug!("copychain: {:?}", copychain);
             assert!(copychain.next.is_null());
             assert!(copychain.prev.is_null());
             copychain.next = self.chain.next;
@@ -142,6 +179,7 @@ impl<T> Node<T> {
     fn link_derive(&mut self, child: Link<T>) {
         unsafe { 
             let parent = self.get_last_copy();
+            log::debug!("deriving: self {:?}, parent: {:?}", self as *mut Node<T>, parent);
             parent.as_mut().unwrap().link_copy(child);
             (*child).chain.depth += 1;
         }
@@ -153,8 +191,24 @@ impl<T> Node<T> {
     }
 
     fn get_last_copy(&mut self) -> Link<T> {
-        // TODO: fix
-        unsafe { self.as_link() }
+        log::debug!("get_last_copy");
+        unsafe {
+            let mut cur = self.as_link(); 
+            loop {
+                let next = (*cur).chain.next;
+                if next.is_null() {
+                    log::debug!("next null, break");
+                    break;
+                }
+                if !Comparable::compare(&self.elem, &(*next).elem) {
+                    log::debug!("other cap, break");
+                    break;
+                }
+                log::debug!("found copy");
+                cur = next;
+            }
+            return cur;
+        }
     }
 
     fn get_first_copy(&mut self) -> Link<T> {

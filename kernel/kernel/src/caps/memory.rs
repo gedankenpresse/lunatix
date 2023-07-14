@@ -24,7 +24,7 @@ impl Memory {
         Memory { inner: state }
     }
 
-    pub fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, pages: usize) -> Result<(), NoMem> {
+    pub fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, pages: usize) -> Result<(), caps::Error> {
         let memref = mem.get_memory_mut().unwrap();
         let state: *mut RefCell<Arena<MemoryPage>> = memref.elem.alloc_pages_raw(1)?.cast();
         let ptr = memref.elem.alloc_pages_raw(pages)?;
@@ -80,7 +80,8 @@ impl Memory {
                 let captype = params[0];
                 let size = params.get(1).copied().unwrap_or(0);
 
-                alloc_impl(mem, target_slot.deref_mut(), captype, size)
+                alloc_impl(mem, target_slot.deref_mut(), captype, size)?;
+                return Ok(0);
             },
             _ => Err(caps::Error::InvalidOp)
         }
@@ -92,7 +93,27 @@ fn alloc_impl(
     target_slot: &mut caps::CSlot,
     captype: usize,
     size: usize
-) -> Result<usize, Error> {
-    todo!()
+) -> Result<(), Error> {
+    assert_eq!(target_slot.cap.elem.get_variant() as usize, Variant::Uninit as usize);
+    let variant = Variant::try_from(captype)?;
+    match variant {
+        Variant::Uninit => return Err(Error::InvalidOp),
+        Variant::Memory => {
+            if size == 0 { return Err(Error::InvalidArg); }
+            caps::Memory::init_sz(target_slot, mem, size)?;
+        },
+        Variant::CSpace => {
+            if size == 0 { return Err(Error::InvalidArg); }
+            caps::CSpace::init_sz(target_slot, mem, size)?;
+        },
+        Variant::VSpace => {
+            caps::VSpace::init(target_slot, mem)?;
+        },
+        Variant::Task => {
+            caps::Task::init(target_slot, mem)?;
+        },
+    };
+
+    return Ok(());
 }
 

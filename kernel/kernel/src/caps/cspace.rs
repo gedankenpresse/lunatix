@@ -21,7 +21,7 @@ fn cspace_pages(bits: usize) -> usize {
 }
 
 impl CSpace {
-    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, bits: usize) -> Result<(), NoMem> {
+    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, bits: usize) -> Result<(), caps::Error> {
         let memref = mem.get_memory_mut().unwrap();
         let pages = cspace_pages(bits);
         let slots = {

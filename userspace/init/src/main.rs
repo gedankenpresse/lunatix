@@ -17,6 +17,16 @@ fn main() {
 
     assert_eq!(librust::identify(1), Ok(librust::Variant::Memory));
     librust::allocate(1, 2, librust::Variant::Task, 0).unwrap();
+    println!("new alloc: {:?}", librust::identify(2));
+
+    librust::allocate(1, 3, librust::Variant::CSpace, 4).unwrap();
+    println!("new alloc: {:?}", librust::identify(3));
+
+
+
+    librust::allocate(1, 4, librust::Variant::VSpace, 0).unwrap();
+    println!("new alloc: {:?}", librust::identify(4));
+
 }
 
 use core::panic::PanicInfo;
