@@ -14,6 +14,11 @@ fn main() {
     println!("hello word!");
     println!("{}", MESSAGE);
     println!("{}", MESSAGE);
+
+    for i in 0..10 {
+        let cap_variant = librust::identify(i as usize);
+        println!("{i} {cap_variant:?}");
+    }
 }
 
 use core::panic::PanicInfo;

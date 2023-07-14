@@ -41,7 +41,7 @@ impl VSpace {
         let memref = mem.get_memory_mut().unwrap();
         log::debug!("map range, root: {:p}", self.root);
         virtmem::map_range_alloc(
-            &mut memref.elem.inner,
+            memref.elem.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
@@ -60,7 +60,7 @@ impl VSpace {
     ) -> Result<(), NoMem> {
         let phys_page = mem.alloc_pages_raw(1)?;
         virtmem::map(
-            &mut mem.inner,
+            mem.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
             vaddr,
             phys_page as usize,

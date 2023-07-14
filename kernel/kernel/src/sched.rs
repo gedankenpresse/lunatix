@@ -2,6 +2,11 @@ use crate::caps::{task::TaskState, Node, Capability};
 
 static mut ACTIVE_TASK: *mut TaskState = core::ptr::null_mut();
 
+
+pub unsafe fn set_active_task(state: *mut TaskState) {
+    ACTIVE_TASK = state;
+} 
+
 #[inline(always)]
 fn active_task() -> &'static mut TaskState {
     unsafe { 

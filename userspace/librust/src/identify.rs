@@ -1,6 +1,7 @@
 use crate::syscalls::{syscall, self};
 
 /// a capability variant
+#[derive(Debug)]
 #[repr(usize)]
 pub enum Variant {
     Uninit = 0,

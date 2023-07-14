@@ -2,7 +2,8 @@ use core::arch::asm;
 
 pub (crate) const SYS_DEBUG_LOG: usize = 0;
 pub (crate) const SYS_DEBUG_PUTC: usize = 1;
-pub (crate) const SYS_IDENTIFY: usize = 2;
+pub (crate) const SYS_SEND: usize = 2;
+pub (crate) const SYS_IDENTIFY: usize = 3;
 
 #[inline(always)]
 pub (crate) fn raw_syscall(

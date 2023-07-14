@@ -150,7 +150,7 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     // create capability objects for userspace code
     log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();
-    guard.mem.set(caps::Memory { inner: alloc }).unwrap();
+    guard.mem.set(caps::Memory::create_init(alloc)).unwrap();
     match &mut *guard {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
@@ -170,6 +170,11 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
 
             log::debug!("init cspace");
             caps::CSpace::init_sz(&mut taskstate.cspace, &mut mem.cap, 4).unwrap();
+            {
+                let cspace = taskstate.cspace.cap.get_cspace_mut().unwrap();
+                let memslot = cspace.elem.lookup(1).unwrap();
+                caps::Memory::copy(&mut mem.cap, &mut memslot.borrow_mut().cap).unwrap();
+            }
 
             log::debug!("setup stack");
             let stack_start = StackLoader {

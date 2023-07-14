@@ -184,6 +184,7 @@ fn run_init(trap_stack: *mut ()) {
 /// Yield to the task that owns the given `trap_frame`
 unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CNode) -> ! {
     let taskref = task.get_task_mut().unwrap();
+    unsafe { crate::sched::set_active_task(taskref.elem.state); }
     let state = unsafe { taskref.elem.state.as_mut().unwrap() };
     let trap_frame = &mut state.frame;
     trap_frame.trap_handler_stack = trap_handler_stack.cast();

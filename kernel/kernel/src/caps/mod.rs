@@ -47,6 +47,7 @@ pub enum Capability {
 }
 
 #[repr(usize)]
+#[derive(Copy, Clone)]
 pub enum Variant {
     Uninit = 0,
     Memory = 1,
