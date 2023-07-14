@@ -14,7 +14,9 @@ const SYS_IDENTIFY: usize = 3;
 
 
 fn send(cspace: &mut caps::CNode, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc::IpcResult {
+    log::debug!("cap: {cap}, tag: {tag:?}, args: {args:?}");
     let raw = ipc::RawMessage::from_args(tag, args);
+    log::debug!("raw: caps: {:?}, params: {:?}", raw.cap_addresses, raw.params);
     let cspaceref = cspace.get_cspace_mut().unwrap();
     // TODO check if object has send rights
 
@@ -57,10 +59,12 @@ pub (crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
             Ok(0)
         },
         SYS_SEND => {
+            log::debug!("SEND: {:?}", args);
             let cspace = sched::cspace();
             send(cspace, args[1], ipc::Tag(args[2]), &args[3..])
         },
         SYS_IDENTIFY => {
+            log::debug!("IDENTIFY: {:?}", args);
             let cspace = sched::cspace();
             identify(cspace, args[1])
         },

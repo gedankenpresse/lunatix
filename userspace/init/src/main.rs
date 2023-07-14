@@ -15,10 +15,8 @@ fn main() {
     println!("{}", MESSAGE);
     println!("{}", MESSAGE);
 
-    for i in 0..10 {
-        let cap_variant = librust::identify(i as usize);
-        println!("{i} {cap_variant:?}");
-    }
+    assert_eq!(librust::identify(1), Ok(librust::Variant::Memory));
+    librust::allocate(1, 2, librust::Variant::Task, 0).unwrap();
 }
 
 use core::panic::PanicInfo;

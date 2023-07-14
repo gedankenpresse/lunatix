@@ -1,10 +1,8 @@
-use crate::caps;
-
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
 pub struct Tag(pub usize);
 
-pub type IpcResult = Result<usize, caps::Error>;
+pub type IpcResult = Result<usize, crate::Error>;
 
 /// converts a Result for Ipc to register values.
 /// The first argument is the error code. 0 means success
@@ -35,19 +33,5 @@ impl Tag {
 
     pub fn label(&self) -> usize {
         self.0 >> 16
-    }
-}
-
-pub struct RawMessage<'a> {
-    pub cap_addresses: &'a [usize],
-    pub params: &'a [usize],
-}
-
-impl RawMessage<'_> {
-    pub fn from_args<'a>(tag: Tag, args: &'a [usize]) -> RawMessage<'a> {
-        let caps = &args[..tag.ncaps() as usize];
-        let rest = &args[tag.ncaps() as usize..];
-        let params = &rest[..tag.nparams() as usize];
-        return RawMessage { cap_addresses: caps, params: params };
     }
 }

@@ -65,6 +65,7 @@ impl Memory {
     }
 
     pub fn send(mem: &mut caps::CNode, label: usize, caps: &[Option<&RefCell<caps::CSlot>>], params: &[usize]) -> Result<usize, caps::Error> {
+        log::debug!("label: {label}, num_caps: {}, params: {params:?}", caps.len());
         const ALLOC: usize = 0;
         match label {
             ALLOC => {
