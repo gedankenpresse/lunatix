@@ -11,7 +11,7 @@ pub struct VSpace {
 }
 
 impl VSpace {
-    pub(crate) fn init(slot: &mut caps::CSlot, mem: &caps::CSlot) -> Result<(), caps::Error> {
+    pub(crate) fn init(slot: &caps::CSlot, mem: &caps::CSlot) -> Result<(), caps::Error> {
         mem.derive(slot, |mem| {
             let ptpage = mem.alloc_pages_raw(1)?;
             let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
@@ -25,8 +25,9 @@ impl VSpace {
         })
     }
 
-    // Allocate a range of virtual addresses
-    // Creates needed pages and page tables from given memory
+    /// Allocate a range of virtual addresses
+    /// Creates needed pages and page tables from given memory
+    // TODO: fix usage of memory.get_inner
     pub(crate) fn map_range(
         &self,
         mem: &caps::CSlot,

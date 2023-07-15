@@ -171,13 +171,13 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
             {
                 let cspace = taskstate.cspace.get_cspace_mut().unwrap();
                 let memslot = cspace.lookup(1).unwrap();
-                caps::Memory::copy(mem, &mut memslot.borrow_mut()).unwrap();
+                caps::Memory::copy(mem, memslot).unwrap();
             }
             {
 
                 let cspace = &taskstate.cspace;
                 let cref = taskstate.cspace.get_cspace().unwrap();
-                let target_slot = cref.lookup(2).unwrap().borrow_mut();
+                let target_slot = cref.lookup(2).unwrap();
                 caps::CSpace::copy(&cspace, &target_slot).unwrap();
             }
 

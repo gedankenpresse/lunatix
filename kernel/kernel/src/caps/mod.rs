@@ -4,7 +4,7 @@ pub mod task;
 pub mod vspace;
 pub mod page;
 
-use core::cell::{RefCell, RefMut, Ref};
+use core::cell::{RefMut, Ref};
 
 use self::errors::OccupiedSlot;
 pub use self::memory::Memory;
@@ -134,8 +134,8 @@ cap_get_mut!(CSpace, get_cspace_mut, CSpace);
 cap_get!(CSpace, get_cspace, CSpace);
 
 pub struct CSlot {
-    // TODO: put refcell in slot or in derivation tree node?
-    pub cap: CNode,
+    // TODO: put refcell in slot or in derivation tree node? maybe both?
+    cap: CNode,
 }
 
 
@@ -147,7 +147,11 @@ impl CSlot {
         self.cap.get().borrow().get_variant()
     }
 
-    pub fn send(&self, label: usize, caps: &[Option<&RefCell<CSlot>>], params: &[usize]) -> Result<usize, Error> {
+    pub fn is_uninit(&self) -> bool {
+        return self.get_variant() as usize == Variant::Uninit as usize
+    }
+
+    pub fn send(&self, label: usize, caps: &[Option<&CSlot>], params: &[usize]) -> Result<usize, Error> {
         let variant = self.cap.get().borrow().get_variant();
         match variant {
             Variant::CSpace => todo!("implement cspace send"),
@@ -159,27 +163,17 @@ impl CSlot {
         }
     }
 
-
+    /// sets the slot to given value.
+    /// you propably want to panic on this error, because if the slot is occupied, you have to undo all the work to produce the value
+    /// asserting unoccupied slot beforehand and using panic as a check seems better.
     pub(crate) fn set(&self, v: impl Into<Capability>) -> Result<(), OccupiedSlot> {
-        // TODO: make derviation slot return error
-        self.cap.set(v.into());
-        Ok(())
+        self.cap.set(v.into()).ok().ok_or(OccupiedSlot)
     }
 
     pub const fn empty() -> Self {
         Self {
             cap: CNode::uninit()
         }
-    }
-
-    // TODO: use result api
-    pub fn node(&self) -> Ref<Capability> {
-        self.cap.get().borrow()
-    }
-
-    // TODO: use result api
-    pub fn node_mut(&self) -> RefMut<Capability> {
-        self.cap.get().borrow_mut()
     }
 
     pub fn derive(&self, target: &CSlot, f: impl FnOnce(&mut Memory) -> Result<Capability, Error>) -> Result<(), Error> {

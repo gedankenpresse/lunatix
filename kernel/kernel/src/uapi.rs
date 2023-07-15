@@ -5,8 +5,6 @@ use crate::sched;
 use libkernel::arch::trap::TrapFrame;
 use libkernel::print;
 
-use core::cell::RefCell;
-
 const SYS_DEBUG_LOG: usize = 0;
 const SYS_DEBUG_PUTC: usize = 1;
 const SYS_SEND: usize = 2;
@@ -21,15 +19,15 @@ fn send(cspace: &caps::CSlot, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc:
     // TODO check if object has send rights
 
 
-    // TODO: resolve cap references
+    // TODO: remove this
     assert!(tag.ncaps() <= 8, "too many caps");
-    let mut resolved: [Option<&RefCell<caps::CSlot>>; 8] = [None, None, None, None, None, None, None, None]; 
+    let mut resolved: [Option<&caps::CSlot>; 8] = [None, None, None, None, None, None, None, None]; 
     for (i, &addr) in raw.cap_addresses.iter().enumerate() {
         resolved[i] = Some(cspaceref.lookup(addr)?);
     }
 
     let object = cspaceref.lookup(cap).unwrap();
-    let res = object.try_borrow_mut()?.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
+    let res = object.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
     Ok(res)
 }
 
@@ -37,11 +35,7 @@ fn identify(cspace: &caps::CSlot, cap: usize) -> ipc::IpcResult {
     log::debug!("identifiying: cap: {cap}");
     let cspaceref = cspace.get_cspace().unwrap();
     let capslot = cspaceref.lookup(cap)?;
-    let cap = capslot.try_borrow()?;
-    if cap.cap.is_uninit() {
-        return Ok(caps::Variant::Uninit as usize);
-    }
-    let variant = cap.node().get_variant();
+    let variant = capslot.get_variant();
     return Ok(variant as usize);  
 }
 
@@ -65,7 +59,7 @@ pub (crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
         SYS_SEND => {
             log::debug!("SEND: {:?}", args);
             let cspace = sched::cspace();
-            send(&cspace, args[1], ipc::Tag(args[2]), &args[3..])
+            send(&cspace, args[1], ipc::Tag::from_raw(args[2]), &args[3..])
         },
         SYS_IDENTIFY => {
             log::debug!("IDENTIFY: {:?}", args);

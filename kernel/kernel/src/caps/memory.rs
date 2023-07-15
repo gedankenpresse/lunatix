@@ -1,5 +1,4 @@
 use core::cell::RefCell;
-use core::ops::DerefMut;
 
 use crate::caps::{self, Variant};
 use crate::caps::errors::*;
@@ -24,7 +23,7 @@ impl Memory {
         Memory { inner: state }
     }
 
-    pub fn init_sz(slot: &mut caps::CSlot, mem: &caps::CSlot, pages: usize) -> Result<(), caps::Error> {
+    pub fn init_sz(slot: &caps::CSlot, mem: &caps::CSlot, pages: usize) -> Result<(), caps::Error> {
         mem.derive(slot, |mem| {
             let state: *mut RefCell<Arena<MemoryPage>> = mem.alloc_pages_raw(1)?.cast();
             let ptr = mem.alloc_pages_raw(pages)?;
@@ -41,12 +40,12 @@ impl Memory {
     }
 
     // TODO: this should be private
-    pub fn get_inner_mut(&mut self) -> &mut Arena<'static, MemoryPage> {
+    pub (super) fn get_inner_mut(&mut self) -> &mut Arena<'static, MemoryPage> {
         unsafe { self.inner.as_mut().unwrap().get_mut() }
     }
 
     // TODO: this should be private
-    pub fn get_inner(&self) -> &RefCell<Arena<'static, MemoryPage>> {
+    pub (super) fn get_inner(&self) -> &RefCell<Arena<'static, MemoryPage>> {
         unsafe { self.inner.as_ref().unwrap() }
     }
 
@@ -56,14 +55,14 @@ impl Memory {
         Ok(unsafe { core::mem::transmute(alloc) })
     }
 
-    pub fn copy(this: &mut caps::CSlot, other: &mut caps::CSlot) -> Result<(), caps::Error> {
+    pub fn copy(this: &mut caps::CSlot, other: &caps::CSlot) -> Result<(), caps::Error> {
         assert_eq!(other.get_variant() as usize, Variant::Uninit as usize);
         this.cap.copy_link(&other.cap);
         this.cap.copy_value(&other.cap);
         Ok(())
     }
 
-    pub fn send(mem: &caps::CSlot, label: usize, caps: &[Option<&RefCell<caps::CSlot>>], params: &[usize]) -> Result<usize, caps::Error> {
+    pub fn send(mem: &caps::CSlot, label: usize, caps: &[Option<&caps::CSlot>], params: &[usize]) -> Result<usize, caps::Error> {
         log::debug!("label: {label}, num_caps: {}, params: {params:?}", caps.len());
         const ALLOC: usize = 0;
         match label {
@@ -75,11 +74,11 @@ impl Memory {
                     return Err(caps::Error::InvalidArg);
                 }
 
-                let mut target_slot = caps[0].as_ref().unwrap().try_borrow_mut()?;
+                let target_slot = caps[0].unwrap();
                 let captype = params[0];
                 let size = params.get(1).copied().unwrap_or(0);
 
-                alloc_impl(mem, target_slot.deref_mut(), captype, size)?;
+                alloc_impl(mem, target_slot, captype, size)?;
                 return Ok(0);
             },
             _ => Err(caps::Error::InvalidOp)
@@ -89,7 +88,7 @@ impl Memory {
 
 fn alloc_impl(
     mem: &caps::CSlot,
-    target_slot: &mut caps::CSlot,
+    target_slot: &caps::CSlot,
     captype: usize,
     size: usize
 ) -> Result<(), Error> {

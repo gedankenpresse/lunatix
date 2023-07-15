@@ -1,5 +1,3 @@
-use core::cell::RefCell;
-
 use crate::caps;
 use crate::caps::errors::*;
 use crate::caps::CSlot;
@@ -7,8 +5,7 @@ use libkernel::mem::PAGESIZE;
 
 pub struct CSpace {
     bits: usize,
-    // TODO: remove double RefCell
-    slots: *mut RefCell<caps::CSlot>,
+    slots: *mut caps::CSlot,
 }
 
 fn cspace_pages(bits: usize) -> usize {
@@ -22,13 +19,13 @@ fn cspace_pages(bits: usize) -> usize {
 }
 
 impl CSpace {
-    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &caps::CSlot, bits: usize) -> Result<(), caps::Error> {
+    pub(crate) fn init_sz(slot: &caps::CSlot, mem: &caps::CSlot, bits: usize) -> Result<(), caps::Error> {
         mem.derive(slot, |mem| {
             let pages = cspace_pages(bits);
             let slots = {
-                let ptr = mem.alloc_pages_raw(pages)? as *mut RefCell<caps::CSlot>;
+                let ptr = mem.alloc_pages_raw(pages)? as *mut caps::CSlot;
                 for i in 0..(1 << bits) {
-                    unsafe { *ptr.add(i) = RefCell::new(CSlot::empty()) }
+                    unsafe { *ptr.add(i) = CSlot::empty() }
                 }
                 let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
                 slots
@@ -40,22 +37,17 @@ impl CSpace {
 
     /// This function looks up capabilities in cspaces.
     /// If we want to keep close to seL4 behaviour, we should recursively lookup caps.
-    /// 
-    /// TODO: fix interior mutability/aliasing
-    /// This should only return non-aliasing cslots, and actually have &mut type, but
-    /// that's not possible without rc, which I'm not going to bother with right now...
-    pub(crate) fn lookup(&self, cap: usize) -> Result<&RefCell<caps::CSlot>, InvalidCAddr> {
-        let mutself: &mut Self = unsafe { (self as *const Self as *mut Self).as_mut().unwrap() };
-        let slot = mutself.get_slot(cap)?;
+    pub(crate) fn lookup(&self, cap: usize) -> Result<&caps::CSlot, InvalidCAddr> {
+        let slot = self.get_slot(cap)?;
         return Ok(slot);
     }
 
-    pub(crate) fn get_slots(&self) -> &[RefCell<caps::CSlot>] {
+    fn get_slots(&self) -> &[caps::CSlot] {
         let nslots = 1 << self.bits;
         unsafe { core::slice::from_raw_parts(self.slots, nslots) }
     }
 
-    pub(crate) fn get_slot(&self, slot: usize) -> Result<&RefCell<caps::CSlot>, InvalidCAddr> {
+    fn get_slot(&self, slot: usize) -> Result<&caps::CSlot, InvalidCAddr> {
         self.get_slots().get(slot).ok_or(InvalidCAddr)
     }
 

@@ -2,7 +2,7 @@ use crate::caps;
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
-pub struct Tag(pub usize);
+pub struct Tag(usize);
 
 pub type IpcResult = Result<usize, caps::Error>;
 
@@ -18,21 +18,30 @@ pub fn result_to_raw(res: IpcResult) -> (usize, usize) {
 
 
 impl Tag {
+    #[inline(always)]
+    pub const fn from_raw(raw: usize) -> Self {
+        Tag(raw)
+    }
+
+    #[inline(always)]
     pub fn from_parts(label: usize, ncap: u8, nparam: u8) -> Tag {
         const LABELBITS: usize = core::mem::size_of::<usize>() * 8 - 16; 
         const LABELMASK: usize = (1 << LABELBITS) - 1;
-        assert_eq!(label & !LABELMASK, 0);
+        debug_assert_eq!(label & !LABELMASK, 0);
         return Self(label << 16 | (ncap as usize) << 8 | nparam as usize);
     }
 
+    #[inline(always)]
     pub fn nparams(&self) -> u8 {
         (self.0 & ((1 << 8) - 1)) as u8
     }
 
+    #[inline(always)]
     pub fn ncaps(&self) -> u8 {
         ((self.0 >> 8) & ((1 << 8) - 1)) as u8
     }
 
+    #[inline(always)]
     pub fn label(&self) -> usize {
         self.0 >> 16
     }

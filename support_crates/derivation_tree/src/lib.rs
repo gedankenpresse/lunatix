@@ -23,6 +23,7 @@ pub struct Slot<T> {
     depth: Cell<usize>,
 }
 
+pub struct OccupiedErr;
 
 
 impl<T> Slot<T> {
@@ -69,12 +70,12 @@ impl<T> Slot<T> {
         }
     }
 
-    pub fn set(&self, val: T) {
+    pub fn set(&self, val: T) -> Result<(), OccupiedErr> {
         let inner = unsafe { &mut *self.inner.get() };
         match inner {
-            HereThere::Here(_) => panic!("set on present value"),
-            HereThere::There(_) => panic!("set on present value"),
-            HereThere::Uninit => { *inner = HereThere::Here(RefCell::new(val)) },
+            HereThere::Here(_) => return Err(OccupiedErr),
+            HereThere::There(_) => return Err(OccupiedErr),
+            HereThere::Uninit => { *inner = HereThere::Here(RefCell::new(val)); return Ok(()) },
         }
     }
 
