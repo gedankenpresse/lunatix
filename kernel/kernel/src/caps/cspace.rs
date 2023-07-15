@@ -59,7 +59,10 @@ impl CSpace {
         self.get_slots().get(slot).ok_or(InvalidCAddr)
     }
 
-    pub(crate) fn copy(this: &mut caps::CNode, other: &mut caps::CNode) -> Result<(), caps::Error> {
-        todo!()
+    pub(crate) fn copy(this: &caps::CSlot, other: &caps::CSlot) -> Result<(), caps::Error> {
+        assert_eq!(other.get_variant() as usize, caps::Variant::Uninit as usize);
+        this.cap.copy_link(&other.cap);
+        this.cap.copy_value(&other.cap);
+        Ok(())
     }
 }

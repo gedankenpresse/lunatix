@@ -34,13 +34,14 @@ fn send(cspace: &caps::CSlot, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc:
 }
 
 fn identify(cspace: &caps::CSlot, cap: usize) -> ipc::IpcResult {
-    let cspaceref = cspace.get_cspace_mut().unwrap();
+    log::debug!("identifiying: cap: {cap}");
+    let cspaceref = cspace.get_cspace().unwrap();
     let capslot = cspaceref.lookup(cap)?;
     let cap = capslot.try_borrow()?;
     if cap.cap.is_uninit() {
         return Ok(caps::Variant::Uninit as usize);
     }
-    let variant = cap.node_mut().get_variant();
+    let variant = cap.node().get_variant();
     return Ok(variant as usize);  
 }
 

@@ -110,7 +110,7 @@ macro_rules! cap_get_mut {
 macro_rules! cap_get {
     ($v:ident, $n: ident, $t:ty) => {
         impl CSlot {
-            pub fn $n(&mut self) -> Result<Ref<$t>, errors::InvalidCap> {
+            pub fn $n(&self) -> Result<Ref<$t>, errors::InvalidCap> {
                 let val = self.cap.get();
                 match Ref::filter_map(val.borrow(), |cap| 
                     match cap {
