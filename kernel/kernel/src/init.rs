@@ -18,8 +18,8 @@ static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../target/riscv64imac-
 struct StackLoader<'v, 'm> {
     vbase: u64,
     stack_bytes: u64,
-    vspace: &'v mut caps::CNode,
-    mem: &'m mut caps::CNode,
+    vspace: &'v mut caps::CSlot,
+    mem: &'m caps::CSlot,
 }
 
 impl<'a, 'b> StackLoader<'a, 'b> {
@@ -28,7 +28,7 @@ impl<'a, 'b> StackLoader<'a, 'b> {
         let vspace = self.vspace;
         let mem = self.mem;
         let rw = EntryFlags::Read | EntryFlags::Write | EntryFlags::UserReadable;
-        vspace.get_vspace_mut().unwrap().elem.map_range(
+        vspace.get_vspace_mut().unwrap().map_range(
                 mem,
                 self.vbase as usize,
                 self.stack_bytes as usize,
@@ -41,8 +41,8 @@ impl<'a, 'b> StackLoader<'a, 'b> {
 
 struct VSpaceLoader<'v, 'm> {
     vbase: u64,
-    vspace: &'v mut caps::CNode,
-    mem: &'m mut caps::CNode,
+    vspace: &'v mut caps::CSlot,
+    mem: &'m caps::CSlot,
 }
 
 impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
@@ -69,7 +69,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 bits |= EntryFlags::Write;
             }
 
-            self.vspace.get_vspace_mut().unwrap().elem.map_range(
+            self.vspace.get_vspace_mut().unwrap().map_range(
                     &mut self.mem,
                     virt_start as usize,
                     header.mem_size() as usize,
@@ -93,7 +93,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
         for (offset, byte) in region.iter().enumerate() {
             let addr = start + offset as u64;
             let phys =
-                virtmem::virt_to_phys(unsafe { vspaceref.elem.root.as_ref().unwrap() }, addr as usize)
+                virtmem::virt_to_phys(unsafe { vspaceref.root.as_ref().unwrap() }, addr as usize)
                     .expect("should have been mapped");
             unsafe {
                 PhysMutPtr::from(phys as *mut u8)
@@ -124,7 +124,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 log::debug!("R_RELATIV *{:p} = {:#x}", addr, self.vbase + addend);
                 // set vspace address through kernel memory mapping
                 let phys = virtmem::virt_to_phys(
-                    unsafe { vspaceref.elem.root.as_ref().unwrap() },
+                    unsafe { vspaceref.root.as_ref().unwrap() },
                     addr as usize,
                 )
                 .expect("should have been mapped");
@@ -154,34 +154,38 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     match &mut *guard {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
-            caps::Task::init(init_task, &mut mem.cap).unwrap();
+            caps::Task::init(init_task, &mem).unwrap();
             let taskstate = unsafe {
                 init_task
-                    .cap
                     .get_task_mut()
                     .unwrap()
-                    .elem
                     .state
                     .as_mut()
                     .unwrap()
             };
             log::debug!("init vspace");
-            caps::VSpace::init(&mut taskstate.vspace, &mut mem.cap).unwrap();
+            caps::VSpace::init(&mut taskstate.vspace, &mem).unwrap();
 
             log::debug!("init cspace");
-            caps::CSpace::init_sz(&mut taskstate.cspace, &mut mem.cap, 4).unwrap();
+            caps::CSpace::init_sz(&mut taskstate.cspace, &mem, 4).unwrap();
             {
-                let cspace = taskstate.cspace.cap.get_cspace_mut().unwrap();
-                let memslot = cspace.elem.lookup(1).unwrap();
-                caps::Memory::copy(&mut mem.cap, &mut memslot.borrow_mut().cap).unwrap();
+                let cspace = taskstate.cspace.get_cspace_mut().unwrap();
+                let memslot = cspace.lookup(1).unwrap();
+                caps::Memory::copy(mem, &mut memslot.borrow_mut()).unwrap();
             }
+            /*{
+
+                let mut cspace = taskstate.cspace.node_mut();
+                let target_slot = taskstate.cspace.node().get_cspace().unwrap().elem.lookup(2).unwrap().borrow_mut();
+                caps::CSpace::copy(&mut cspace, &mut target_slot.node_mut()).unwrap();
+            }*/
 
             log::debug!("setup stack");
             let stack_start = StackLoader {
                 stack_bytes: 0x1000,
                 vbase: 0x10_0000_0000,
-                mem: &mut mem.cap,
-                vspace: &mut taskstate.vspace.cap,
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
             }
             .load()
             .unwrap();
@@ -192,8 +196,8 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
                 // choosing arbitrary vbase not supported for relocating data sections
                 // vbase: 0x5_0000_0000,
                 vbase: 0x0,
-                mem: &mut mem.cap,
-                vspace: &mut taskstate.vspace.cap,
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
             };
 
             let binary = ElfBinary::new(INIT_BIN).unwrap();

@@ -11,37 +11,33 @@ pub struct VSpace {
 }
 
 impl VSpace {
-    pub(crate) fn init(slot: &mut caps::CSlot, mem: &mut caps::CNode) -> Result<(), caps::Error> {
-        let memref  = mem.get_memory_mut().unwrap();
-        log::debug!("alloc");
-        let root = memref.elem.alloc_pages_raw(1)?;
-        log::debug!("init copy");
-        let root = PageTable::init_copy(root.cast::<MaybeUninit<MemoryPage>>(), unsafe {
-            crate::KERNEL_ROOT_PT
-                .as_mapped()
-                .raw()
-                .as_ref()
-                .expect("No Kernel Root Page Table found")
-        });
-
-        slot.set(Self { root }).unwrap();
-        unsafe { mem.link_derive(slot.cap.as_link())};
-        Ok(())
+    pub(crate) fn init(slot: &mut caps::CSlot, mem: &caps::CSlot) -> Result<(), caps::Error> {
+        mem.derive(slot, |mem| {
+            let ptpage = mem.alloc_pages_raw(1)?;
+            let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
+                crate::KERNEL_ROOT_PT
+                    .as_mapped()
+                    .raw()
+                    .as_ref()
+                    .expect("No Kernel Root Page Table found")
+            });
+            return Ok(Self { root }.into());
+        })
     }
 
     // Allocate a range of virtual addresses
     // Creates needed pages and page tables from given memory
     pub(crate) fn map_range(
         &self,
-        mem: &mut caps::CNode,
+        mem: &caps::CSlot,
         vaddr_base: usize,
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
-        let memref = mem.get_memory_mut().unwrap();
+        let mut memref = mem.get_memory_mut().unwrap();
         log::debug!("map range, root: {:p}", self.root);
         virtmem::map_range_alloc(
-            memref.elem.get_inner_mut(),
+            memref.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,

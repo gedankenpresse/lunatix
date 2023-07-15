@@ -7,6 +7,7 @@ use libkernel::mem::PAGESIZE;
 
 pub struct CSpace {
     bits: usize,
+    // TODO: remove double RefCell
     slots: *mut RefCell<caps::CSlot>,
 }
 
@@ -21,22 +22,20 @@ fn cspace_pages(bits: usize) -> usize {
 }
 
 impl CSpace {
-    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, bits: usize) -> Result<(), caps::Error> {
-        let memref = mem.get_memory_mut().unwrap();
-        let pages = cspace_pages(bits);
-        let slots = {
-            let ptr = memref.elem.alloc_pages_raw(pages)? as *mut RefCell<caps::CSlot>;
-            for i in 0..(1 << bits) {
-                unsafe { *ptr.add(i) = RefCell::new(CSlot::empty()) }
-            }
-            let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
-            slots
-        };
-
-        slot.set(Self { bits, slots: slots.as_mut_ptr() }).unwrap();
-        unsafe { mem.link_derive(slot.cap.as_link()) };
-
-        Ok(())
+    pub(crate) fn init_sz(slot: &mut caps::CSlot, mem: &caps::CSlot, bits: usize) -> Result<(), caps::Error> {
+        mem.derive(slot, |mem| {
+            let pages = cspace_pages(bits);
+            let slots = {
+                let ptr = mem.alloc_pages_raw(pages)? as *mut RefCell<caps::CSlot>;
+                for i in 0..(1 << bits) {
+                    unsafe { *ptr.add(i) = RefCell::new(CSlot::empty()) }
+                }
+                let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
+                slots
+            };
+            let cspace = Self { bits, slots: slots.as_mut_ptr() };
+            return Ok(cspace.into());
+        })
     }
 
     /// This function looks up capabilities in cspaces.
@@ -58,5 +57,9 @@ impl CSpace {
 
     pub(crate) fn get_slot(&self, slot: usize) -> Result<&RefCell<caps::CSlot>, InvalidCAddr> {
         self.get_slots().get(slot).ok_or(InvalidCAddr)
+    }
+
+    pub(crate) fn copy(this: &mut caps::CNode, other: &mut caps::CNode) -> Result<(), caps::Error> {
+        todo!()
     }
 }

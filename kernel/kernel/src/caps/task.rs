@@ -32,10 +32,10 @@ impl TaskState {
 }
 
 impl Task {
-    pub fn init(slot: &mut caps::CSlot, mem: &mut caps::CNode) -> Result<(), caps::Error> {
-        let memref  = mem.get_memory_mut().unwrap();
-        slot.set(Self { state: TaskState::init(memref.elem)? })?;
-        unsafe { mem.link_derive(slot.cap.as_link()) };
-        Ok(())
+    pub fn init(slot: &caps::CSlot, mem: &caps::CSlot) -> Result<(), caps::Error> {
+        mem.derive(slot, |mem| {
+            let taskcap = Self { state: TaskState::init(mem)? };
+            return Ok(taskcap.into());
+        })
     }
 }

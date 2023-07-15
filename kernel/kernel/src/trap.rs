@@ -34,10 +34,8 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             unsafe {
                 &mut (*(init_caps
                     .init_task
-                    .cap
                     .get_task_mut()
                     .unwrap()
-                    .elem
                     .state))
                     .frame
             }

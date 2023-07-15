@@ -51,6 +51,7 @@ pub enum Variant {
     CSpace = 2,
     VSpace = 3,
     Task = 4,
+    Page = 5,
 }
 
 
@@ -64,6 +65,7 @@ impl TryFrom<usize> for Variant {
             2 => Ok(Self::CSpace),
             3 => Ok(Self::VSpace),
             4 => Ok(Self::Task),
+            5 => Ok(Self::Page),
             _ => Err(crate::Error::InvalidReturn),
         }
     }

@@ -6,14 +6,14 @@ use crate::caps::errors::*;
 use allocators::Arena;
 use libkernel::mem::MemoryPage;
 
-use super::Capability;
-
 /// A capability to physical memory.
 pub struct Memory {
 
     /// This is the (allocator) for the backing memory.
     /// It returns pages in kernel space.
     /// When mapping to userspace, these have to be converted using kernel_to_phys first
+    /// 
+    /// This doesn't have to be a pointer anymore because derivation tree itself uses references
     pub(crate) inner: *mut RefCell<Arena<'static, MemoryPage>>,
 }
 
@@ -24,21 +24,20 @@ impl Memory {
         Memory { inner: state }
     }
 
-    pub fn init_sz(slot: &mut caps::CSlot, mem: &mut caps::CNode, pages: usize) -> Result<(), caps::Error> {
-        let memref = mem.get_memory_mut().unwrap();
-        let state: *mut RefCell<Arena<MemoryPage>> = memref.elem.alloc_pages_raw(1)?.cast();
-        let ptr = memref.elem.alloc_pages_raw(pages)?;
-        let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
-        
-        unsafe { 
-            (*state) = RefCell::new(Arena::new(slice));
-        }
-        let me= Memory {
-            inner: state,
-        };
-        slot.set(me).unwrap();
-        unsafe { mem.link_derive(slot.cap.as_link()) };
-        Ok(())
+    pub fn init_sz(slot: &mut caps::CSlot, mem: &caps::CSlot, pages: usize) -> Result<(), caps::Error> {
+        mem.derive(slot, |mem| {
+            let state: *mut RefCell<Arena<MemoryPage>> = mem.alloc_pages_raw(1)?.cast();
+            let ptr = mem.alloc_pages_raw(pages)?;
+            let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
+            
+            unsafe { 
+                (*state) = RefCell::new(Arena::new(slice));
+            }
+            let me= Memory {
+                inner: state,
+            };
+            return Ok(me.into());
+        })
     }
 
     // TODO: this should be private
@@ -57,14 +56,14 @@ impl Memory {
         Ok(unsafe { core::mem::transmute(alloc) })
     }
 
-    pub fn copy(this: &mut caps::CNode, other: &mut caps::CNode) -> Result<(), caps::Error> {
-        assert_eq!(other.elem.get_variant() as usize, Variant::Uninit as usize);
-        other.elem = Capability::Memory(Memory { inner: this.get_memory_mut()?.elem.inner });
-        unsafe { this.link_copy(other.as_link()) };
+    pub fn copy(this: &mut caps::CSlot, other: &mut caps::CSlot) -> Result<(), caps::Error> {
+        assert_eq!(other.get_variant() as usize, Variant::Uninit as usize);
+        this.cap.copy_link(&other.cap);
+        this.cap.copy_value(&other.cap);
         Ok(())
     }
 
-    pub fn send(mem: &mut caps::CNode, label: usize, caps: &[Option<&RefCell<caps::CSlot>>], params: &[usize]) -> Result<usize, caps::Error> {
+    pub fn send(mem: &caps::CSlot, label: usize, caps: &[Option<&RefCell<caps::CSlot>>], params: &[usize]) -> Result<usize, caps::Error> {
         log::debug!("label: {label}, num_caps: {}, params: {params:?}", caps.len());
         const ALLOC: usize = 0;
         match label {
@@ -89,12 +88,12 @@ impl Memory {
 }
 
 fn alloc_impl(
-    mem: &mut caps::Node<caps::Capability>,
+    mem: &caps::CSlot,
     target_slot: &mut caps::CSlot,
     captype: usize,
     size: usize
 ) -> Result<(), Error> {
-    assert_eq!(target_slot.cap.elem.get_variant() as usize, Variant::Uninit as usize);
+    assert_eq!(target_slot.get_variant() as usize, Variant::Uninit as usize);
     let variant = Variant::try_from(captype)?;
     match variant {
         Variant::Uninit => return Err(Error::InvalidOp),
@@ -108,6 +107,9 @@ fn alloc_impl(
         },
         Variant::VSpace => {
             caps::VSpace::init(target_slot, mem)?;
+        },
+        Variant::Page => {
+            caps::Page::init(target_slot, mem)?;
         },
         Variant::Task => {
             caps::Task::init(target_slot, mem)?;

@@ -26,7 +26,7 @@ pub struct Slot<T> {
 
 
 impl<T> Slot<T> {
-    pub fn uninit() -> Self {
+    pub const fn uninit() -> Self {
         Self {
             inner: UnsafeCell::new(HereThere::Uninit),
             prev: Cell::new(core::ptr::null_mut()),
@@ -44,7 +44,7 @@ impl<T> Slot<T> {
         }
     }
 
-    fn is_uninit(&self) -> bool {
+    pub fn is_uninit(&self) -> bool {
         match unsafe { &*self.inner.get() } {
             HereThere::Uninit => true,
             _ => false,
@@ -69,7 +69,16 @@ impl<T> Slot<T> {
         }
     }
 
-    pub fn copy<'a>(&'a self, target: &'a Slot<T>) {
+    pub fn set(&self, val: T) {
+        let inner = unsafe { &mut *self.inner.get() };
+        match inner {
+            HereThere::Here(_) => panic!("set on present value"),
+            HereThere::There(_) => panic!("set on present value"),
+            HereThere::Uninit => { *inner = HereThere::Here(RefCell::new(val)) },
+        }
+    }
+
+    pub fn copy_link<'a>(&'a self, target: &'a Slot<T>) {
         assert!(!self.is_uninit());
         assert!(target.is_uninit());
 
@@ -83,29 +92,37 @@ impl<T> Slot<T> {
             self.next.set(target as *const Slot<T> as *mut Slot<T>);
             target.prev.set(self as *const Slot<T> as *mut Slot<T>);
         }
+    }
 
+    pub fn copy_value(&self, target: &Slot<T>) {
         let val: *const Slot<T> = match unsafe{ &*self.inner.get() } {
             HereThere::Here(_) => (self as *const Slot<T> as *mut Slot<T>).cast(),
             HereThere::There(ptr) => (*ptr).cast(),
             HereThere::Uninit => unreachable!(),
         };
-
-
         unsafe { *target.inner.get() = HereThere::There(val) };
     }
 
-    pub fn derive<'a>(&'a mut self, child: &'a mut Slot<T>, f: impl FnOnce(& RefCell<T>) -> T) {
+    pub fn derive_link<'a>(&'a self, child: &'a Slot<T>) {
         unsafe { 
             let parent = self.get_last_copy();
-            parent.as_mut().unwrap().copy(child);
+            parent.as_mut().unwrap().copy_link(child);
+            child.depth.set(child.depth.get() + 1);
+        }
+    }
+
+    pub fn derive_with<'a>(&'a mut self, child: &'a mut Slot<T>, f: impl FnOnce(& RefCell<T>) -> T) {
+        unsafe { 
+            let parent = self.get_last_copy();
+            parent.as_mut().unwrap().copy_link(child);
             child.depth.set(child.depth.get() + 1);
         }
         *child.inner.get_mut() = HereThere::Here(RefCell::new(f(self.get())))
     }
 
-    fn get_last_copy(&mut self) -> *mut Slot<T> {
+    fn get_last_copy(& self) -> *mut Slot<T> {
         unsafe {
-            let mut cur = self as *mut Slot<T>; 
+            let mut cur = self as *const Slot<T> as *mut Slot<T>; 
             loop {
                 let next = (*cur).next.get();
                 if next.is_null() {
@@ -179,7 +196,7 @@ mod tests {
     fn it_can_derive() {
         let mut a = Slot::new(1);
         let mut b =  Slot::uninit();
-        a.derive(&mut b, |v| *v.borrow() + 1);
+        a.derive_with(&mut b, |v| *v.borrow() + 1);
         assert_eq!(*b.get().borrow(), 2);
     }
 

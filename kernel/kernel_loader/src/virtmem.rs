@@ -1,7 +1,6 @@
 use allocators::bump_allocator::BumpAllocator;
 use allocators::AllocInit;
 use core::alloc::Layout;
-use core::mem;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
