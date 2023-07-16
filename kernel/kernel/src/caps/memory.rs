@@ -1,6 +1,6 @@
 use core::cell::RefCell;
 
-use crate::caps::{self, Variant};
+use crate::caps::{self, Variant, CapabilityInterface};
 use crate::caps::errors::*;
 use allocators::Arena;
 use libkernel::mem::MemoryPage;
@@ -56,7 +56,7 @@ impl Memory {
     }
 
     pub fn copy(this: &mut caps::CSlot, other: &caps::CSlot) -> Result<(), caps::Error> {
-        assert_eq!(other.get_variant() as usize, Variant::Uninit as usize);
+        assert!(other.is_uninit());
         this.cap.copy_link(&other.cap);
         this.cap.copy_value(&other.cap);
         Ok(())
@@ -70,15 +70,26 @@ impl Memory {
                 if caps.len() != 1 {
                     return Err(caps::Error::InvalidArg);
                 }
-                if params.len() < 1 {
-                    return Err(caps::Error::InvalidArg);
-                }
 
                 let target_slot = caps[0].unwrap();
-                let captype = params[0];
-                let size = params.get(1).copied().unwrap_or(0);
+                match params.len() {
+                    1 => {
+                        assert!(target_slot.is_uninit());
+                        let variant = Variant::try_from(params[0])?;
+                        mem.derive(target_slot, |mem| {
+                            variant.as_iface().init(target_slot, mem)
+                        })?;
+                    },
+                    2 => {
+                        assert!(target_slot.is_uninit());
+                        let variant = Variant::try_from(params[0])?;
+                        mem.derive(target_slot, |mem| {
+                            variant.as_iface().init_sz(target_slot, mem, params[1])
+                        })?;
+                    },
+                    _ => return Err(caps::Error::InvalidArg),
+                }
 
-                alloc_impl(mem, target_slot, captype, size)?;
                 return Ok(0);
             },
             _ => Err(caps::Error::InvalidOp)
@@ -86,35 +97,24 @@ impl Memory {
     }
 }
 
-fn alloc_impl(
-    mem: &caps::CSlot,
-    target_slot: &caps::CSlot,
-    captype: usize,
-    size: usize
-) -> Result<(), Error> {
-    assert_eq!(target_slot.get_variant() as usize, Variant::Uninit as usize);
-    let variant = Variant::try_from(captype)?;
-    match variant {
-        Variant::Uninit => return Err(Error::InvalidOp),
-        Variant::Memory => {
-            if size == 0 { return Err(Error::InvalidArg); }
-            caps::Memory::init_sz(target_slot, mem, size)?;
-        },
-        Variant::CSpace => {
-            if size == 0 { return Err(Error::InvalidArg); }
-            caps::CSpace::init_sz(target_slot, mem, size)?;
-        },
-        Variant::VSpace => {
-            caps::VSpace::init(target_slot, mem)?;
-        },
-        Variant::Page => {
-            caps::Page::init(target_slot, mem)?;
-        },
-        Variant::Task => {
-            caps::Task::init(target_slot, mem)?;
-        },
-    };
+#[derive(Copy, Clone)]
+pub struct MemoryIface;
 
-    return Ok(());
+impl CapabilityInterface for MemoryIface {
+    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
+        todo!()
+    }
+
+    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+        todo!()
+    }
+
+    fn destroy(&self, slot: &caps::CSlot) {
+        todo!()
+    }
+
+    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+        todo!()
+    }
 }
 

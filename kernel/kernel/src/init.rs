@@ -1,6 +1,7 @@
 //! Loading and execution of the init process
 
 use crate::caps;
+use crate::caps::iface::CapabilityInterface;
 use crate::virtmem;
 use crate::InitCaps;
 
@@ -154,7 +155,9 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     match &mut *guard {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
-            caps::Task::init(init_task, &mem).unwrap();
+
+            mem.derive(&init_task, |mem| { caps::TaskIface.init(init_task, mem) }).unwrap();
+
             let taskstate = unsafe {
                 init_task
                     .get_task_mut()
@@ -164,10 +167,12 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
                     .unwrap()
             };
             log::debug!("init vspace");
-            caps::VSpace::init(&mut taskstate.vspace, &mem).unwrap();
+            mem.derive(&taskstate.vspace, |mem| {
+                caps::VspaceIface.init(&taskstate.vspace, mem)
+            }).unwrap();
 
             log::debug!("init cspace");
-            caps::CSpace::init_sz(&mut taskstate.cspace, &mem, 4).unwrap();
+            mem.derive(&taskstate.cspace, |mem| { caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4) }).unwrap();
             {
                 let cspace = taskstate.cspace.get_cspace_mut().unwrap();
                 let memslot = cspace.lookup(1).unwrap();
@@ -178,7 +183,7 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
                 let cspace = &taskstate.cspace;
                 let cref = taskstate.cspace.get_cspace().unwrap();
                 let target_slot = cref.lookup(2).unwrap();
-                caps::CSpace::copy(&cspace, &target_slot).unwrap();
+                caps::CSpaceIface.copy(&cspace, &target_slot).unwrap();
             }
 
             log::debug!("setup stack");

@@ -6,25 +6,13 @@ use libkernel::mem::{EntryFlags, MemoryPage, PageTable};
 
 use crate::virtmem;
 
+use super::{Memory, CapabilityInterface, Error};
+
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
 }
 
 impl VSpace {
-    pub(crate) fn init(slot: &caps::CSlot, mem: &caps::CSlot) -> Result<(), caps::Error> {
-        mem.derive(slot, |mem| {
-            let ptpage = mem.alloc_pages_raw(1)?;
-            let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
-                crate::KERNEL_ROOT_PT
-                    .as_mapped()
-                    .raw()
-                    .as_ref()
-                    .expect("No Kernel Root Page Table found")
-            });
-            return Ok(Self { root }.into());
-        })
-    }
-
     /// Allocate a range of virtual addresses
     /// Creates needed pages and page tables from given memory
     // TODO: fix usage of memory.get_inner
@@ -64,5 +52,35 @@ impl VSpace {
             EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
+    }
+}
+
+
+#[derive(Copy, Clone)]
+pub struct VspaceIface;
+
+impl CapabilityInterface for VspaceIface {
+    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
+        let ptpage = mem.alloc_pages_raw(1)?;
+        let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
+            crate::KERNEL_ROOT_PT
+                .as_mapped()
+                .raw()
+                .as_ref()
+                .expect("No Kernel Root Page Table found")
+        });
+        return Ok(VSpace { root }.into());
+    }
+
+    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+        todo!()
+    }
+
+    fn destroy(&self, slot: &caps::CSlot) {
+        todo!()
+    }
+
+    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+        todo!()
     }
 }

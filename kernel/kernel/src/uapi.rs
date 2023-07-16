@@ -36,7 +36,7 @@ fn identify(cspace: &caps::CSlot, cap: usize) -> ipc::IpcResult {
     let cspaceref = cspace.get_cspace().unwrap();
     let capslot = cspaceref.lookup(cap)?;
     let variant = capslot.get_variant();
-    return Ok(variant as usize);  
+    return Ok(variant.discriminant());  
 }
 
 #[inline(always)]

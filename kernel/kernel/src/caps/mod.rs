@@ -3,19 +3,23 @@ pub mod memory;
 pub mod task;
 pub mod vspace;
 pub mod page;
+pub mod iface;
 
 use core::cell::{RefMut, Ref};
 
-use self::errors::OccupiedSlot;
-pub use self::memory::Memory;
-pub use cspace::CSpace;
+use self::{errors::OccupiedSlot, iface::CapabilityInterface};
+pub use self::memory::{Memory, MemoryIface};
+pub use cspace::{CSpace, CSpaceIface};
+pub use task::{Task, TaskIface};
+pub use vspace::{VSpace, VspaceIface};
+pub use page::{Page, PageIface};
+
 pub use errors::Error;
-pub use task::Task;
-pub use vspace::VSpace;
-pub use page::Page;
+pub use iface::UninitIface;
 
 
 pub type CNode = derivation_tree::Slot<Capability>;
+
 
 
 pub enum Capability {
@@ -30,12 +34,22 @@ pub enum Capability {
 #[repr(usize)]
 #[derive(Copy, Clone)]
 pub enum Variant {
-    Uninit = 0,
-    Memory = 1,
-    CSpace = 2,
-    VSpace = 3,
-    Task = 4,
-    Page = 5,
+    Uninit(UninitIface) = 0,
+    Memory(MemoryIface) = 1,
+    CSpace(CSpaceIface) = 2,
+    VSpace(VspaceIface) = 3,
+    Task(TaskIface) = 4,
+    Page(PageIface) = 5,
+}
+
+impl Variant {
+    #[inline(always)]
+    pub fn discriminant(&self) -> usize {
+        // SAFETY: Because `Self` is marked `repr(usize)`, its layout is a `repr(C)` `union`
+        // between `repr(C)` structs, each of which has the `u8` discriminant as its first
+        // field, so we can read the discriminant without offsetting the pointer.
+        unsafe { *(self as *const Variant).cast::<usize>() }
+    }
 }
 
 impl TryFrom<usize> for Variant {
@@ -43,11 +57,11 @@ impl TryFrom<usize> for Variant {
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::Uninit),
-            1 => Ok(Self::Memory),
-            2 => Ok(Self::CSpace),
-            3 => Ok(Self::VSpace),
-            4 => Ok(Self::Task),
+            0 => Ok(Self::Uninit(UninitIface)),
+            1 => Ok(Self::Memory(MemoryIface)),
+            2 => Ok(Self::CSpace(CSpaceIface)),
+            3 => Ok(Self::VSpace(VspaceIface)),
+            4 => Ok(Self::Task(TaskIface)),
             _ => Err(Error::InvalidArg),
         }
     }
@@ -56,12 +70,12 @@ impl TryFrom<usize> for Variant {
 impl Capability {
     pub(crate) fn get_variant(&self) -> Variant {
         match self {
-            Capability::CSpace(_) => Variant::CSpace,
-            Capability::Memory(_) => Variant::Memory,
-            Capability::Task(_) => Variant::Task,
-            Capability::VSpace(_) => Variant::VSpace,
-            Capability::Page(_) => Variant::Page,
-            Capability::Uninit => Variant::Uninit,
+            Capability::CSpace(_) => Variant::CSpace(CSpaceIface),
+            Capability::Memory(_) => Variant::Memory(MemoryIface),
+            Capability::Task(_) => Variant::Task(TaskIface),
+            Capability::VSpace(_) => Variant::VSpace(VspaceIface),
+            Capability::Page(_) => Variant::Page(PageIface),
+            Capability::Uninit => Variant::Uninit(UninitIface),
         }
     }
 }
@@ -142,24 +156,24 @@ pub struct CSlot {
 impl CSlot {
     pub fn get_variant(&self) -> Variant {
         if self.cap.is_uninit() {
-            return Variant::Uninit;
+            return Variant::Uninit(UninitIface);
         }
         self.cap.get().borrow().get_variant()
     }
 
     pub fn is_uninit(&self) -> bool {
-        return self.get_variant() as usize == Variant::Uninit as usize
+        return self.get_variant().discriminant() as usize == Variant::Uninit(UninitIface).discriminant()
     }
 
     pub fn send(&self, label: usize, caps: &[Option<&CSlot>], params: &[usize]) -> Result<usize, Error> {
         let variant = self.cap.get().borrow().get_variant();
         match variant {
-            Variant::CSpace => todo!("implement cspace send"),
-            Variant::Memory =>  Memory::send(self, label, caps, params),
-            Variant::Task => todo!("implement task send"),
-            Variant::VSpace => todo!("implement vspace send"),
-            Variant::Page => todo!("implement page compare"),
-            Variant::Uninit => Err(Error::InvalidCap),
+            Variant::CSpace(_) => todo!("implement cspace send"),
+            Variant::Memory(_) =>  Memory::send(self, label, caps, params),
+            Variant::Task(_) => todo!("implement task send"),
+            Variant::VSpace(_) => todo!("implement vspace send"),
+            Variant::Page(_) => todo!("implement page compare"),
+            Variant::Uninit(_) => Err(Error::InvalidCap),
         }
     }
 
@@ -193,7 +207,7 @@ impl CSlot {
         match res {
             Ok(()) => Ok(()),
             Err(e) => {
-                todo!("unlink target");
+                todo!("unlink target, error: {:?}", e);
                 #[allow(unreachable_code)]
                 Err(e)
             },
