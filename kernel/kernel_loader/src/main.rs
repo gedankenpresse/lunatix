@@ -1,6 +1,8 @@
 //! An elf binary to setup virtual memory and load the kernel in high address ranges
 #![no_std]
 #![no_main]
+// TODO: remove dead code
+#![allow(dead_code)]
 
 mod elfloader;
 mod virtmem;

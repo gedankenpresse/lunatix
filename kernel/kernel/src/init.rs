@@ -1,6 +1,7 @@
 //! Loading and execution of the init process
 
 use crate::caps;
+use crate::caps::iface::CapabilityInterface;
 use crate::virtmem;
 use crate::InitCaps;
 
@@ -13,13 +14,16 @@ use elfloader::{
 use libkernel::mem::ptrs::PhysMutPtr;
 use libkernel::mem::{EntryFlags, MemoryPage};
 
-static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../userspace/init_main");
+static INIT_BIN: &[u8] = include_aligned!(
+    Align16,
+    "../../../target/riscv64imac-unknown-none-elf/release/init"
+);
 
-struct StackLoader<'a, 'b> {
+struct StackLoader<'v, 'm> {
     vbase: u64,
     stack_bytes: u64,
-    vspace: &'a mut caps::Cap<caps::VSpace>,
-    mem: &'b mut caps::Cap<caps::Memory>,
+    vspace: &'v mut caps::CSlot,
+    mem: &'m caps::CSlot,
 }
 
 impl<'a, 'b> StackLoader<'a, 'b> {
@@ -29,8 +33,10 @@ impl<'a, 'b> StackLoader<'a, 'b> {
         let mem = self.mem;
         let rw = EntryFlags::Read | EntryFlags::Write | EntryFlags::UserReadable;
         vspace
+            .get_vspace_mut()
+            .unwrap()
             .map_range(
-                &mut mem.content,
+                mem,
                 self.vbase as usize,
                 self.stack_bytes as usize,
                 rw.bits() as usize,
@@ -40,10 +46,10 @@ impl<'a, 'b> StackLoader<'a, 'b> {
     }
 }
 
-struct VSpaceLoader<'m, 'v> {
+struct VSpaceLoader<'v, 'm> {
     vbase: u64,
-    mem: &'m mut caps::Cap<caps::Memory>,
-    vspace: &'v mut caps::Cap<caps::VSpace>,
+    vspace: &'v mut caps::CSlot,
+    mem: &'m caps::CSlot,
 }
 
 impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
@@ -71,6 +77,8 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
             }
 
             self.vspace
+                .get_vspace_mut()
+                .unwrap()
                 .map_range(
                     &mut self.mem,
                     virt_start as usize,
@@ -83,6 +91,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
+        let vspaceref = self.vspace.get_vspace_mut().unwrap();
         let start = self.vbase + base;
         let end = self.vbase + base + region.len() as u64;
         log::debug!(
@@ -94,7 +103,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
         for (offset, byte) in region.iter().enumerate() {
             let addr = start + offset as u64;
             let phys =
-                virtmem::virt_to_phys(unsafe { self.vspace.root.as_ref().unwrap() }, addr as usize)
+                virtmem::virt_to_phys(unsafe { vspaceref.root.as_ref().unwrap() }, addr as usize)
                     .expect("should have been mapped");
             unsafe {
                 PhysMutPtr::from(phys as *mut u8)
@@ -107,6 +116,8 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn relocate(&mut self, entry: RelocationEntry) -> Result<(), ElfLoaderErr> {
+        let vspaceref = self.vspace.get_vspace_mut().unwrap();
+
         use elfloader::arch::riscv::RelocationTypes;
         use RelocationType::RiscV;
         let addr: *mut u64 = (self.vbase + entry.offset) as *mut u64;
@@ -123,7 +134,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 log::debug!("R_RELATIV *{:p} = {:#x}", addr, self.vbase + addend);
                 // set vspace address through kernel memory mapping
                 let phys = virtmem::virt_to_phys(
-                    unsafe { self.vspace.root.as_ref().unwrap() },
+                    unsafe { vspaceref.root.as_ref().unwrap() },
                     addr as usize,
                 )
                 .expect("should have been mapped");
@@ -149,41 +160,44 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     // create capability objects for userspace code
     log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();
-    guard
-        .mem
-        .set(caps::Cap::from_content(caps::Memory { inner: alloc }))
-        .unwrap();
+    guard.mem.set(caps::Memory::create_init(alloc)).unwrap();
     match &mut *guard {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
-            caps::Task::init(init_task, mem.cap.get_memory_mut().unwrap()).unwrap();
-            let mem_cap = mem.cap.get_memory_mut().unwrap();
-            let taskstate = unsafe {
-                init_task
-                    .cap
-                    .get_task_mut()
-                    .unwrap()
-                    .state
-                    .as_mut()
-                    .unwrap()
-            };
+
+            mem.derive(&init_task, |mem| caps::TaskIface.init(init_task, mem))
+                .unwrap();
+
+            let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
             log::debug!("init vspace");
-            taskstate
-                .vspace
-                .set(caps::VSpace::init(mem_cap).unwrap())
-                .unwrap();
+            mem.derive(&taskstate.vspace, |mem| {
+                caps::VspaceIface.init(&taskstate.vspace, mem)
+            })
+            .unwrap();
+
             log::debug!("init cspace");
-            taskstate
-                .cspace
-                .set(caps::CSpace::init_sz(mem_cap, 4).unwrap())
-                .unwrap();
+            mem.derive(&taskstate.cspace, |mem| {
+                caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
+            })
+            .unwrap();
+            {
+                let cspace = taskstate.cspace.get_cspace_mut().unwrap();
+                let memslot = cspace.lookup(1).unwrap();
+                caps::Memory::copy(mem, memslot).unwrap();
+            }
+            {
+                let cspace = &taskstate.cspace;
+                let cref = taskstate.cspace.get_cspace().unwrap();
+                let target_slot = cref.lookup(2).unwrap();
+                caps::CSpaceIface.copy(&cspace, &target_slot).unwrap();
+            }
 
             log::debug!("setup stack");
             let stack_start = StackLoader {
-                mem: mem_cap,
                 stack_bytes: 0x1000,
                 vbase: 0x10_0000_0000,
-                vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
             }
             .load()
             .unwrap();
@@ -194,8 +208,8 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
                 // choosing arbitrary vbase not supported for relocating data sections
                 // vbase: 0x5_0000_0000,
                 vbase: 0x0,
-                mem: mem_cap,
-                vspace: taskstate.vspace.cap.get_vspace_mut().unwrap(),
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
             };
 
             let binary = ElfBinary::new(INIT_BIN).unwrap();

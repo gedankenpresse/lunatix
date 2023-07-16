@@ -1,9 +1,15 @@
 #![no_std]
 #![no_main]
+// TODO: remove dead code
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
 mod caps;
 mod init;
+mod ipc;
+mod sched;
 mod trap;
+mod uapi;
 mod virtmem;
 
 use crate::caps::CSlot;
@@ -168,17 +174,21 @@ fn run_init(trap_stack: *mut ()) {
     unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();
-        let task = guard.init_task.cap.get_task_mut().unwrap();
-        yield_to_task(trap_stack as *mut u8, task);
+        let mut task = &mut guard.init_task;
+        yield_to_task(trap_stack as *mut u8, &mut task);
     };
 }
 
 /// Yield to the task that owns the given `trap_frame`
-unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Cap<caps::Task>) -> ! {
-    let state = unsafe { task.state.as_mut().unwrap() };
+unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CSlot) -> ! {
+    let taskref = task.get_task_mut().unwrap();
+    unsafe {
+        crate::sched::set_active_task(taskref.state);
+    }
+    let state = unsafe { taskref.state.as_mut().unwrap() };
     let trap_frame = &mut state.frame;
     trap_frame.trap_handler_stack = trap_handler_stack.cast();
-    let root_pt = state.vspace.cap.get_vspace_mut().unwrap().root;
+    let root_pt = state.vspace.get_vspace_mut().unwrap().root;
     log::debug!("enabling task pagetable");
     unsafe {
         virtmem::use_pagetable(MappedMutPtr::from(root_pt).as_direct());

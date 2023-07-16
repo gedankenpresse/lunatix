@@ -3,6 +3,8 @@ use core::ptr;
 use libkernel::arch::trap::TrapFrame;
 use libkernel::mem::PAGESIZE;
 
+use super::{CapabilityInterface, Error, Memory};
+
 pub struct TaskState {
     pub frame: TrapFrame,
     pub cspace: caps::CSlot,
@@ -22,8 +24,8 @@ impl TaskState {
 
         // initialize the task state
         unsafe {
-            ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::default());
-            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::default());
+            ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::empty());
+            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::empty());
             ptr::addr_of_mut!((*ptr).frame).write(TrapFrame::null());
         }
 
@@ -31,12 +33,31 @@ impl TaskState {
     }
 }
 
-impl Task {
-    pub fn init(slot: &mut caps::CSlot, mem: &mut caps::Memory) -> Result<(), caps::Error> {
-        let cap = caps::Cap::from_content(Self {
+#[derive(Copy, Clone)]
+pub struct TaskIface;
+
+impl CapabilityInterface for TaskIface {
+    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
+        let taskcap = Task {
             state: TaskState::init(mem)?,
-        });
-        slot.set(cap)?;
-        Ok(())
+        };
+        return Ok(taskcap.into());
+    }
+
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
+        return Err(Error::InvalidOp);
+    }
+
+    fn destroy(&self, slot: &caps::CSlot) {
+        todo!()
+    }
+
+    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+        todo!()
     }
 }

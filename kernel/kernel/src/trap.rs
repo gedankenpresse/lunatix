@@ -1,9 +1,10 @@
+use crate::uapi;
 use crate::{InitCaps, INIT_CAPS};
 use core::ops::DerefMut;
 use libkernel::arch::cpu::{Exception, Interrupt, TrapEvent};
 use libkernel::arch::timers::set_next_timer;
 use libkernel::arch::trap::TrapFrame;
-use libkernel::{print, println};
+use libkernel::println;
 
 #[no_mangle]
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
@@ -11,9 +12,8 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-            print!("{}", tf.general_purpose_regs[10] as u8 as char);
             tf.start_pc = last_trap.epc + 4;
-            tf
+            uapi::handle_syscall(tf)
         }
         TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
             log::debug!("timer interrupt triggered. switching back to init task");
@@ -28,16 +28,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             drop(guard);
             let init_caps = unsafe { &mut *init_caps };
 
-            unsafe {
-                &mut (*(init_caps
-                    .init_task
-                    .cap
-                    .get_task_mut()
-                    .unwrap()
-                    .content
-                    .state))
-                    .frame
-            }
+            unsafe { &mut (*(init_caps.init_task.get_task_mut().unwrap().state)).frame }
         }
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);

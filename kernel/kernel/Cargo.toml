@@ -2,6 +2,8 @@
 name = "kernel"
 version = "0.1.0"
 edition = "2021"
+autotests = false
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,6 +22,7 @@ sbi = "0.2.0"
 bitflags = "2.3.2"
 log = { version = "0.4.19", default-features = false, features = ["release_max_level_debug"] }
 align-data = "0.1.0"
+derivation_tree = { version = "0.1.0", path = "../../support_crates/derivation_tree" }
 
 [build-dependencies]
 cc = "1.0.79"

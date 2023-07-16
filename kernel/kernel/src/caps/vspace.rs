@@ -6,39 +6,27 @@ use libkernel::mem::{EntryFlags, MemoryPage, PageTable};
 
 use crate::virtmem;
 
+use super::{CapabilityInterface, Error, Memory};
+
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
 }
 
 impl VSpace {
-    pub(crate) fn init(mem: &mut caps::Memory) -> Result<caps::Cap<Self>, NoMem> {
-        log::debug!("alloc");
-        let root = mem.alloc_pages_raw(1)?;
-        log::debug!("init copy");
-        let root = PageTable::init_copy(root.cast::<MaybeUninit<MemoryPage>>(), unsafe {
-            crate::KERNEL_ROOT_PT
-                .as_mapped()
-                .raw()
-                .as_ref()
-                .expect("No Kernel Root Page Table found")
-        });
-
-        let cap = caps::Cap::from_content(Self { root });
-        Ok(cap)
-    }
-
-    // Allocate a range of virtual addresses
-    // Creates needed pages and page tables from given memory
+    /// Allocate a range of virtual addresses
+    /// Creates needed pages and page tables from given memory
+    // TODO: fix usage of memory.get_inner
     pub(crate) fn map_range(
         &self,
-        mem: &mut caps::Memory,
+        mem: &caps::CSlot,
         vaddr_base: usize,
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
+        let mut memref = mem.get_memory_mut().unwrap();
         log::debug!("map range, root: {:p}", self.root);
         virtmem::map_range_alloc(
-            &mut mem.inner,
+            memref.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
@@ -57,12 +45,46 @@ impl VSpace {
     ) -> Result<(), NoMem> {
         let phys_page = mem.alloc_pages_raw(1)?;
         virtmem::map(
-            &mut mem.inner,
+            mem.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
             vaddr,
             phys_page as usize,
             EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct VspaceIface;
+
+impl CapabilityInterface for VspaceIface {
+    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
+        let ptpage = mem.alloc_pages_raw(1)?;
+        let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
+            crate::KERNEL_ROOT_PT
+                .as_mapped()
+                .raw()
+                .as_ref()
+                .expect("No Kernel Root Page Table found")
+        });
+        return Ok(VSpace { root }.into());
+    }
+
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
+        todo!()
+    }
+
+    fn destroy(&self, slot: &caps::CSlot) {
+        todo!()
+    }
+
+    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+        todo!()
     }
 }

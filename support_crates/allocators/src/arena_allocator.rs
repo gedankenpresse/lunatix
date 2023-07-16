@@ -189,6 +189,8 @@ impl<'a, Content> Arena<'a, Content> {
 
 #[cfg(test)]
 mod tests {
+    use core::mem::MaybeUninit;
+    use std::println;
 
     #[cfg(test)]
     extern crate std;
@@ -265,13 +267,17 @@ mod tests {
 
         let mut alloc_points = [None; ITEMS];
         for i in 0..ITEMS {
-            alloc_points[i] = Some(unsafe {
+            alloc_points[i] = Some({
                 let point_raw = mem.alloc_one_raw().unwrap();
-                let point = &mut *point_raw;
-                *point = Point { x: i, y: i };
+                unsafe {
+                    *(*point_raw).as_mut_ptr() = Point { x: i, y: i };
+                }
                 point_raw
             });
         }
+        let alloc_points: [Option<*mut Point>; ITEMS] =
+            unsafe { core::mem::transmute(alloc_points) };
+
         for i in 0..ITEMS {
             assert!(alloc_points[i].is_some());
 
@@ -289,7 +295,9 @@ mod tests {
         let mut mem = super::Arena::new(&mut points);
 
         for _ in 0..ITEMS * 2 {
-            let ptr = mem.alloc_one().unwrap();
+            let alloc = mem.alloc_one().unwrap();
+            let init = unsafe { alloc.assume_init_mut() };
+            let ptr: *mut Point = init;
             unsafe {
                 mem.free_one(ptr);
             }
@@ -301,8 +309,11 @@ mod tests {
         const ITEMS: usize = 20;
         let mut points = [Point { x: 0, y: 0 }; ITEMS];
         let mut mem = super::Arena::new(&mut points);
-        let block = mem.alloc_one().unwrap();
-        *block = Point { x: 1, y: 1 };
+        let block_uninit = mem.alloc_one().unwrap();
+        let _block = unsafe {
+            (*block_uninit.as_mut_ptr()) = Point { x: 1, y: 1 };
+            block_uninit.assume_init()
+        };
         drop(points);
     }
 
@@ -333,27 +344,31 @@ mod tests {
 
     #[test]
     fn alloc_many_dont_alias() {
-        const BLOCKS: usize = 5;
-        const SIZE: usize = 2;
-        const ITEMS: usize = BLOCKS * SIZE;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
+        unsafe {
+            const BLOCKS: usize = 5;
+            const SIZE: usize = 2;
+            const ITEMS: usize = BLOCKS * SIZE;
+            let mut points = [Point { x: 0, y: 0 }; ITEMS];
+            let mut mem = super::Arena::new(&mut points);
 
-        let mut alloced: [Option<&mut [Point]>; BLOCKS] = [None, None, None, None, None];
-        for i in 0..BLOCKS {
-            alloced[i] = mem.alloc_many(SIZE);
-            assert!(alloced[i].is_some());
-            assert!(alloced[i].as_ref().unwrap().len() == SIZE);
-            alloced[i].as_deref_mut().unwrap()[0] = Point { x: i, y: i };
-            alloced[i].as_deref_mut().unwrap()[1] = Point { x: i, y: i };
-        }
-        assert!(mem.alloc_one().is_none());
+            let mut alloced: [Option<*mut MaybeUninit<Point>>; BLOCKS] =
+                [None, None, None, None, None];
+            for i in 0..BLOCKS {
+                let tmp: *mut MaybeUninit<Point> = mem.alloc_many_raw(SIZE).unwrap();
+                let init = (*tmp).as_mut_ptr();
+                *init.add(0) = Point { x: i, y: i };
+                *init.add(1) = Point { x: i, y: i };
+                alloced[i] = Some(tmp);
+            }
+            assert!(mem.alloc_one().is_none());
 
-        for i in 0..BLOCKS {
-            assert!(alloced[i].as_ref().unwrap()[0].x == i);
-            assert!(alloced[i].as_ref().unwrap()[0].y == i);
-            assert!(alloced[i].as_ref().unwrap()[1].x == i);
-            assert!(alloced[i].as_ref().unwrap()[1].y == i);
+            for i in 0..BLOCKS {
+                let v = (*alloced[i].unwrap()).as_mut_ptr();
+                assert!(v.add(0).as_ref().unwrap().x == i);
+                assert!(v.add(0).as_ref().unwrap().y == i);
+                assert!(v.add(1).as_ref().unwrap().x == i);
+                assert!(v.add(1).as_ref().unwrap().y == i);
+            }
         }
     }
 
@@ -379,7 +394,7 @@ mod tests {
         let mut points = [Point { x: 0, y: 0 }; ITEMS];
         let mut mem = super::Arena::new(&mut points);
 
-        let mut alloced: [Option<*mut Point>; BLOCKS] = [None, None, None, None, None];
+        let mut alloced: [Option<*mut MaybeUninit<Point>>; BLOCKS] = [None, None, None, None, None];
         for i in 0..BLOCKS {
             alloced[i] = mem.alloc_many_raw(SIZE);
             assert!(alloced[i].is_some());
@@ -388,7 +403,7 @@ mod tests {
 
         for i in 0..BLOCKS {
             unsafe {
-                mem.free_many(alloced[i].unwrap(), SIZE);
+                mem.free_many((*alloced[i].unwrap()).as_mut_ptr(), SIZE);
             }
         }
 

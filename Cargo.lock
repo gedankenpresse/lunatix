@@ -42,6 +42,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
 
 [[package]]
+name = "derivation_tree"
+version = "0.1.0"
+
+[[package]]
 name = "elfloader"
 version = "0.16.0"
 source = "git+https://github.com/gz/rust-elfloader.git?branch=master#478ec8a8d37625800c90bfee99508e1696d74a41"
@@ -80,6 +84,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "init"
+version = "0.1.0"
+dependencies = [
+ "librust",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -87,6 +98,7 @@ dependencies = [
  "allocators",
  "bitflags 2.3.2",
  "cc",
+ "derivation_tree",
  "elfloader",
  "fdt-rs",
  "ksync",
@@ -134,6 +146,10 @@ dependencies = [
  "static_assertions",
  "thiserror-no-std",
 ]
+
+[[package]]
+name = "librust"
+version = "0.1.0"
 
 [[package]]
 name = "log"
