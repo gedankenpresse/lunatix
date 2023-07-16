@@ -6,7 +6,7 @@ use libkernel::mem::{EntryFlags, MemoryPage, PageTable};
 
 use crate::virtmem;
 
-use super::{Memory, CapabilityInterface, Error};
+use super::{CapabilityInterface, Error, Memory};
 
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
@@ -55,7 +55,6 @@ impl VSpace {
     }
 }
 
-
 #[derive(Copy, Clone)]
 pub struct VspaceIface;
 
@@ -72,7 +71,12 @@ impl CapabilityInterface for VspaceIface {
         return Ok(VSpace { root }.into());
     }
 
-    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
         todo!()
     }
 

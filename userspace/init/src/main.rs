@@ -29,11 +29,8 @@ fn main() {
     librust::allocate(MEM_CAP, NEW_CSPACE_CAP, librust::Variant::CSpace, 4).unwrap();
     println!("new alloc: {:?}", librust::identify(NEW_CSPACE_CAP));
 
-
-
     librust::allocate(MEM_CAP, NEW_VSPACE_CAP, librust::Variant::VSpace, 0).unwrap();
     println!("new alloc: {:?}", librust::identify(NEW_VSPACE_CAP));
-
 }
 
 use core::panic::PanicInfo;

@@ -3,7 +3,7 @@ use core::ptr;
 use libkernel::arch::trap::TrapFrame;
 use libkernel::mem::PAGESIZE;
 
-use super::{CapabilityInterface, Memory, Error};
+use super::{CapabilityInterface, Error, Memory};
 
 pub struct TaskState {
     pub frame: TrapFrame,
@@ -33,17 +33,23 @@ impl TaskState {
     }
 }
 
-
 #[derive(Copy, Clone)]
 pub struct TaskIface;
 
 impl CapabilityInterface for TaskIface {
     fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
-        let taskcap = Task { state: TaskState::init(mem)? };
+        let taskcap = Task {
+            state: TaskState::init(mem)?,
+        };
         return Ok(taskcap.into());
     }
 
-    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
         return Err(Error::InvalidOp);
     }
 

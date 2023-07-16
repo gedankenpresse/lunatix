@@ -6,8 +6,6 @@ use libkernel::arch::timers::set_next_timer;
 use libkernel::arch::trap::TrapFrame;
 use libkernel::println;
 
-
-
 #[no_mangle]
 fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     let last_trap = tf.last_trap.as_ref().unwrap();
@@ -16,7 +14,6 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
             tf.start_pc = last_trap.epc + 4;
             uapi::handle_syscall(tf)
-
         }
         TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
             log::debug!("timer interrupt triggered. switching back to init task");
@@ -31,14 +28,7 @@ fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             drop(guard);
             let init_caps = unsafe { &mut *init_caps };
 
-            unsafe {
-                &mut (*(init_caps
-                    .init_task
-                    .get_task_mut()
-                    .unwrap()
-                    .state))
-                    .frame
-            }
+            unsafe { &mut (*(init_caps.init_task.get_task_mut().unwrap().state)).frame }
         }
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);

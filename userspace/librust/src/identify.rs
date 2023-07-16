@@ -1,4 +1,4 @@
-use crate::syscalls::{syscall, self};
+use crate::syscalls::{self, syscall};
 use crate::Variant;
 
 pub fn identify(cap: usize) -> Result<Variant, crate::Error> {

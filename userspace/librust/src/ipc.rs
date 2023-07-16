@@ -14,10 +14,9 @@ pub fn result_to_raw(res: IpcResult) -> (usize, usize) {
     }
 }
 
-
 impl Tag {
     pub fn from_parts(label: usize, ncap: u8, nparam: u8) -> Tag {
-        const LABELBITS: usize = core::mem::size_of::<usize>() * 8 - 16; 
+        const LABELBITS: usize = core::mem::size_of::<usize>() * 8 - 16;
         const LABELMASK: usize = (1 << LABELBITS) - 1;
         assert_eq!(label & !LABELMASK, 0);
         return Self(label << 16 | (ncap as usize) << 8 | nparam as usize);

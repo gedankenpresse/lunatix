@@ -1,26 +1,23 @@
 pub mod cspace;
+pub mod iface;
 pub mod memory;
+pub mod page;
 pub mod task;
 pub mod vspace;
-pub mod page;
-pub mod iface;
 
-use core::cell::{RefMut, Ref};
+use core::cell::{Ref, RefMut};
 
-use self::{errors::OccupiedSlot, iface::CapabilityInterface};
 pub use self::memory::{Memory, MemoryIface};
+use self::{errors::OccupiedSlot, iface::CapabilityInterface};
 pub use cspace::{CSpace, CSpaceIface};
+pub use page::{Page, PageIface};
 pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VspaceIface};
-pub use page::{Page, PageIface};
 
 pub use errors::Error;
 pub use iface::UninitIface;
 
-
 pub type CNode = derivation_tree::Slot<Capability>;
-
-
 
 pub enum Capability {
     CSpace(CSpace),
@@ -93,7 +90,7 @@ macro_rules! cap_from_node_impl {
                 Self::$v(value)
             }
         }
-    }
+    };
 }
 
 cap_from_node_impl!(CSpace, CSpace);
@@ -107,18 +104,16 @@ macro_rules! cap_get_mut {
         impl CSlot {
             pub fn $n(&self) -> Result<RefMut<$t>, errors::InvalidCap> {
                 let val = self.cap.get();
-                match RefMut::filter_map(val.borrow_mut(), |cap| 
-                    match cap {
-                        Capability::$v(m) => Some(m),
-                        _ => None
-                    }
-                ) {
+                match RefMut::filter_map(val.borrow_mut(), |cap| match cap {
+                    Capability::$v(m) => Some(m),
+                    _ => None,
+                }) {
                     Ok(v) => Ok(v),
-                    Err(_) => Err(errors::InvalidCap)
+                    Err(_) => Err(errors::InvalidCap),
                 }
             }
         }
-    }
+    };
 }
 
 macro_rules! cap_get {
@@ -126,18 +121,16 @@ macro_rules! cap_get {
         impl CSlot {
             pub fn $n(&self) -> Result<Ref<$t>, errors::InvalidCap> {
                 let val = self.cap.get();
-                match Ref::filter_map(val.borrow(), |cap| 
-                    match cap {
-                        Capability::$v(m) => Some(m),
-                        _ => None
-                    }
-                ) {
+                match Ref::filter_map(val.borrow(), |cap| match cap {
+                    Capability::$v(m) => Some(m),
+                    _ => None,
+                }) {
                     Ok(v) => Ok(v),
-                    Err(_) => Err(errors::InvalidCap)
+                    Err(_) => Err(errors::InvalidCap),
                 }
             }
         }
-    }
+    };
 }
 
 cap_get_mut!(Memory, get_memory_mut, Memory);
@@ -152,7 +145,6 @@ pub struct CSlot {
     cap: CNode,
 }
 
-
 impl CSlot {
     pub fn get_variant(&self) -> Variant {
         if self.cap.is_uninit() {
@@ -162,14 +154,20 @@ impl CSlot {
     }
 
     pub fn is_uninit(&self) -> bool {
-        return self.get_variant().discriminant() as usize == Variant::Uninit(UninitIface).discriminant()
+        return self.get_variant().discriminant() as usize
+            == Variant::Uninit(UninitIface).discriminant();
     }
 
-    pub fn send(&self, label: usize, caps: &[Option<&CSlot>], params: &[usize]) -> Result<usize, Error> {
+    pub fn send(
+        &self,
+        label: usize,
+        caps: &[Option<&CSlot>],
+        params: &[usize],
+    ) -> Result<usize, Error> {
         let variant = self.cap.get().borrow().get_variant();
         match variant {
             Variant::CSpace(_) => todo!("implement cspace send"),
-            Variant::Memory(_) =>  Memory::send(self, label, caps, params),
+            Variant::Memory(_) => Memory::send(self, label, caps, params),
             Variant::Task(_) => todo!("implement task send"),
             Variant::VSpace(_) => todo!("implement vspace send"),
             Variant::Page(_) => todo!("implement page compare"),
@@ -186,11 +184,15 @@ impl CSlot {
 
     pub const fn empty() -> Self {
         Self {
-            cap: CNode::uninit()
+            cap: CNode::uninit(),
         }
     }
 
-    pub fn derive(&self, target: &CSlot, f: impl FnOnce(&mut Memory) -> Result<Capability, Error>) -> Result<(), Error> {
+    pub fn derive(
+        &self,
+        target: &CSlot,
+        f: impl FnOnce(&mut Memory) -> Result<Capability, Error>,
+    ) -> Result<(), Error> {
         log::debug!("CSlot::derive derive_link");
         self.cap.derive_link(&target.cap);
         log::debug!("CSlot::derive get memory");
@@ -201,7 +203,7 @@ impl CSlot {
                     Ok(cap) => target.set(cap).map_err(Into::into),
                 };
                 res
-            },
+            }
             Err(e) => Err(e.into()),
         };
         match res {
@@ -210,11 +212,10 @@ impl CSlot {
                 todo!("unlink target, error: {:?}", e);
                 #[allow(unreachable_code)]
                 Err(e)
-            },
+            }
         }
     }
 }
-
 
 mod errors {
     #[repr(usize)]
@@ -229,7 +230,7 @@ mod errors {
         AliasingCSlot = 7,
         InvalidReturn = 8,
     }
-    
+
     /// macro to implement From Instances from Singletons to Error
     /// invoking with `err_from_impl!(Variant, Type)` results in an impl
     /// that converts Type to Variant
@@ -240,14 +241,14 @@ mod errors {
                     Self::$v
                 }
             }
-        }
+        };
     }
 
     macro_rules! singleton_variant {
         ($t:ident) => {
             #[derive(Debug)]
             pub struct $t;
-        }
+        };
     }
 
     singleton_variant!(InvalidCAddr);

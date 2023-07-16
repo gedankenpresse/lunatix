@@ -13,4 +13,12 @@ repos:
     rev: v1.0
     hooks:
       - id: fmt
+  - repo: local
+    hooks:
+      - id: workspacetest
+        name: run tests
+        entry: ./run_test.sh
+        language: script
+        files: \.x$
+        always_run: true
       #- id: clippy   # TODO: Enable clippy later once we are more stable

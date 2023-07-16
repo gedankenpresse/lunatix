@@ -1,17 +1,16 @@
 #![no_std]
 
-pub(crate) mod syscalls;
-pub(crate) mod ipc;
-pub mod print;
 pub mod identify;
+pub(crate) mod ipc;
 pub mod memory;
+pub mod print;
+pub(crate) mod syscalls;
 
-
+pub use identify::identify;
+pub use ipc::IpcResult;
+pub use memory::allocate;
 pub use print::print;
 pub use print::put_c;
-pub use identify::identify;
-pub use memory::allocate;
-pub use ipc::IpcResult;
 
 #[repr(usize)]
 #[derive(Debug, PartialEq, Eq)]
@@ -53,7 +52,6 @@ pub enum Variant {
     Task = 4,
     Page = 5,
 }
-
 
 impl TryFrom<usize> for Variant {
     type Error = crate::Error;

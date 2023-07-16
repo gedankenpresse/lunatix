@@ -1,12 +1,12 @@
 use core::arch::asm;
 
-pub (crate) const SYS_DEBUG_LOG: usize = 0;
-pub (crate) const SYS_DEBUG_PUTC: usize = 1;
-pub (crate) const SYS_SEND: usize = 2;
-pub (crate) const SYS_IDENTIFY: usize = 3;
+pub(crate) const SYS_DEBUG_LOG: usize = 0;
+pub(crate) const SYS_DEBUG_PUTC: usize = 1;
+pub(crate) const SYS_SEND: usize = 2;
+pub(crate) const SYS_IDENTIFY: usize = 3;
 
 #[inline(always)]
-pub (crate) fn raw_syscall(
+pub(crate) fn raw_syscall(
     syscallno: usize,
     a1: usize,
     a2: usize,
@@ -18,22 +18,24 @@ pub (crate) fn raw_syscall(
 ) -> (usize, usize) {
     let mut out0: usize;
     let mut out1: usize;
-    unsafe { asm!(
-        "ecall",
-        inout("x10") syscallno => out0,
-        inout("x11") a1 => out1,
-        in("x12") a2,
-        in("x13") a3,
-        in("x14") a4,
-        in("x15") a5,
-        in("x16") a6,
-        in("x17") a7,
-    ); }
+    unsafe {
+        asm!(
+            "ecall",
+            inout("x10") syscallno => out0,
+            inout("x11") a1 => out1,
+            in("x12") a2,
+            in("x13") a3,
+            in("x14") a4,
+            in("x15") a5,
+            in("x16") a6,
+            in("x17") a7,
+        );
+    }
     return (out0, out1);
 }
 
 #[inline(always)]
-pub (crate) fn syscall(
+pub(crate) fn syscall(
     syscallno: usize,
     a1: usize,
     a2: usize,

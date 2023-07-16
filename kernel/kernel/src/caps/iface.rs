@@ -1,12 +1,11 @@
-use super::{CSlot, Memory, Capability, Error, Variant};
+use super::{CSlot, Capability, Error, Memory, Variant};
 
 pub trait CapabilityInterface {
     fn init(&self, slot: &CSlot, mem: &mut Memory) -> Result<Capability, Error>;
-    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error> ;
+    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error>;
     fn destroy(&self, slot: &CSlot);
     fn copy(&self, this: &CSlot, target: &CSlot) -> Result<(), Error>;
 }
-
 
 #[derive(Copy, Clone)]
 pub struct UninitIface;
@@ -16,7 +15,7 @@ impl CapabilityInterface for UninitIface {
         todo!()
     }
 
-    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error>  {
+    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error> {
         todo!()
     }
 
@@ -34,7 +33,7 @@ impl CapabilityInterface for Variant {
         self.as_iface().init(slot, mem)
     }
 
-    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error>  {
+    fn init_sz(&self, slot: &CSlot, mem: &mut Memory, size: usize) -> Result<Capability, Error> {
         self.as_iface().init_sz(slot, mem, size)
     }
 
@@ -47,9 +46,8 @@ impl CapabilityInterface for Variant {
     }
 }
 
-
 impl Variant {
-    pub (super) fn as_iface(&self) -> &dyn CapabilityInterface {
+    pub fn as_iface(&self) -> &dyn CapabilityInterface {
         match self {
             Variant::Uninit(iface) => iface,
             Variant::Memory(iface) => iface,
@@ -58,5 +56,5 @@ impl Variant {
             Variant::Task(iface) => iface,
             Variant::Page(iface) => iface,
         }
-    } 
+    }
 }

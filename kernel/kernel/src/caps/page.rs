@@ -2,19 +2,20 @@ use libkernel::mem;
 
 use crate::caps;
 
-use super::{CapabilityInterface, Memory, Error};
-
+use super::{CapabilityInterface, Error, Memory};
 
 /// A capability to physical memory.
 pub struct Page {
-    pub (crate) kernel_addr: *mut mem::MemoryPage,
+    pub(crate) kernel_addr: *mut mem::MemoryPage,
 }
 
 impl Page {
     pub fn init(slot: &caps::CSlot, memslot: &caps::CSlot) -> Result<(), caps::Error> {
         memslot.derive(slot, |mem| {
             let memory_page = mem.alloc_pages_raw(1)?;
-            let pagecap = Self { kernel_addr: memory_page };
+            let pagecap = Self {
+                kernel_addr: memory_page,
+            };
             return Ok(pagecap.into());
         })
     }
@@ -28,7 +29,12 @@ impl CapabilityInterface for PageIface {
         todo!()
     }
 
-    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
         todo!()
     }
 

@@ -14,7 +14,10 @@ use elfloader::{
 use libkernel::mem::ptrs::PhysMutPtr;
 use libkernel::mem::{EntryFlags, MemoryPage};
 
-static INIT_BIN: &[u8] = include_aligned!(Align16, "../../../target/riscv64imac-unknown-none-elf/release/init");
+static INIT_BIN: &[u8] = include_aligned!(
+    Align16,
+    "../../../target/riscv64imac-unknown-none-elf/release/init"
+);
 
 struct StackLoader<'v, 'm> {
     vbase: u64,
@@ -29,7 +32,10 @@ impl<'a, 'b> StackLoader<'a, 'b> {
         let vspace = self.vspace;
         let mem = self.mem;
         let rw = EntryFlags::Read | EntryFlags::Write | EntryFlags::UserReadable;
-        vspace.get_vspace_mut().unwrap().map_range(
+        vspace
+            .get_vspace_mut()
+            .unwrap()
+            .map_range(
                 mem,
                 self.vbase as usize,
                 self.stack_bytes as usize,
@@ -70,7 +76,10 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                 bits |= EntryFlags::Write;
             }
 
-            self.vspace.get_vspace_mut().unwrap().map_range(
+            self.vspace
+                .get_vspace_mut()
+                .unwrap()
+                .map_range(
                     &mut self.mem,
                     virt_start as usize,
                     header.mem_size() as usize,
@@ -156,30 +165,27 @@ pub(crate) fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
 
-            mem.derive(&init_task, |mem| { caps::TaskIface.init(init_task, mem) }).unwrap();
+            mem.derive(&init_task, |mem| caps::TaskIface.init(init_task, mem))
+                .unwrap();
 
-            let taskstate = unsafe {
-                init_task
-                    .get_task_mut()
-                    .unwrap()
-                    .state
-                    .as_mut()
-                    .unwrap()
-            };
+            let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
             log::debug!("init vspace");
             mem.derive(&taskstate.vspace, |mem| {
                 caps::VspaceIface.init(&taskstate.vspace, mem)
-            }).unwrap();
+            })
+            .unwrap();
 
             log::debug!("init cspace");
-            mem.derive(&taskstate.cspace, |mem| { caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4) }).unwrap();
+            mem.derive(&taskstate.cspace, |mem| {
+                caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
+            })
+            .unwrap();
             {
                 let cspace = taskstate.cspace.get_cspace_mut().unwrap();
                 let memslot = cspace.lookup(1).unwrap();
                 caps::Memory::copy(mem, memslot).unwrap();
             }
             {
-
                 let cspace = &taskstate.cspace;
                 let cref = taskstate.cspace.get_cspace().unwrap();
                 let target_slot = cref.lookup(2).unwrap();

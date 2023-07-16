@@ -43,7 +43,12 @@ impl CSpace {
 pub struct CSpaceIface;
 
 impl CapabilityInterface for CSpaceIface {
-    fn init_sz(&self, slot: &caps::CSlot, mem: &mut caps::Memory, bits: usize) -> Result<Capability, caps::Error> {
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut caps::Memory,
+        bits: usize,
+    ) -> Result<Capability, caps::Error> {
         let pages = cspace_pages(bits);
         let slots = {
             let ptr = mem.alloc_pages_raw(pages)? as *mut caps::CSlot;
@@ -53,7 +58,10 @@ impl CapabilityInterface for CSpaceIface {
             let slots = unsafe { core::slice::from_raw_parts_mut(ptr, 1 << bits) };
             slots
         };
-        let cspace = CSpace { bits, slots: slots.as_mut_ptr() };
+        let cspace = CSpace {
+            bits,
+            slots: slots.as_mut_ptr(),
+        };
         return Ok(cspace.into());
     }
     fn init(&self, slot: &CSlot, mem: &mut caps::Memory) -> Result<Capability, Error> {

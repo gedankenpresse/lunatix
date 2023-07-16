@@ -1,17 +1,16 @@
 use core::cell::RefCell;
 
-use crate::caps::{self, Variant, CapabilityInterface};
 use crate::caps::errors::*;
+use crate::caps::{self, CapabilityInterface, Variant};
 use allocators::Arena;
 use libkernel::mem::MemoryPage;
 
 /// A capability to physical memory.
 pub struct Memory {
-
     /// This is the (allocator) for the backing memory.
     /// It returns pages in kernel space.
     /// When mapping to userspace, these have to be converted using kernel_to_phys first
-    /// 
+    ///
     /// This doesn't have to be a pointer anymore because derivation tree itself uses references
     pub(crate) inner: *mut RefCell<Arena<'static, MemoryPage>>,
 }
@@ -19,7 +18,9 @@ pub struct Memory {
 impl Memory {
     pub fn create_init(mut alloc: Arena<'static, MemoryPage>) -> Self {
         let state: *mut RefCell<Arena<MemoryPage>> = alloc.alloc_one_raw().unwrap().cast();
-        unsafe { (*state) = RefCell::new(alloc); }
+        unsafe {
+            (*state) = RefCell::new(alloc);
+        }
         Memory { inner: state }
     }
 
@@ -28,24 +29,22 @@ impl Memory {
             let state: *mut RefCell<Arena<MemoryPage>> = mem.alloc_pages_raw(1)?.cast();
             let ptr = mem.alloc_pages_raw(pages)?;
             let slice = unsafe { core::slice::from_raw_parts_mut(ptr, pages) };
-            
-            unsafe { 
+
+            unsafe {
                 (*state) = RefCell::new(Arena::new(slice));
             }
-            let me= Memory {
-                inner: state,
-            };
+            let me = Memory { inner: state };
             return Ok(me.into());
         })
     }
 
     // TODO: this should be private
-    pub (super) fn get_inner_mut(&mut self) -> &mut Arena<'static, MemoryPage> {
+    pub(super) fn get_inner_mut(&mut self) -> &mut Arena<'static, MemoryPage> {
         unsafe { self.inner.as_mut().unwrap().get_mut() }
     }
 
     // TODO: this should be private
-    pub (super) fn get_inner(&self) -> &RefCell<Arena<'static, MemoryPage>> {
+    pub(super) fn get_inner(&self) -> &RefCell<Arena<'static, MemoryPage>> {
         unsafe { self.inner.as_ref().unwrap() }
     }
 
@@ -62,8 +61,16 @@ impl Memory {
         Ok(())
     }
 
-    pub fn send(mem: &caps::CSlot, label: usize, caps: &[Option<&caps::CSlot>], params: &[usize]) -> Result<usize, caps::Error> {
-        log::debug!("label: {label}, num_caps: {}, params: {params:?}", caps.len());
+    pub fn send(
+        mem: &caps::CSlot,
+        label: usize,
+        caps: &[Option<&caps::CSlot>],
+        params: &[usize],
+    ) -> Result<usize, caps::Error> {
+        log::debug!(
+            "label: {label}, num_caps: {}, params: {params:?}",
+            caps.len()
+        );
         const ALLOC: usize = 0;
         match label {
             ALLOC => {
@@ -76,23 +83,21 @@ impl Memory {
                     1 => {
                         assert!(target_slot.is_uninit());
                         let variant = Variant::try_from(params[0])?;
-                        mem.derive(target_slot, |mem| {
-                            variant.as_iface().init(target_slot, mem)
-                        })?;
-                    },
+                        mem.derive(target_slot, |mem| variant.as_iface().init(target_slot, mem))?;
+                    }
                     2 => {
                         assert!(target_slot.is_uninit());
                         let variant = Variant::try_from(params[0])?;
                         mem.derive(target_slot, |mem| {
                             variant.as_iface().init_sz(target_slot, mem, params[1])
                         })?;
-                    },
+                    }
                     _ => return Err(caps::Error::InvalidArg),
                 }
 
                 return Ok(0);
-            },
-            _ => Err(caps::Error::InvalidOp)
+            }
+            _ => Err(caps::Error::InvalidOp),
         }
     }
 }
@@ -105,7 +110,12 @@ impl CapabilityInterface for MemoryIface {
         todo!()
     }
 
-    fn init_sz(&self, slot: &caps::CSlot, mem: &mut Memory, size: usize) -> Result<caps::Capability, Error>  {
+    fn init_sz(
+        &self,
+        slot: &caps::CSlot,
+        mem: &mut Memory,
+        size: usize,
+    ) -> Result<caps::Capability, Error> {
         todo!()
     }
 
@@ -117,4 +127,3 @@ impl CapabilityInterface for MemoryIface {
         todo!()
     }
 }
-
