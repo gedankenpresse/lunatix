@@ -3,10 +3,10 @@
 #[cfg(feature = "std")]
 extern crate std;
 
-use cell::Cell;
-use cell::RefCell;
-use cell::UnsafeCell;
-use core::cell;
+pub mod cell;
+use core::cell::Cell;
+use core::cell::RefCell;
+use core::cell::UnsafeCell;
 
 pub enum HereThere<T> {
     Here(RefCell<T>),
