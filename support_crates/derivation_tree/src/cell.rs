@@ -1,24 +1,6 @@
 use core::{cell::Cell, ops::Deref, pin::Pin};
 
-#[repr(transparent)]
-pub struct SharedRef<T> {
-    value: *const T,
-}
-
-impl<T> Copy for SharedRef<T> {}
-impl<T> Clone for SharedRef<T> {
-    fn clone(&self) -> Self {
-        Self { value: self.value }
-    }
-}
-
-impl<T> Deref for SharedRef<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.value.as_ref().unwrap() }
-    }
-}
+use super::refs::SharedRef;
 
 /// This is a reference counted value without heap allocations.
 /// This means that unlike core::rc::Rc, you still have to drop all references before the owner
@@ -120,7 +102,7 @@ mod tests {
         let reference = InlineRc::get_ref(cell.as_ref());
         drop(reference);
         drop(cell);
-        Box::new(0);
+        let _ = Box::new(0);
     }
 
     #[test]
@@ -132,7 +114,7 @@ mod tests {
         drop(reference);
         assert_eq!(cell.value.get(), 1);
         drop(cell);
-        Box::new(0);
+        let _ = Box::new(0);
     }
 
     #[should_panic]

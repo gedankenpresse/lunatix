@@ -1,9 +1,15 @@
 #![no_std]
+#![allow(dead_code)]
 
 #[cfg(feature = "std")]
 extern crate std;
 
 pub mod cell;
+pub mod chain;
+pub mod refs;
+
+#[macro_use]
+pub mod intrusive;
 use core::cell::Cell;
 use core::cell::RefCell;
 use core::cell::UnsafeCell;
