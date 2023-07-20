@@ -1,5 +1,6 @@
+use crate::traits::MutGlobalAlloc;
+use core::alloc::Layout;
 use core::marker::PhantomData;
-use core::mem::MaybeUninit;
 
 /// A free and unallocated block of memory that points to the next free and unallocated block.
 #[derive(Copy, Clone, Debug)]
@@ -30,6 +31,57 @@ fn is_aligned_to(ptr: *const u8, align: usize) -> bool {
     }
 
     ptr as usize % align == 0
+}
+
+unsafe impl<'a, Content> MutGlobalAlloc for Arena<'a, Content> {
+    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
+        assert!(layout.align() <= core::mem::align_of::<Content>());
+        assert!(layout.size() % core::mem::size_of::<Content>() == 0);
+        let blocks = layout.size() / core::mem::size_of::<Content>();
+        if blocks == 1 {
+            self.alloc_one_impl().cast()
+        } else {
+            self.alloc_many_impl(blocks).cast()
+        }
+    }
+
+    unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
+        assert!(layout.align() <= core::mem::align_of::<Content>());
+        assert!(layout.size() % core::mem::size_of::<Content>() == 0);
+        let blocks = layout.size() / core::mem::size_of::<Content>();
+        if blocks == 1 {
+            self.free_one_impl(ptr.cast())
+        } else {
+            self.free_many_impl(ptr.cast(), blocks)
+        }
+    }
+}
+
+pub unsafe trait ArenaAlloc {
+    type Content;
+
+    unsafe fn alloc_one(&mut self) -> *mut Self::Content;
+    unsafe fn alloc_many(&mut self, count: usize) -> *mut Self::Content;
+}
+
+unsafe impl<'a, Content> ArenaAlloc for Arena<'a, Content> {
+    type Content = Content;
+
+    unsafe fn alloc_one(&mut self) -> *mut Self::Content {
+        let size = core::mem::size_of::<Content>();
+        let align = core::mem::align_of::<Content>();
+        let layout = Layout::from_size_align(size, align).unwrap();
+        let ptr = self.alloc(layout);
+        ptr.cast()
+    }
+
+    unsafe fn alloc_many(&mut self, count: usize) -> *mut Self::Content {
+        let size = core::mem::size_of::<Content>() * count;
+        let align = core::mem::align_of::<Content>();
+        let layout = Layout::from_size_align(size, align).unwrap();
+        let ptr = self.alloc(layout);
+        ptr.cast()
+    }
 }
 
 impl<'a, Content> Arena<'a, Content> {
@@ -87,58 +139,37 @@ impl<'a, Content> Arena<'a, Content> {
         self.head = Some(self.start_ptr.cast::<FreeBlock>());
     }
 
-    /// Allocate one block from the arena and return it
-    pub fn alloc_one<'b>(&'b mut self) -> Option<&'a mut MaybeUninit<Content>> {
-        let raw = match self.alloc_one_raw() {
-            Some(raw) => raw,
-            None => return None,
-        };
-
-        unsafe { Some(&mut (*raw)) }
-    }
-
     /// Allocate one block from the arena and return a pointer to it.
     ///
     /// This is the raw pointer variant of [`alloc_one()`](Arena::alloc_one) which should be preferred over this function
     /// when possible.
-    pub fn alloc_one_raw(&mut self) -> Option<*mut MaybeUninit<Content>> {
+    unsafe fn alloc_one_impl(&mut self) -> *mut Content {
         match self.head {
             Some(block_ptr) => {
                 self.head = unsafe { (*block_ptr).next };
                 unsafe {
                     *block_ptr = FreeBlock { next: None };
                 }
-                Some(block_ptr.cast::<MaybeUninit<Content>>())
+                block_ptr.cast()
             }
-            None => None,
+            None => core::ptr::null_mut(),
         }
-    }
-
-    /// Allocate `items` number of blocks from the arena and return a reference to the allocated slice.
-    /// If the allocation succeeds, the slice guarantees these objects to be continuously placed.
-    pub fn alloc_many<'b>(&'b mut self, items: usize) -> Option<&'a mut [MaybeUninit<Content>]> {
-        let raw = match self.alloc_many_raw(items) {
-            Some(b) => b,
-            None => return None,
-        };
-
-        return Some(unsafe { core::slice::from_raw_parts_mut(raw, items) });
     }
 
     /// Allocate `items` number of blocks from the arena and return a reference to the first one.
     /// The allocation logic guarantees these objects to be continuously placed.
-    pub fn alloc_many_raw(&mut self, items: usize) -> Option<*mut MaybeUninit<Content>> {
+    unsafe fn alloc_many_impl(&mut self, items: usize) -> *mut Content {
         unsafe {
             let mut count = 1;
             let mut cur_head: *mut FreeBlock = match self.head {
                 Some(b) => b,
-                None => return None,
+                None => return core::ptr::null_mut(),
             };
             let mut cur = cur_head;
             while count < items {
                 let next = match (*cur).next {
                     Some(block) => block,
-                    None => return None,
+                    None => return core::ptr::null_mut(),
                 };
                 if next == cur.cast::<Content>().offset(1).cast::<FreeBlock>() {
                     cur = next;
@@ -150,7 +181,7 @@ impl<'a, Content> Arena<'a, Content> {
                 }
             }
             self.head = (*cur).next;
-            Some(cur_head.cast::<MaybeUninit<Content>>())
+            return cur_head.cast();
         }
     }
 
@@ -158,7 +189,7 @@ impl<'a, Content> Arena<'a, Content> {
     ///
     /// # Safety
     /// The memory must no longer be used and must have been allocated from this allocator.
-    pub unsafe fn free_one(&mut self, ptr: *mut Content) {
+    unsafe fn free_one_impl(&mut self, ptr: *mut Content) {
         assert!(is_aligned_to(
             ptr as *const u8,
             core::mem::align_of::<Content>()
@@ -174,7 +205,7 @@ impl<'a, Content> Arena<'a, Content> {
     ///
     /// # Safety
     /// All blocks must no longer be used and must have been allocated from this allocator.
-    pub unsafe fn free_many(&mut self, ptr: *mut Content, items: usize) {
+    unsafe fn free_many_impl(&mut self, ptr: *mut Content, items: usize) {
         assert!(is_aligned_to(
             ptr as *const u8,
             core::mem::align_of::<Content>()
@@ -182,26 +213,28 @@ impl<'a, Content> Arena<'a, Content> {
         assert!(ptr >= self.start_ptr);
         assert!(ptr.offset(items as isize) <= self.start_ptr.offset(self.items as isize));
         for i in 0..items {
-            self.free_one(ptr.offset(i as isize));
+            self.free_one_impl(ptr.offset(i as isize));
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use core::mem::MaybeUninit;
-    use std::println;
-
-    #[cfg(test)]
     extern crate std;
+    use std::vec::Vec;
 
-    #[derive(Copy, Clone)]
+    use super::ArenaAlloc;
+    use crate::traits::tests as alloc_tests;
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     struct Point {
         x: usize,
         y: usize,
     }
 
-    type Page = [u8; 4096];
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[repr(align(4096))]
+    struct Page([u8; 4096]);
 
     #[test]
     fn can_create_memory() {
@@ -215,15 +248,21 @@ mod tests {
     }
 
     #[test]
+    fn can_alloc_single() {
+        const ITEMS: usize = 1;
+        let mut points = [Point { x: 0, y: 0 }; ITEMS];
+        let mut mem = super::Arena::new(&mut points);
+
+        alloc_tests::can_alloc_free_single::<Point>(&mut mem);
+    }
+
+    #[test]
     fn can_alloc_memory() {
         const ITEMS: usize = 20;
         let mut points = [Point { x: 0, y: 0 }; ITEMS];
         let mut mem = super::Arena::new(&mut points);
 
-        for i in 0..ITEMS {
-            assert!(mem.alloc_one().is_some(), "failed to alloc {i}");
-        }
-        assert!(mem.alloc_one().is_none());
+        alloc_tests::can_alloc_free_count::<Point>(&mut mem, ITEMS);
     }
 
     #[test]
@@ -232,16 +271,13 @@ mod tests {
         const ITEMS: usize = 200;
         let mut pages = Vec::with_capacity(ITEMS);
         for _ in 0..ITEMS {
-            let page: Page = [0; 4096];
+            let page: Page = Page([0; 4096]);
             pages.push(page);
         }
         assert!(pages.len() == pages.capacity());
         let len = pages.len();
         let mut mem = super::Arena::new(&mut pages[0..len]);
-        for i in 0..ITEMS {
-            assert!(mem.alloc_one().is_some(), "could not alloc {i}");
-        }
-        assert!(mem.alloc_one().is_none());
+        alloc_tests::can_alloc_free_count::<Page>(&mut mem, ITEMS);
     }
 
     #[test]
@@ -250,13 +286,13 @@ mod tests {
         const ITEMS: usize = 200;
         let mut pages = Vec::with_capacity(ITEMS);
         for _ in 0..ITEMS {
-            let page: Page = [0; 4096];
+            let page: Page = Page([0; 4096]);
             pages.push(page);
         }
         assert!(pages.len() == pages.capacity());
         let len = pages.len();
         let mut mem = super::Arena::new(&mut pages[0..len]);
-        assert!(mem.alloc_many_raw(20).is_some());
+        assert!(unsafe { !mem.alloc_many(20).is_null() });
     }
 
     #[test]
@@ -265,151 +301,10 @@ mod tests {
         let mut points = [Point { x: 0, y: 0 }; ITEMS];
         let mut mem = super::Arena::new(&mut points);
 
-        let mut alloc_points = [None; ITEMS];
+        let mut items = Vec::new();
         for i in 0..ITEMS {
-            alloc_points[i] = Some({
-                let point_raw = mem.alloc_one_raw().unwrap();
-                unsafe {
-                    *(*point_raw).as_mut_ptr() = Point { x: i, y: i };
-                }
-                point_raw
-            });
+            items.push(Point { x: i, y: i });
         }
-        let alloc_points: [Option<*mut Point>; ITEMS] =
-            unsafe { core::mem::transmute(alloc_points) };
-
-        for i in 0..ITEMS {
-            assert!(alloc_points[i].is_some());
-
-            unsafe {
-                assert_eq!((*alloc_points[i].unwrap()).x, i);
-                assert_eq!((*alloc_points[i].unwrap()).y, i);
-            }
-        }
-    }
-
-    #[test]
-    fn can_free_one() {
-        const ITEMS: usize = 20;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
-
-        for _ in 0..ITEMS * 2 {
-            let alloc = mem.alloc_one().unwrap();
-            let init = unsafe { alloc.assume_init_mut() };
-            let ptr: *mut Point = init;
-            unsafe {
-                mem.free_one(ptr);
-            }
-        }
-    }
-
-    #[test]
-    fn can_use_allocs() {
-        const ITEMS: usize = 20;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
-        let block_uninit = mem.alloc_one().unwrap();
-        let _block = unsafe {
-            (*block_uninit.as_mut_ptr()) = Point { x: 1, y: 1 };
-            block_uninit.assume_init()
-        };
-        drop(points);
-    }
-
-    #[test]
-    fn can_alloc_memory_by_ones() {
-        const ITEMS: usize = 20;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
-
-        for i in 0..ITEMS {
-            assert!(mem.alloc_many(1).is_some(), "failed to alloc {i}");
-        }
-        assert!(mem.alloc_one().is_none());
-    }
-
-    #[test]
-    fn can_alloc_many() {
-        const BLOCKS: usize = 5;
-        const SIZE: usize = 2;
-        const ITEMS: usize = BLOCKS * SIZE;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
-        for _ in 0..BLOCKS {
-            let _ = mem.alloc_many(2).unwrap();
-        }
-        assert!(mem.alloc_one().is_none());
-    }
-
-    #[test]
-    fn alloc_many_dont_alias() {
-        unsafe {
-            const BLOCKS: usize = 5;
-            const SIZE: usize = 2;
-            const ITEMS: usize = BLOCKS * SIZE;
-            let mut points = [Point { x: 0, y: 0 }; ITEMS];
-            let mut mem = super::Arena::new(&mut points);
-
-            let mut alloced: [Option<*mut MaybeUninit<Point>>; BLOCKS] =
-                [None, None, None, None, None];
-            for i in 0..BLOCKS {
-                let tmp: *mut MaybeUninit<Point> = mem.alloc_many_raw(SIZE).unwrap();
-                let init = (*tmp).as_mut_ptr();
-                *init.add(0) = Point { x: i, y: i };
-                *init.add(1) = Point { x: i, y: i };
-                alloced[i] = Some(tmp);
-            }
-            assert!(mem.alloc_one().is_none());
-
-            for i in 0..BLOCKS {
-                let v = (*alloced[i].unwrap()).as_mut_ptr();
-                assert!(v.add(0).as_ref().unwrap().x == i);
-                assert!(v.add(0).as_ref().unwrap().y == i);
-                assert!(v.add(1).as_ref().unwrap().x == i);
-                assert!(v.add(1).as_ref().unwrap().y == i);
-            }
-        }
-    }
-
-    /*
-    // This Test *shouldn't* compile
-    #[test]
-    fn cant_leak_allocs() {
-        const ITEMS: usize = 20;
-        let mut points = [Point { x: 0, y: 0}; ITEMS];
-        let mut mem = super::Memory::new(&mut points);
-        let block = mem.alloc_one().unwrap();
-        *block = Point { x: 1, y: 1};
-        drop(points);
-        *block = Point { x: 1, y: 1};
-    }
-    */
-
-    #[test]
-    fn can_free_many() {
-        const BLOCKS: usize = 5;
-        const SIZE: usize = 2;
-        const ITEMS: usize = BLOCKS * SIZE;
-        let mut points = [Point { x: 0, y: 0 }; ITEMS];
-        let mut mem = super::Arena::new(&mut points);
-
-        let mut alloced: [Option<*mut MaybeUninit<Point>>; BLOCKS] = [None, None, None, None, None];
-        for i in 0..BLOCKS {
-            alloced[i] = mem.alloc_many_raw(SIZE);
-            assert!(alloced[i].is_some());
-        }
-        assert!(mem.alloc_one().is_none());
-
-        for i in 0..BLOCKS {
-            unsafe {
-                mem.free_many((*alloced[i].unwrap()).as_mut_ptr(), SIZE);
-            }
-        }
-
-        for i in 0..ITEMS {
-            assert!(mem.alloc_one().is_some(), "failed to alloc {i}");
-        }
-        assert!(mem.alloc_one().is_none());
+        alloc_tests::allocs_dont_alias(&mut mem, &items);
     }
 }

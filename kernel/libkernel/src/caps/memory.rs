@@ -7,6 +7,7 @@ use allocators::Arena;
 use core::mem;
 use core::mem::MaybeUninit;
 
+use allocators::ArenaAlloc;
 /// The memory capability
 ///
 /// This capability allows allocating memory for arbitrary usage.
@@ -26,13 +27,21 @@ impl Memory {
             size / PAGESIZE + 1
         };
 
-        self.allocator
-            .alloc_many_raw(num_pages)
-            .map(|ptr| ptr.cast())
+        let ptr = self.allocator.alloc_many(num_pages);
+        if ptr.is_null() {
+            None
+        } else {
+            Some(ptr.cast())
+        }
     }
 
     pub unsafe fn alloc_pages_raw(&mut self, pages: usize) -> Option<*mut MaybeUninit<MemoryPage>> {
-        self.allocator.alloc_many_raw(pages)
+        let ptr = self.allocator.alloc_many(pages);
+        if ptr.is_null() {
+            None
+        } else {
+            Some(ptr.cast())
+        }
     }
 
     pub unsafe fn derive_cspace(&mut self) -> Result<*mut CSpace, ()> {

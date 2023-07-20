@@ -14,7 +14,7 @@ mod virtmem;
 
 use crate::caps::CSlot;
 
-use allocators::Arena;
+use allocators::{Arena, ArenaAlloc};
 use core::panic::PanicInfo;
 use core::slice;
 use fdt_rs::base::DevTree;
@@ -155,14 +155,14 @@ fn init_alloc(
 }
 
 fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
-    let trap_handler_stack: *mut MemoryPage = allocator.alloc_many_raw(10).unwrap().cast();
+    let trap_handler_stack: *mut MemoryPage = unsafe { allocator.alloc_many(10).cast() };
     let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
     log::debug!("trap_stack: {stack_start:p}");
     return stack_start;
 }
 
 fn init_kernel_trap_handler(allocator: &mut Arena<'static, MemoryPage>, trap_stack_start: *mut ()) {
-    let trap_frame: *mut TrapFrame = allocator.alloc_one_raw().unwrap().cast();
+    let trap_frame: *mut TrapFrame = unsafe { allocator.alloc_one().cast() };
     unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
     unsafe {
         SScratch::write(trap_frame as usize);

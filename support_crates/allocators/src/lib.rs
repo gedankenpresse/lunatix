@@ -9,5 +9,6 @@ mod custom_box;
 mod traits;
 
 pub use arena_allocator::Arena;
+pub use arena_allocator::ArenaAlloc;
 pub use custom_box::Box;
-pub use traits::{AllocError, AllocInit, Allocator};
+pub use traits::{AllocError, AllocInit, Allocator, MutGlobalAlloc};

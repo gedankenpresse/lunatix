@@ -2,7 +2,7 @@ use core::cell::RefCell;
 
 use crate::caps::errors::*;
 use crate::caps::{self, CapabilityInterface, Variant};
-use allocators::Arena;
+use allocators::{Arena, ArenaAlloc};
 use libkernel::mem::MemoryPage;
 
 /// A capability to physical memory.
@@ -17,7 +17,10 @@ pub struct Memory {
 
 impl Memory {
     pub fn create_init(mut alloc: Arena<'static, MemoryPage>) -> Self {
-        let state: *mut RefCell<Arena<MemoryPage>> = alloc.alloc_one_raw().unwrap().cast();
+        let state: *mut RefCell<Arena<MemoryPage>> = unsafe { alloc.alloc_one().cast() };
+        if state.is_null() {
+            panic!("could not alloc state");
+        }
         unsafe {
             (*state) = RefCell::new(alloc);
         }
@@ -49,7 +52,11 @@ impl Memory {
     }
 
     pub fn alloc_pages_raw(&mut self, pages: usize) -> Result<*mut MemoryPage, NoMem> {
-        let alloc = self.get_inner_mut().alloc_many_raw(pages).ok_or(NoMem)?;
+        let alloc = unsafe { self.get_inner_mut().alloc_many(pages) };
+        if alloc.is_null() {
+            return Err(NoMem);
+        }
+
         // TODO: Make this more safe. We only initialize this page later so just assuming that it is now initialized is clearly unsafe
         Ok(unsafe { core::mem::transmute(alloc) })
     }

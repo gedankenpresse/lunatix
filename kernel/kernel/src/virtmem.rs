@@ -1,4 +1,4 @@
-use allocators::Arena;
+use allocators::{Arena, ArenaAlloc};
 use core::mem::MaybeUninit;
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
@@ -80,10 +80,10 @@ pub fn map(
         assert!(!entry.is_valid());
 
         // Allocate a page
-        let page = alloc
-            .alloc_one_raw()
-            .expect("could not allocate page")
-            .cast::<MaybeUninit<MemoryPage>>();
+        let page = unsafe { alloc.alloc_one().cast::<MaybeUninit<MemoryPage>>() };
+        if page.is_null() {
+            panic!("could not allocate page");
+        }
         let page = PageTable::init(page);
 
         unsafe {
@@ -150,10 +150,10 @@ pub fn map_range_alloc(
     while unsafe { (ptr.add(offset) as usize) < (virt_base + size) } {
         let addr = unsafe { ptr.add(offset) } as usize;
         log::debug!("mapping page {:x}", addr);
-        let page_addr = alloc
-            .alloc_one_raw()
-            .expect("Could not alloc page")
-            .cast::<MemoryPage>();
+        let page_addr = unsafe { alloc.alloc_one().cast::<MemoryPage>() };
+        if page_addr.is_null() {
+            panic!("Could not alloc page");
+        }
 
         map(
             alloc,
