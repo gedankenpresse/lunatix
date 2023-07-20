@@ -8,4 +8,4 @@ runner = "./run_kernel.sh target/riscv64imac-unknown-none-elf/release/kernel_loa
 target = "riscv64imac-unknown-none-elf"
 
 [unstable]
-build-std = ["core", "compiler_builtins", "alloc"]
+# build-std = ["core", "compiler_builtins", "alloc"]

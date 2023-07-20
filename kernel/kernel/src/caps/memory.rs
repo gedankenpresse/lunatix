@@ -97,7 +97,7 @@ impl Memory {
 
                 return Ok(0);
             }
-            _ => Err(caps::Error::InvalidOp),
+            _ => Err(caps::Error::Unsupported),
         }
     }
 }
@@ -107,7 +107,7 @@ pub struct MemoryIface;
 
 impl CapabilityInterface for MemoryIface {
     fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
-        todo!()
+        Err(Error::Unsupported)
     }
 
     fn init_sz(

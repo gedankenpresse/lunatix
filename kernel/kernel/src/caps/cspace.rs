@@ -65,7 +65,7 @@ impl CapabilityInterface for CSpaceIface {
         return Ok(cspace.into());
     }
     fn init(&self, slot: &CSlot, mem: &mut caps::Memory) -> Result<Capability, Error> {
-        return Err(Error::InvalidOp);
+        return Err(Error::Unsupported);
     }
 
     fn destroy(&self, slot: &CSlot) {

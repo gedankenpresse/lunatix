@@ -225,10 +225,10 @@ mod errors {
         NoMem = 2,
         OccupiedSlot = 3,
         InvalidCap = 4,
-        InvalidOp = 5,
         InvalidArg = 6,
         AliasingCSlot = 7,
         InvalidReturn = 8,
+        Unsupported = 9,
     }
 
     /// macro to implement From Instances from Singletons to Error

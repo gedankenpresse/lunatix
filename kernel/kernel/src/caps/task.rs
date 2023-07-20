@@ -50,7 +50,7 @@ impl CapabilityInterface for TaskIface {
         mem: &mut Memory,
         size: usize,
     ) -> Result<caps::Capability, Error> {
-        return Err(Error::InvalidOp);
+        return Err(Error::Unsupported);
     }
 
     fn destroy(&self, slot: &caps::CSlot) {

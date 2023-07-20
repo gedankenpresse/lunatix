@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use core::f32::consts::E;
 use core::marker::PhantomPinned;
 use core::pin::Pin;
 
@@ -108,6 +109,11 @@ impl<T> Cursor<T> {
 
 impl<T> Drop for Link<T> {
     fn drop(&mut self) {
+        #[cfg(test)]
+        {
+            extern crate std;
+            std::println!("dropping: {:p}", self);
+        }
         inner_drop(unsafe { Pin::new_unchecked(self) });
         fn inner_drop<T>(this: Pin<&mut Link<T>>) {
             this.as_ref().unlink();
@@ -148,9 +154,19 @@ impl<T> Link<T> {
             let prev = (*this).prev.get();
             let next = (*this).next.get();
             if !prev.is_null() {
+                #[cfg(test)]
+                {
+                    extern crate std;
+                    std::println!("unlinking from: {:p}", prev);
+                }
                 (*prev).next.set(next);
             }
             if !next.is_null() {
+                #[cfg(test)]
+                {
+                    extern crate std;
+                    std::println!("unlinking from: {:p}", next);
+                }
                 (*next).prev.set(prev);
             }
             (*this).prev.set(core::ptr::null_mut());
@@ -193,15 +209,17 @@ impl<T> Link<T> {
 
 #[macro_export]
 macro_rules! link {
-    ($v:expr) => {
-        core::pin::pin!($crate::intrusive::linked_list::Link::new($v))
-    };
+    ($v:expr) => {{
+        let mut v = $crate::intrusive::linked_list::Link::new($v);
+        core::pin::pin!(v)
+    }};
 }
 
 #[cfg(test)]
 mod tests {
     use core::pin::Pin;
 
+    extern crate std;
     use super::CursorSet;
 
     #[test]
@@ -217,10 +235,14 @@ mod tests {
 
     #[test]
     fn can_create_links() {
-        let linka = link!(1);
-        let mut linkb = link!(2);
-        linka.as_ref().link_before(linkb.as_mut());
+        let mut linkb = link!(1);
+        let mut linka = link!(2);
+        linka.as_ref().link_after(linkb.as_mut());
+        std::println!("drop a");
         drop(linka);
+        assert!(linkb.prev.get().is_null());
+        assert!(linkb.next.get().is_null());
+        std::println!("drop b");
         drop(linkb);
     }
 }
