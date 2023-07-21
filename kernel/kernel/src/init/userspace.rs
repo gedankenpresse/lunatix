@@ -16,7 +16,7 @@ use libkernel::mem::{EntryFlags, MemoryPage};
 
 static INIT_BIN: &[u8] = include_aligned!(
     Align16,
-    "../../../target/riscv64imac-unknown-none-elf/release/init"
+    "../../../../target/riscv64imac-unknown-none-elf/release/init"
 );
 
 struct StackLoader<'v, 'm> {
