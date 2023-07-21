@@ -1,7 +1,7 @@
 //! A logging implementation which uses an OpenSBI syscall to print characters
-
-use core::fmt;
 use core::fmt::Write;
+
+use crate::print::KernelWriter;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
 pub struct KernelLogger {
@@ -18,20 +18,6 @@ impl KernelLogger {
     }
 }
 
-/// Dummy struct that makes converting [`fmt::Arguments`] easier to convert to strings
-/// by offloading that to the [`Write`] trait.
-struct SbiWriter {}
-
-impl Write for SbiWriter {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        // call into sbi firmware to write a each character to its output console
-        for &char in s.as_bytes() {
-            sbi::legacy::console_putchar(char);
-        }
-        Ok(())
-    }
-}
-
 impl Log for KernelLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= self.max_log_level
@@ -39,7 +25,7 @@ impl Log for KernelLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            SbiWriter {}
+            KernelWriter {}
                 .write_fmt(format_args!(
                     "{} - {}: {}\n",
                     record.level(),

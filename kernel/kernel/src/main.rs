@@ -22,9 +22,9 @@ use ksync::SpinLock;
 use libkernel::arch::cpu;
 use libkernel::arch::cpu::{InterruptBits, SScratch, SStatus, SStatusFlags, Satp, SatpMode};
 use libkernel::arch::trap::{enable_interrupts, trap_frame_restore, TrapFrame};
+use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{MemoryPage, PageTable, PAGESIZE, VIRT_MEM_KERNEL_START};
-use libkernel::sbi_log::KernelLogger;
 use libkernel::{arch, println};
 use log::Level;
 

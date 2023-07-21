@@ -2,5 +2,6 @@
     "rust.target": "riscv64imac-unknown-none-elf",
     "rust.all_targets": false,
     "rust-analyzer.cargo.target": "riscv64imac-unknown-none-elf",
-    "rust-analyzer.checkOnSave.allTargets": false
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.showUnlinkedFileNotification": false
 }
