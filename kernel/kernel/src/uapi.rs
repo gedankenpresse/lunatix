@@ -50,7 +50,7 @@ fn destroy(cspace: &caps::CSpace, cap: usize) -> ipc::IpcResult {
 
 #[inline(always)]
 pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
-    let args = &mut tf.general_purpose_regs[10..=17];
+    let args = tf.get_ipc_args();
     let res = match args[0] {
         SYS_DEBUG_LOG => {
             let bytes = args[1];
@@ -87,7 +87,6 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
 
     // write result back to userspace
     let (a0, a1) = ipc::result_to_raw(res);
-    tf.general_purpose_regs[10] = a0;
-    tf.general_purpose_regs[11] = a1;
+    tf.write_syscall_result(a0, a1);
     return tf;
 }

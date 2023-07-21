@@ -1,6 +1,5 @@
 use allocators::{Arena, ArenaAlloc};
 use core::mem::MaybeUninit;
-use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
@@ -166,25 +165,6 @@ pub fn map_range_alloc(
         );
 
         offset += 1;
-    }
-}
-
-pub unsafe fn use_pagetable(root: PhysMutPtr<PageTable>) {
-    // enable MXR (make Executable readable) bit
-    // enable SUM (premit Supervisor User Memory access) bit
-    unsafe {
-        SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM);
-    }
-
-    log::debug!("enabling new pagetable {:p}", root);
-
-    // Setup Root Page table in satp register
-    unsafe {
-        Satp::write(SatpData {
-            mode: SatpMode::Sv39,
-            asid: 0,
-            ppn: root.raw() as u64 >> 12,
-        });
     }
 }
 

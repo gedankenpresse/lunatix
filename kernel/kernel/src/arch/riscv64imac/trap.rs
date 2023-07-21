@@ -7,7 +7,7 @@ use libkernel::arch::trap::TrapFrame;
 use libkernel::println;
 
 #[no_mangle]
-fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
+pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     let last_trap = tf.last_trap.as_ref().unwrap();
 
     match last_trap.cause {

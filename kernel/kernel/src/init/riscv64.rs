@@ -2,9 +2,9 @@ use allocators::{Arena, ArenaAlloc};
 use libkernel::arch::cpu;
 use libkernel::arch::trap::{trap_frame_restore, TrapFrame};
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
-use libkernel::mem::{MemoryPage, PageTable, PAGESIZE};
+use libkernel::mem::{MemoryPage, PageTable};
 
-use crate::{caps, virtmem, INIT_CAPS};
+use crate::{caps, mmu, virtmem, INIT_CAPS};
 
 pub(crate) fn init_kernel_pagetable() -> &'static mut PageTable {
     // clean up userspace mapping from kernel loader
@@ -23,26 +23,6 @@ pub(crate) fn init_kernel_pagetable() -> &'static mut PageTable {
         core::arch::asm!("sfence.vma");
     }
     root_pt
-}
-
-pub(crate) fn init_alloc(
-    phys_mem_start: PhysMutPtr<u8>,
-    phys_mem_end: PhysMutPtr<u8>,
-) -> Arena<'static, MemoryPage> {
-    log::debug!("start: {phys_mem_start:?}, end: {phys_mem_end:?}");
-    let virt_start = phys_mem_start.as_mapped().raw();
-    let virt_end = phys_mem_end.as_mapped().raw();
-    log::debug!("virt_start: {virt_start:p} virt_end: {virt_end:p}");
-    let mem_slice: &mut [MemoryPage] = unsafe {
-        core::slice::from_raw_parts_mut(
-            virt_start.cast::<MemoryPage>(),
-            (virt_end as usize - virt_start as usize) / PAGESIZE,
-        )
-    };
-
-    log::debug!("Init Kernel Allocator");
-    let allocator = Arena::new(mem_slice);
-    return allocator;
 }
 
 pub(crate) fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
@@ -76,7 +56,7 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CSlot) -> 
     let root_pt = state.vspace.get_vspace_mut().unwrap().root;
     log::debug!("enabling task pagetable");
     unsafe {
-        virtmem::use_pagetable(MappedMutPtr::from(root_pt).as_direct());
+        mmu::use_pagetable(MappedMutPtr::from(root_pt).as_direct());
     }
     log::debug!("restoring trap frame");
     trap_frame_restore(trap_frame as *mut TrapFrame);

@@ -8,9 +8,19 @@ mod caps;
 mod init;
 mod ipc;
 mod sched;
-mod trap;
 mod uapi;
 mod virtmem;
+
+#[cfg(target_arch = "riscv64")]
+#[path = "arch/riscv64imac/mod.rs"]
+mod arch_specific;
+
+#[cfg(target_arch = "x86_64")]
+#[path = "arch/x86_64/mod.rs"]
+mod arch_specific;
+
+pub use arch_specific::mmu;
+pub use arch_specific::trap;
 
 use crate::caps::CSlot;
 
@@ -20,7 +30,7 @@ use ksync::SpinLock;
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
-use libkernel::mem::{PageTable, VIRT_MEM_KERNEL_START};
+use libkernel::mem::PageTable;
 use libkernel::println;
 use log::Level;
 
@@ -109,6 +119,7 @@ extern "C" fn kernel_main(
 #[cfg(target_arch = "riscv64")]
 fn assert_start_expectations() {
     use arch::cpu::*;
+    use libkernel::mem::VIRT_MEM_KERNEL_START;
     // check address translation
     assert_eq!(
         Satp::read().mode,

@@ -13,8 +13,8 @@ fn main() {
     let _name = env::var("CARGO_PKG_NAME").unwrap();
     println!("cargo:rerun-if-changed=build.rs");
 
-    let arch_dir = PathBuf::from("src/arch/riscv64imac/");
-    let link_dir = arch_dir.join("link");
+    // let arch_dir = PathBuf::from("src/arch/riscv64imac/");
+    let link_dir = PathBuf::from("src/arch/link");
 
     // Put the linker scripts somewhere the linker can find it
     println!("cargo:rustc-link-search={}", out_dir.display());

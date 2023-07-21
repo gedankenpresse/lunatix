@@ -51,6 +51,23 @@ impl TrapFrame {
             last_trap: None,
         }
     }
+
+    pub fn set_stack_start(&mut self, stack_start: usize) {
+        self.general_purpose_regs[2] = stack_start as usize;
+    }
+
+    pub fn set_entry_point(&mut self, entry_point: usize) {
+        self.start_pc = entry_point;
+    }
+
+    pub fn get_ipc_args(&mut self) -> &mut [usize] {
+        return &mut self.general_purpose_regs[10..=17];
+    }
+
+    pub fn write_syscall_result(&mut self, a0: usize, a1: usize) {
+        self.general_purpose_regs[10] = a0;
+        self.general_purpose_regs[11] = a1;
+    }
 }
 
 /// Context information about the last triggered trap of a [`TrapFrame`]
