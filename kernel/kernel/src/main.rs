@@ -58,11 +58,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
     println!("!!! Kernel Panic !!!\n  {}", info);
 
     // shutdown the device
-    use sbi::system_reset::*;
-    match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
-        Ok(_) => {}
-        Err(e) => println!("Shutdown error: {}", e),
-    };
     arch::shutdown()
 }
 
@@ -80,9 +75,6 @@ extern "C" fn _start(
     let fdt_addr = phys_fdt.as_mapped();
 
     kernel_main(0, 0, fdt_addr.into(), phys_mem_start, phys_mem_end);
-
-    use sbi::system_reset::*;
-    system_reset(ResetType::Shutdown, ResetReason::NoReason).unwrap();
     arch::shutdown();
 }
 

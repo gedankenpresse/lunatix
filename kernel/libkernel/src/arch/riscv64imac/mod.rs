@@ -1,3 +1,5 @@
+use crate::println;
+
 pub mod asm_utils;
 pub mod cpu;
 pub mod timers;
@@ -57,5 +59,27 @@ pub unsafe extern "C" fn _start_rust(
 }
 
 pub fn shutdown() -> ! {
-    unsafe { asm_utils::wfi_spin() }
+    use sbi::system_reset::*;
+    match system_reset(ResetType::Shutdown, ResetReason::NoReason) {
+        Ok(_) => {}
+        Err(e) => println!("shutdown error: {}", e),
+    };
+    sbi::legacy::shutdown();
+    #[allow(unreachable_code)]
+    unsafe {
+        asm_utils::wfi_spin()
+    }
+}
+
+pub fn abort() -> ! {
+    use sbi::system_reset::*;
+    match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
+        Ok(_) => {}
+        Err(e) => println!("abort error: {}", e),
+    };
+    sbi::legacy::shutdown();
+    #[allow(unreachable_code)]
+    unsafe {
+        asm_utils::wfi_spin()
+    }
 }
