@@ -1,32 +1,9 @@
 #![no_std]
 #![no_main]
-// TODO: remove dead code
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
-mod caps;
-mod init;
-mod ipc;
-mod sched;
-mod uapi;
-mod virtmem;
-
-#[cfg(target_arch = "riscv64")]
-#[path = "arch/riscv64imac/mod.rs"]
-mod arch_specific;
-
-#[cfg(target_arch = "x86_64")]
-#[path = "arch/x86_64/mod.rs"]
-mod arch_specific;
-
-pub use arch_specific::mmu;
-pub use arch_specific::trap;
-
-use crate::caps::CSlot;
 
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
-use ksync::SpinLock;
+use kernel::KERNEL_ROOT_PT;
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
@@ -34,29 +11,7 @@ use libkernel::mem::PageTable;
 use libkernel::println;
 use log::Level;
 
-pub struct InitCaps {
-    mem: CSlot,
-    init_task: CSlot,
-}
-
-impl InitCaps {
-    const fn empty() -> Self {
-        Self {
-            mem: CSlot::empty(),
-            init_task: CSlot::empty(),
-        }
-    }
-}
-
 static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
-
-/// TODO: fix this somehow
-/// CSlot isn't send because raw pointers... meh
-unsafe impl Send for InitCaps {}
-
-pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
-
-pub static mut KERNEL_ROOT_PT: PhysConstPtr<PageTable> = PhysConstPtr::null();
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -91,7 +46,7 @@ extern "C" fn kernel_main(
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) {
-    use init::*;
+    use kernel::init::*;
 
     // parse device tree from bootloader
     let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
@@ -105,7 +60,7 @@ extern "C" fn kernel_main(
     init_kernel_trap_handler(&mut allocator, trap_stack);
 
     log::debug!("creating init caps");
-    init::create_init_caps(allocator);
+    create_init_caps(allocator);
 
     log::debug!("enabling interrupts");
     //arch::timers::set_next_timer(0).unwrap();

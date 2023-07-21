@@ -6,7 +6,7 @@ use libkernel::mem::{MemoryPage, PageTable};
 
 use crate::{caps, mmu, virtmem, INIT_CAPS};
 
-pub(crate) fn init_kernel_pagetable() -> &'static mut PageTable {
+pub fn init_kernel_pagetable() -> &'static mut PageTable {
     // clean up userspace mapping from kernel loader
     log::debug!("Cleaning up userspace mapping from kernel loader");
     let root_pagetable_phys = (cpu::Satp::read().ppn << 12) as *mut PageTable;
@@ -25,14 +25,14 @@ pub(crate) fn init_kernel_pagetable() -> &'static mut PageTable {
     root_pt
 }
 
-pub(crate) fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
+pub fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
     let trap_handler_stack: *mut MemoryPage = unsafe { allocator.alloc_many(10).cast() };
     let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
     log::debug!("trap_stack: {stack_start:p}");
     return stack_start;
 }
 
-pub(crate) fn init_kernel_trap_handler(
+pub fn init_kernel_trap_handler(
     allocator: &mut Arena<'static, MemoryPage>,
     trap_stack_start: *mut (),
 ) {
@@ -62,7 +62,7 @@ unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CSlot) -> 
     trap_frame_restore(trap_frame as *mut TrapFrame);
 }
 
-pub(crate) fn run_init(trap_stack: *mut ()) {
+pub fn run_init(trap_stack: *mut ()) {
     unsafe {
         set_return_to_user();
         let mut guard = INIT_CAPS.try_lock().unwrap();

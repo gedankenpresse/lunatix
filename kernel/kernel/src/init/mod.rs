@@ -8,13 +8,13 @@ use allocators::Arena;
 use libkernel::mem::{ptrs::PhysMutPtr, MemoryPage, PAGESIZE};
 
 #[cfg(target_arch = "riscv64")]
-pub(crate) use riscv64::*;
+pub use riscv64::*;
 #[cfg(target_arch = "x86_64")]
-pub(crate) use x86_64::*;
+pub use x86_64::*;
 
-pub(crate) use userspace::*;
+pub use userspace::create_init_caps;
 
-pub(crate) fn init_alloc(
+pub fn init_alloc(
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) -> Arena<'static, MemoryPage> {
