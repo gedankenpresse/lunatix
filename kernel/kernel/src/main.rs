@@ -1,7 +1,11 @@
 #![no_std]
 #![no_main]
+#![cfg_attr(test, feature(custom_test_frameworks))]
+#![cfg_attr(test, test_runner(test_runner))]
+#![cfg_attr(test, reexport_test_harness_main = "test_main")]
 
 use core::panic::PanicInfo;
+
 use fdt_rs::base::DevTree;
 use kernel::KERNEL_ROOT_PT;
 use libkernel::arch;
@@ -22,6 +26,14 @@ fn panic_handler(info: &PanicInfo) -> ! {
     arch::shutdown()
 }
 
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
+}
+
 #[no_mangle]
 extern "C" fn _start(
     _argc: u32,
@@ -35,6 +47,9 @@ extern "C" fn _start(
 
     let fdt_addr = phys_fdt.as_mapped();
 
+    #[cfg(test)]
+    test_main();
+    #[cfg(not(test))]
     kernel_main(0, 0, fdt_addr.into(), phys_mem_start, phys_mem_end);
     arch::shutdown();
 }
