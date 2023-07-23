@@ -1,7 +1,7 @@
 use allocators::AllocInit;
 use allocators::{bump_allocator::BumpAllocator, Box};
 use core::alloc::Layout;
-use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
+use riscv::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use riscv::pt::{EntryFlags, MemoryPage, PageTable, PAGESIZE};
 use riscv::PhysMapper;
 

@@ -1,15 +1,15 @@
-use std::fs;
 use std::path::PathBuf;
+use std::{env, fs};
 
 extern crate cc;
 
 fn main() {
+    let out_dir = env::var("OUT_DIR").unwrap();
+
     println!("cargo:rerun-if-changed=build.rs");
 
-    let arch_dir = PathBuf::from("src/arch/riscv64imac/");
+    let asm_dir = PathBuf::from("src/asm/");
 
-    // compile raw assembly files
-    let asm_dir = arch_dir.join("asm");
     for file in fs::read_dir(asm_dir).unwrap() {
         let file = file.unwrap();
         let file_name = file.file_name().into_string().unwrap();
@@ -22,5 +22,7 @@ fn main() {
             .compiler("riscv64-elf-gcc")
             .target("riscv64imac")
             .compile(name);
+
+        println!("cargo:rustc-link-search=native={}", out_dir);
     }
 }

@@ -1,8 +1,8 @@
 use allocators::{Arena, ArenaAlloc};
-use libkernel::arch::cpu;
-use libkernel::arch::trap::{trap_frame_restore, TrapFrame};
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
+use riscv::cpu;
 use riscv::pt::{MemoryPage, PageTable};
+use riscv::trap::{trap_frame_restore, TrapFrame};
 
 use crate::{caps, mmu, virtmem, INIT_CAPS};
 

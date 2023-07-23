@@ -1,8 +1,8 @@
-use crate::arch::trap::TrapFrame;
 use crate::caps::cspace::CSpace;
 use crate::caps::CapHolder;
 use core::mem::MaybeUninit;
 use core::ptr;
+use riscv::trap::TrapFrame;
 
 pub struct Task {
     pub frame: TrapFrame,

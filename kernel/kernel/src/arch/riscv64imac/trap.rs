@@ -1,10 +1,10 @@
 use crate::uapi;
 use crate::{InitCaps, INIT_CAPS};
 use core::ops::DerefMut;
-use libkernel::arch::cpu::{Exception, Interrupt, TrapEvent};
-use libkernel::arch::timers::set_next_timer;
-use libkernel::arch::trap::TrapFrame;
 use libkernel::println;
+use riscv::cpu::{Exception, Interrupt, TrapEvent};
+use riscv::timer::set_next_timer;
+use riscv::trap::TrapFrame;
 
 #[no_mangle]
 pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {

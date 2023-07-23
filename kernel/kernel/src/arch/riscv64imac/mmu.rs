@@ -1,5 +1,5 @@
-use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::ptrs::PhysMutPtr;
+use riscv::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use riscv::pt::PageTable;
 
 pub unsafe fn use_pagetable(root: PhysMutPtr<PageTable>) {

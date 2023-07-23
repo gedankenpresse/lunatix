@@ -2,8 +2,8 @@ use crate::caps;
 use crate::ipc;
 use crate::sched;
 
-use libkernel::arch::trap::TrapFrame;
 use libkernel::print;
+use riscv::trap::TrapFrame;
 
 const SYS_DEBUG_LOG: usize = 0;
 const SYS_DEBUG_PUTC: usize = 1;

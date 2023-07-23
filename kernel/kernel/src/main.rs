@@ -64,7 +64,7 @@ extern "C" fn kernel_main(
 
     log::debug!("enabling interrupts");
     //arch::timers::set_next_timer(0).unwrap();
-    arch::trap::enable_interrupts();
+    riscv::trap::enable_interrupts();
 
     log::debug!("switching to userspace");
     run_init(trap_stack);
@@ -73,8 +73,8 @@ extern "C" fn kernel_main(
 /// Assert that all environment conditions under which the kernel expects to be started are met
 #[cfg(target_arch = "riscv64")]
 fn assert_start_expectations() {
-    use arch::cpu::*;
     use libkernel::mem::VIRT_MEM_KERNEL_START;
+    use riscv::cpu::*;
     // check address translation
     assert_eq!(
         Satp::read().mode,

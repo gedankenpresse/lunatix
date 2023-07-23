@@ -1,7 +1,7 @@
 use crate::caps;
 use core::ptr;
-use libkernel::arch::trap::TrapFrame;
 use libkernel::mem::PAGESIZE;
+use riscv::trap::TrapFrame;
 
 use super::{CapabilityInterface, Error, Memory};
 

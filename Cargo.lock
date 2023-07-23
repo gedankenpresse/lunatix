@@ -305,7 +305,9 @@ name = "riscv"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.3.3",
+ "cc",
  "log",
+ "sbi",
  "static_assertions",
 ]
 

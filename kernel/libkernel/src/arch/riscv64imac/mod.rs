@@ -1,20 +1,5 @@
-use crate::println;
-
-pub mod asm_utils;
-pub mod cpu;
-pub mod timers;
-pub mod trap;
-
-extern crate r0;
-extern crate rlibc;
-
-// pub mod clint;
-// pub mod critical;
-// pub mod plic;
-// pub mod sbi;
-// pub mod timer;
-// pub mod trap;
-// pub mod wrapper;
+pub use riscv::abort;
+pub use riscv::shutdown;
 
 extern "C" {
     static mut _ebss: u64;
@@ -55,31 +40,5 @@ pub unsafe extern "C" fn _start_rust(
     //kernel_main(hartid, 0, dtb);
     kernel_main_elf(argc, argv, phys_fdt, phys_mem_start, phys_mem_end);
 
-    shutdown();
-}
-
-pub fn shutdown() -> ! {
-    use sbi::system_reset::*;
-    match system_reset(ResetType::Shutdown, ResetReason::NoReason) {
-        Ok(_) => {}
-        Err(e) => println!("shutdown error: {}", e),
-    };
-    sbi::legacy::shutdown();
-    #[allow(unreachable_code)]
-    unsafe {
-        asm_utils::wfi_spin()
-    }
-}
-
-pub fn abort() -> ! {
-    use sbi::system_reset::*;
-    match system_reset(ResetType::Shutdown, ResetReason::SystemFailure) {
-        Ok(_) => {}
-        Err(e) => println!("abort error: {}", e),
-    };
-    sbi::legacy::shutdown();
-    #[allow(unreachable_code)]
-    unsafe {
-        asm_utils::wfi_spin()
-    }
+    riscv::shutdown();
 }
