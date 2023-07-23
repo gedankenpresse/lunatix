@@ -93,7 +93,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Sized> Box<'alloc, 'mem, A, T> {
     pub fn new_zeroed(
         allocator: &'alloc A,
     ) -> Result<Box<'alloc, 'mem, A, MaybeUninit<T>>, AllocError> {
-        Self::new_raw(allocator, Layout::new::<T>(), AllocInit::Zeroed)
+        Box::new_raw(allocator, Layout::new::<T>(), AllocInit::Zeroed)
     }
 
     fn new_raw(

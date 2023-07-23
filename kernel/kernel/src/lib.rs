@@ -23,7 +23,7 @@ pub use arch_specific::trap;
 use caps::CSlot;
 use ksync::SpinLock;
 use libkernel::mem::ptrs::PhysConstPtr;
-use libkernel::mem::PageTable;
+use riscv::pt::PageTable;
 
 pub struct InitCaps {
     mem: CSlot,

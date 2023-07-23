@@ -1,6 +1,6 @@
 use libkernel::arch::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use libkernel::mem::ptrs::PhysMutPtr;
-use libkernel::mem::PageTable;
+use riscv::pt::PageTable;
 
 pub unsafe fn use_pagetable(root: PhysMutPtr<PageTable>) {
     // enable MXR (make Executable readable) bit

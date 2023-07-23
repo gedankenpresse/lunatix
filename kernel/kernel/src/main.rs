@@ -7,9 +7,9 @@ use kernel::KERNEL_ROOT_PT;
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
-use libkernel::mem::PageTable;
 use libkernel::println;
 use log::Level;
+use riscv::pt::PageTable;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
 

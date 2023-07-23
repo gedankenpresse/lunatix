@@ -31,12 +31,14 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
-mod page_table;
-mod page_table_entry;
+mod pt;
 pub mod ptrs;
 
-pub use page_table::PageTable;
-pub use page_table_entry::{EntryFlags, PageTableEntry};
+#[cfg(target_arch = "riscv64")]
+use riscv;
+
+pub use pt::PageTable;
+pub use pt::{EntryFlags, PageTableEntry};
 
 /// The virtual memory address at which userspace tasks are mapped
 ///
@@ -74,5 +76,4 @@ pub const VIRT_MEM_KERNEL_END: usize = 0xFFFFFFFFFFFFFFFF;
 pub const PAGESIZE: usize = 4096;
 
 /// Type definition for a slice of bytes that is exactly one page large
-#[repr(C, align(4096))]
-pub struct MemoryPage([u8; PAGESIZE]);
+pub use riscv::pt::MemoryPage;

@@ -16,6 +16,7 @@ sbi = "0.2.0"
 bitflags = "2.2.1"
 #kernel = { path = "../kernel", artifact = "bin" }  # only works with nightly cargo
 fdt-rs = { version = "0.4.3", default-features = false }
+riscv = { version = "0.1.0", path = "../riscv" }
 
 [build-dependencies]
 cc = "1.0.79"

@@ -2,7 +2,7 @@ use core::mem::MaybeUninit;
 
 use crate::caps;
 use caps::errors::NoMem;
-use libkernel::mem::{EntryFlags, MemoryPage, PageTable};
+use riscv::pt::{EntryFlags, MemoryPage, PageTable};
 
 use crate::virtmem;
 

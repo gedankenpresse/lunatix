@@ -1,57 +1,28 @@
 use allocators::{Arena, ArenaAlloc};
-use core::mem::MaybeUninit;
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
-use libkernel::mem::{EntryFlags, MemoryPage, PageTable, PageTableEntry, PAGESIZE};
 
-pub trait PageTableEntryExt {
-    fn get_ptr(&self) -> *const PageTable;
+use riscv::pt;
+use riscv::pt::{EntryFlags, MemoryPage, PageTable, PAGESIZE};
+use riscv::PhysMapper;
 
-    fn get_ptr_mut(&mut self) -> *mut PageTable;
+pub struct KernelMapper;
 
-    unsafe fn set_pagetable(&mut self, ptr: *mut PageTable);
-}
-
-impl PageTableEntryExt for PageTableEntry {
-    fn get_ptr(&self) -> *const PageTable {
-        // TODO Better error handling
-        PhysConstPtr::from(self.get_addr().unwrap() as *const PageTable)
-            .as_mapped()
-            .raw()
+unsafe impl PhysMapper for KernelMapper {
+    unsafe fn phys_to_mapped_mut<T>(&self, phys: *mut T) -> *mut T {
+        PhysMutPtr::from(phys).as_mapped().raw()
     }
 
-    fn get_ptr_mut(&mut self) -> *mut PageTable {
-        // TODO Better error handling
-        PhysMutPtr::from(self.get_addr().unwrap() as *mut PageTable)
-            .as_mapped()
-            .raw()
+    unsafe fn phys_to_mapped<T>(&self, phys: *const T) -> *const T {
+        PhysConstPtr::from(phys).as_mapped().raw()
     }
 
-    unsafe fn set_pagetable(&mut self, ptr: *mut PageTable) {
-        self.set(
-            MappedMutPtr::from(ptr).as_direct().raw() as u64,
-            EntryFlags::Valid,
-        )
+    unsafe fn mapped_to_phys_mut<T>(&self, mapped: *mut T) -> *mut T {
+        MappedMutPtr::from(mapped).as_direct().raw()
     }
-}
 
-const PBITS: usize = 12; // the page offset is 12 bits long
-const PBIT_MASK: usize = (1 << PBITS) - 1;
-const PPN_BITS: usize = 56;
-const PADDR_MASK: usize = (1 << PPN_BITS) - 1;
-
-// For Sv39 and Sv48, each VPN section has 9 bits in length;
-const VPN_BITS: usize = 9;
-const VPN_MASK: usize = (1 << VPN_BITS) - 1;
-
-fn vpn_segments(vaddr: usize) -> [usize; 3] {
-    let vpn = [
-        (vaddr >> (PBITS + 0 * VPN_BITS)) & VPN_MASK,
-        (vaddr >> (PBITS + 1 * VPN_BITS)) & VPN_MASK,
-        (vaddr >> (PBITS + 2 * VPN_BITS)) & VPN_MASK,
-        // if Sv48, there is a level of page tables more
-        // (vaddr >> (12 + 3 * VPN_BITS)) & VPN_BIT_MASK,
-    ];
-    vpn
+    unsafe fn mapped_to_phys<T>(&self, mapped: *const T) -> *const T {
+        MappedConstPtr::from(mapped).as_direct().raw()
+    }
 }
 
 pub fn map(
@@ -61,79 +32,14 @@ pub fn map(
     paddr: usize,
     flags: EntryFlags,
 ) {
-    log::debug!("[map] root: {root:p} vaddr: {vaddr:#x} paddr: {paddr:#x} flags: {flags:?}");
-    // Make sure that one of Read, Write, or Execute Bits is set.
-    // Otherwise, entry is regarded as pointer to next page table level
-    assert_eq!(flags.bits() & EntryFlags::all().bits(), flags.bits());
-    assert_ne!((flags & EntryFlags::RWX), EntryFlags::empty());
-
-    // physical address should be at least page aligned and in PPN range
-    assert!(paddr & PBIT_MASK == 0);
-    assert!(paddr & !PADDR_MASK == 0);
-
-    let vpn = vpn_segments(vaddr);
-
-    // Helper to allocate intermediate page tables
-    fn alloc_missing_page(entry: &mut PageTableEntry, alloc: &mut Arena<'static, MemoryPage>) {
-        log::debug!("alloc missing: entry {entry:0p}");
-        assert!(!entry.is_valid());
-
-        // Allocate a page
-        let page = unsafe { alloc.alloc_one().cast::<MaybeUninit<MemoryPage>>() };
-        if page.is_null() {
-            panic!("could not allocate page");
-        }
-        let page = PageTable::init(page);
-
-        unsafe {
-            entry.set_pagetable(page);
-        }
-    }
-
-    let mut v = &mut root.entries[vpn[2]];
-    for level in (0..2).rev() {
-        log::debug!("{:?}", v);
-        if !v.is_valid() {
-            alloc_missing_page(v, alloc);
-        }
-        v = &mut unsafe { v.get_ptr_mut().as_mut() }.unwrap().entries[vpn[level]];
-    }
-
-    // Now we are ready to point v to our physical address
-    assert!(!v.is_valid());
-    unsafe {
-        v.set(paddr as u64, flags | EntryFlags::Valid);
+    while let Err(e) = riscv::pt::map(KernelMapper, root, vaddr, paddr, flags) {
+        let new_pt = unsafe { alloc.alloc_one().cast() };
+        riscv::pt::map_pt(KernelMapper, root, e.level, e.target_vaddr, new_pt).unwrap();
     }
 }
 
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
-    let vpn = vpn_segments(vaddr);
-    let v = &root.entries[vpn[2]];
-    if !v.is_valid() {
-        return None;
-    }
-    if v.is_leaf() {
-        panic!("hugepage encountered");
-    }
-    let pt = unsafe { v.get_ptr().as_ref().unwrap() };
-    let v = &pt.entries[vpn[1]];
-    if !v.is_valid() {
-        return None;
-    }
-    if v.is_leaf() {
-        panic!("hugepage encountered");
-    }
-    let pt = unsafe { v.get_ptr().as_ref().unwrap() };
-    let v = &pt.entries[vpn[0]];
-    if !v.is_valid() {
-        return None;
-    }
-    if !v.is_leaf() {
-        panic!("non leaf page where leaf was expected");
-    }
-
-    let address = v.get_addr().unwrap();
-    Some(address | (vaddr & PBIT_MASK))
+    pt::virt_to_phys(KernelMapper, root, vaddr)
 }
 
 pub fn map_range_alloc(
