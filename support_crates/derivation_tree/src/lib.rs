@@ -7,7 +7,9 @@ pub mod refs;
 
 #[macro_use]
 pub mod intrusive;
-mod tree_node;
+
+#[macro_use]
+pub mod tree_node;
 
 use core::cell::Cell;
 use core::cell::RefCell;

@@ -102,8 +102,12 @@ macro_rules! slot {
 #[macro_export]
 macro_rules! emplace {
     ($name:ident = $e:expr) => {
-        slot!($name);
+        $crate::slot!($name);
         let $name = $name.emplace($e);
+    };
+    (mut $name:ident = $e:expr) => {
+        $crate::slot!($name);
+        let mut $name = $name.emplace($e);
     };
 }
 

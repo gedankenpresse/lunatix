@@ -1,4 +1,3 @@
-use super::refs::SharedRef;
 use core::{cell::Cell, pin::Pin};
 
 enum OwnedCell<T> {

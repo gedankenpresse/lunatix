@@ -1,5 +1,4 @@
 use core::cell::Cell;
-use core::f32::consts::E;
 use core::marker::PhantomPinned;
 use core::pin::Pin;
 
