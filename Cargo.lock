@@ -64,6 +64,7 @@ version = "0.1.0"
 name = "derivation_tree"
 version = "0.1.0"
 dependencies = [
+ "allocators",
  "arbitrary",
  "ctors",
  "rand",

@@ -134,6 +134,14 @@ impl<T> TreeNode<T> {
         move |dest: Pin<&mut MaybeUninit<TreeNode<T>>>| Self::init(value, dest)
     }
 
+    pub fn new2(value: T) -> Self {
+        Self {
+            value,
+            links: TreeLinks::new_unlinked(),
+            _pin: PhantomPinned::default(),
+        }
+    }
+
     pub fn init(value: T, dest: Pin<&mut MaybeUninit<Self>>) {
         unsafe {
             let inner = Pin::into_inner_unchecked(dest);
@@ -178,17 +186,14 @@ pub mod test {
     extern crate std;
 
     use crate::tree_node::{TreeNode, TreeNodeOps};
-    use core::mem::MaybeUninit;
-    use core::{pin, ptr};
-    use ctors::slot;
+    use core::ptr;
+    use ctors::{emplace, slot};
 
     #[test]
     fn test_linking_two_nodes() {
         // arrange
-        slot!(node1);
-        let node1 = node1.emplace(TreeNode::new(()));
-        slot!(node2);
-        let node2 = node2.emplace(TreeNode::new(()));
+        emplace!(node1 = TreeNode::new(1));
+        emplace!(node2 = TreeNode::new(2));
 
         // act
         node1.as_ref().append_after(node2.as_ref());
@@ -203,16 +208,11 @@ pub mod test {
     #[test]
     fn test_dropping_node_after_link() {
         // arrange
-        let mut node1 = pin::pin!(MaybeUninit::uninit());
-        TreeNode::init((), node1.as_mut());
-        let node1 = unsafe { node1.map_unchecked_mut(|mem1| &mut *mem1.as_mut_ptr()) };
+        emplace!(node1 = TreeNode::new(1));
 
         // act
         {
-            let mut node2 = pin::pin!(MaybeUninit::uninit());
-            TreeNode::init((), node2.as_mut());
-            let node2 = unsafe { node2.map_unchecked_mut(|mem2| &mut *mem2.as_mut_ptr()) };
-            std::println!("About to drop node2");
+            emplace!(node2 = TreeNode::new(2));
             drop(node2);
         }
 
