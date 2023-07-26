@@ -89,13 +89,21 @@ impl<'a, T> Drop for SlotBox<'a, T> {
 
 #[macro_export]
 macro_rules! slot {
-    ($name:ident, $T:ty) => {
+    ($name:ident: $T:ty) => {
         let $name = core::pin::pin!($crate::OwnedSlot::new());
         let $name: $crate::Slot<$T> = $name.get_slot();
     };
     ($name:ident) => {
         let $name = core::pin::pin!($crate::OwnedSlot::new());
         let $name = $name.get_slot();
+    };
+}
+
+#[macro_export]
+macro_rules! emplace {
+    ($name:ident = $e:expr) => {
+        slot!($name);
+        let $name = $name.emplace($e);
     };
 }
 
