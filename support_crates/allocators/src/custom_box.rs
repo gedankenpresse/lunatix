@@ -4,6 +4,7 @@ use core::fmt::{Display, Formatter};
 use core::mem;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
 use core::ptr;
 
 /// A custom box implementation based on our own allocator implementation
@@ -63,6 +64,19 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> Box<'alloc, 'mem, A, T> {
             source_layout,
         }
     }
+
+    /// Converts a `Box<T>` into a `Pin<Box<T>>`.
+    /// If `T` does not implement [`Unpin`], then `*self` will be pinned in memory and unable to be moved.
+    ///
+    /// This conversion does not allocate again and happens in place.
+    ///
+    /// This is also available via [`From`].
+    pub fn into_pin(self) -> Pin<Box<'alloc, 'mem, A, T>> {
+        // It's not possible to move or replace the insides of a `Pin<Box<T>>`
+        // when `T: !Unpin`, so it's safe to pin it directly without any
+        // additional requirements.
+        unsafe { Pin::new_unchecked(self) }
+    }
 }
 
 // general sized impl
@@ -76,6 +90,12 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Sized> Box<'alloc, 'mem, A, T> {
             result.inner.as_mut_ptr().cast::<T>().write(value);
             result.assume_init()
         })
+    }
+
+    /// Construct a new `Pin<Box<T>>`.
+    /// If `T` does not implement [`Unpin`], then `value` will
+    pub fn new_pinned(value: T, allocator: &'alloc A) -> Result<Pin<Self>, AllocError> {
+        Ok(Self::new(value, allocator)?.into_pin())
     }
 
     /// Construct a new Box able to hold `T` but with uninitialized content
@@ -254,5 +274,15 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> DerefMut for Box<'alloc, 'mem,
 impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized + Display> Display for Box<'alloc, 'mem, A, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.inner.fmt(f)
+    }
+}
+
+// Pin construction impl
+
+impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> From<Box<'alloc, 'mem, A, T>>
+    for Pin<Box<'alloc, 'mem, A, T>>
+{
+    fn from(value: Box<'alloc, 'mem, A, T>) -> Self {
+        value.into_pin()
     }
 }
