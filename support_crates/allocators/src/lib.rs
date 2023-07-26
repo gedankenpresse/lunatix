@@ -6,6 +6,7 @@ extern crate std;
 mod arena_allocator;
 pub mod bump_allocator;
 mod custom_box;
+mod stack_allocator;
 mod traits;
 
 pub use arena_allocator::Arena;
