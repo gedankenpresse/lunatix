@@ -4,7 +4,7 @@ use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr;
-use ctors::Ctor;
+use ctors::{Ctor, New};
 
 pub struct CursorSet<T> {
     cursor: Cursor<T>,
@@ -17,7 +17,19 @@ macro_rules! tree {
         emplace!(mut $root = $ctor);
         $name.as_mut().init();
         $name.as_mut().init_cursor_pin($root.as_mut());
+        let _invalidator = $crate::tree_node::CursorSetInvalidator { set: $name.as_ref() };
+        let $name = $name.as_ref();
     };
+}
+
+pub struct CursorSetInvalidator<'a, T> {
+    pub set: Pin<&'a CursorSet<T>>,
+}
+
+impl<'a, T> Drop for CursorSetInvalidator<'a, T> {
+    fn drop(&mut self) {
+        self.set.uninit_cursor();
+    }
 }
 
 impl<T> CursorSet<T> {
@@ -56,7 +68,7 @@ impl<T> CursorSet<T> {
         self.cursor.position.set(CursorPosition::Loc(root_ptr));
     }
 
-    pub fn uninit_cursor(self: Pin<&mut Self>) {
+    pub fn uninit_cursor(self: Pin<&Self>) {
         let cursor_ptr = unsafe { &Pin::into_inner_unchecked(self.as_ref()).cursor as *const _ };
         assert_eq!(
             self.cursor.next.get(),
@@ -71,7 +83,7 @@ impl<T> CursorSet<T> {
         self.cursor.position.set(CursorPosition::Uninit);
     }
 
-    pub fn root_cursor(self: Pin<&mut Self>) -> impl Ctor<Cursor<T>> + '_ {
+    pub fn root_cursor(self: Pin<&Self>) -> impl Ctor<Cursor<T>> + '_ {
         move |dest: Pin<&mut MaybeUninit<_>>| {
             let root_cursor = &self.cursor;
             unsafe {
@@ -85,6 +97,7 @@ impl<T> CursorSet<T> {
                         _pin: PhantomPinned,
                     },
                 );
+                (*root_cursor.next.get()).prev.set(dest_ptr);
                 root_cursor.next.set(dest_ptr);
             };
         }
@@ -319,9 +332,43 @@ impl<T> Cursor<T> {
         }
     }
 
-    pub fn get(self: Pin<&mut Self>) -> CursorRef<T> {
+    pub fn dup(&self) -> impl Ctor<Cursor<T>> + '_ {
+        New::ctor(|dest| {
+            let dest_ptr: *mut Cursor<T> = unsafe { Pin::into_inner_unchecked(dest).as_mut_ptr() };
+            unsafe {
+                dest_ptr.write(Cursor {
+                    prev: Cell::new(self as *const _),
+                    next: Cell::new(self.next.get()),
+                    position: Cell::new(match self.position.get() {
+                        CursorPosition::Loc(p) => CursorPosition::Loc(p),
+                        CursorPosition::Shared(p) => CursorPosition::Loc(p),
+                        CursorPosition::Mut(p) => CursorPosition::Loc(p),
+                        CursorPosition::Uninit => CursorPosition::Uninit,
+                    }),
+                    _pin: PhantomPinned,
+                });
+            }
+            unsafe {
+                (*self.next.get()).prev.set(dest_ptr);
+            }
+            self.next.set(dest_ptr);
+        })
+    }
+
+    pub fn node(self: Pin<&mut Self>) -> CursorRef<T> {
         let ptr = self.get_loc();
-        // TODO: assert that there are no other mut cursors to the current ptr
+        unsafe {
+            // check that no aliasing refs exist
+            let mut pos = self.as_ref().next.get();
+            let this = Pin::into_inner_unchecked(self.as_ref()) as *const Cursor<T>;
+            while pos != this {
+                match (*pos).position.get() {
+                    CursorPosition::Mut(p) => assert_ne!(p, ptr),
+                    _ => {}
+                }
+                pos = (*pos).next.get();
+            }
+        }
         self.position.set(CursorPosition::Shared(ptr));
         CursorRef {
             cursor: self,
@@ -329,9 +376,21 @@ impl<T> Cursor<T> {
         }
     }
 
-    pub fn get_mut(self: Pin<&mut Self>) -> CursorMut<T> {
+    pub fn node_mut(self: Pin<&mut Self>) -> CursorMut<T> {
         let ptr = self.get_loc();
-        // TODO: assert that there are no other shared/mut cursors to the current ptr
+        unsafe {
+            // check that no aliasing refs exist
+            let mut pos = self.as_ref().next.get();
+            let this = Pin::into_inner_unchecked(self.as_ref()) as *const Cursor<T>;
+            while pos != this {
+                match (*pos).position.get() {
+                    CursorPosition::Shared(p) => assert_ne!(p, ptr),
+                    CursorPosition::Mut(p) => assert_ne!(p, ptr),
+                    _ => {}
+                }
+                pos = (*pos).next.get();
+            }
+        }
         self.position.set(CursorPosition::Mut(ptr));
         CursorMut {
             cursor: self,

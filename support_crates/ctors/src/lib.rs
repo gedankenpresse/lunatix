@@ -1,6 +1,7 @@
 //! Advanced constructors and memory semantics
 #![no_std]
 
+use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
@@ -17,6 +18,26 @@ where
 {
     fn construct(self, dest: Pin<&mut MaybeUninit<T>>) {
         self(dest)
+    }
+}
+
+pub struct New<F, R>(F, PhantomData<R>);
+
+unsafe impl<F, R> Ctor<R> for New<F, R>
+where
+    F: FnOnce(Pin<&mut MaybeUninit<R>>),
+{
+    fn construct(self, dest: Pin<&mut MaybeUninit<R>>) {
+        self.0(dest)
+    }
+}
+
+impl<F, R> New<F, R>
+where
+    F: FnOnce(Pin<&mut MaybeUninit<R>>),
+{
+    pub fn ctor(f: F) -> Self {
+        Self(f, PhantomData)
     }
 }
 

@@ -19,27 +19,60 @@ fn can_build_cap_tree() {
     tree.uninit_cursor();
 }
 
-#[should_panic]
-#[test]
-fn can_build_cap_tree_panic() {
-    tree!(tree, root = CSlot::new(Capability::Uninit));
-}
-
 #[test]
 fn can_create_cursor() {
     tree!(tree, root = CSlot::new(Capability::Uninit));
-    {
-        emplace!(mut cursor = tree.as_mut().root_cursor());
-    }
-    tree.uninit_cursor();
+    emplace!(mut cursor = tree.root_cursor());
 }
 
-/*
 #[test]
-#[should_panic]
-fn uninit_panics_with_active_cursors() {
+fn can_dup_cursor() {
     tree!(tree, root = CSlot::new(Capability::Uninit));
-    emplace!(mut cursor = tree.as_mut().root_cursor());
-    tree.uninit_cursor();
+    emplace!(mut cursor = tree.root_cursor());
+    emplace!(mut dup = cursor.dup());
 }
-*/
+
+#[test]
+fn can_get_mut_ref() {
+    tree!(tree, root = CSlot::new(Capability::Uninit));
+    emplace!(mut cursor = tree.root_cursor());
+    let node = cursor.as_mut().node_mut();
+    println!("{:?}", *node);
+}
+
+#[test]
+fn ref_is_equal_to_root() {
+    tree!(tree, root = CSlot::new(Capability::Value(1)));
+    emplace!(mut cursor = tree.root_cursor());
+    let node = cursor.as_mut().node_mut();
+    assert_eq!(&Capability::Value(1), &node.value);
+}
+
+#[should_panic]
+#[test]
+fn cant_create_two_mut_refs() {
+    tree!(tree, root = CSlot::new(Capability::Uninit));
+    emplace!(mut cursor = tree.root_cursor());
+    emplace!(mut dup = cursor.as_ref().dup());
+    let ref1 = cursor.as_mut().node_mut();
+    let ref2 = dup.as_mut().node_mut();
+}
+
+#[test]
+fn can_have_to_refs() {
+    tree!(tree, root = CSlot::new(Capability::Uninit));
+    emplace!(mut cursor = tree.root_cursor());
+    emplace!(mut dup = cursor.as_ref().dup());
+    let ref1 = cursor.as_mut().node();
+    let ref2 = dup.as_mut().node();
+}
+
+#[should_panic]
+#[test]
+fn cant_have_mixed_refs() {
+    tree!(tree, root = CSlot::new(Capability::Uninit));
+    emplace!(mut cursor = tree.root_cursor());
+    emplace!(mut dup = cursor.as_ref().dup());
+    let ref1 = cursor.as_mut().node();
+    let ref2 = dup.as_mut().node_mut();
+}
