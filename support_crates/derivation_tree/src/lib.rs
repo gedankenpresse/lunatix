@@ -9,6 +9,11 @@ mod cursors;
 mod node;
 mod tree;
 
+pub use correspondence::Correspondence;
+pub use cursors::{AliasingError, CursorHandle, CursorSet, OutOfCursorsError};
+pub use node::TreeNode;
+pub use tree::DerivationTree;
+
 #[cfg(test)]
 pub(crate) use test::assume_init_box;
 
