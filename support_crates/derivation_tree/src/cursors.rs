@@ -1,7 +1,5 @@
-use crate::correspondence::Correspondence;
-use crate::node::TreeNode;
-use core::cell::{Cell, Ref, RefCell, RefMut};
-use core::marker::PhantomData;
+use crate::TreeNodeOps;
+use core::cell::Cell;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr::addr_of_mut;
@@ -9,11 +7,11 @@ use core::{mem, ptr};
 
 const SET_SIZE: usize = 4;
 
-pub struct CursorSet<T: Correspondence> {
+pub struct CursorSet<T: TreeNodeOps> {
     cursors: [Cursor<T>; SET_SIZE],
 }
 
-impl<T: Correspondence> CursorSet<T> {
+impl<T: TreeNodeOps> CursorSet<T> {
     pub(crate) unsafe fn init(loc: &mut MaybeUninit<Self>) {
         for i in 0..SET_SIZE {
             addr_of_mut!((*loc.as_mut_ptr()).cursors[i]).write(Cell::new(CursorData::Free))
@@ -49,7 +47,7 @@ impl<T: Correspondence> CursorSet<T> {
     ///
     /// A cursor is considered to point to the node if it is in *Inactive*, *SharedRef* or *ExclusiveRef* state
     /// with the given node selected.
-    pub(crate) fn exists_cursor_to(&self, node: *mut TreeNode<T>) -> bool {
+    pub(crate) fn exists_cursor_to(&self, node: *mut T) -> bool {
         self.cursors.iter().any(|cursor| match cursor.get() {
             CursorData::Inactive(c_node) => c_node == node,
             CursorData::SharedRef(c_node) => c_node == node,
@@ -62,7 +60,7 @@ impl<T: Correspondence> CursorSet<T> {
     ///
     /// A cursor is considered to be active if it is in *SharedRef* or *ExclusiveRef* state with the given node
     /// selected.
-    pub(crate) fn exists_active_cursor_to(&self, node: *mut TreeNode<T>) -> bool {
+    pub(crate) fn exists_active_cursor_to(&self, node: *mut T) -> bool {
         self.cursors.iter().any(|cursor| match cursor.get() {
             CursorData::SharedRef(c_node) => c_node == node,
             CursorData::ExclusiveRef(c_node) => c_node == node,
@@ -71,33 +69,38 @@ impl<T: Correspondence> CursorSet<T> {
     }
 
     /// Check whether there is an **exclusive** cursor pointing to the given node.
-    pub(crate) fn exists_exclusive_cursor_to(&self, node: *mut TreeNode<T>) -> bool {
+    pub(crate) fn exists_exclusive_cursor_to(&self, node: *mut T) -> bool {
         self.cursors.iter().any(|cursor| match cursor.get() {
             CursorData::ExclusiveRef(c_node) => c_node == node,
             _ => false,
         })
+    }
+
+    /// Get an iterator over the cursors contained in this set
+    pub(crate) fn cursor_iter(&self) -> impl Iterator<Item = &Cursor<T>> {
+        self.cursors.iter()
     }
 }
 
 pub type Cursor<T> = Cell<CursorData<T>>;
 
 #[derive(Debug)]
-pub enum CursorData<T: Correspondence> {
+pub enum CursorData<T: TreeNodeOps> {
     /// The cursor is currently unused and can be given out to consumers.
     Free,
     /// The cursor is used by a consumer but not yet set to a specific TreeNode.
     Allocated,
     /// The cursor is given out to a consumer and has been assigned to a specific TreeNode but that node
     /// has not yet been "locked" for access.
-    Inactive(*mut TreeNode<T>),
+    Inactive(*mut T),
     /// The cursor represents a shared (`&`) reference to a specific TreeNode.
-    SharedRef(*mut TreeNode<T>),
+    SharedRef(*mut T),
     /// The cursor represents an exclusive (`&mut`) reference to a specific TreeNode.
-    ExclusiveRef(*mut TreeNode<T>),
+    ExclusiveRef(*mut T),
 }
 
-impl<T: Correspondence> CursorData<T> {
-    fn get_ptr(&self) -> *mut TreeNode<T> {
+impl<T: TreeNodeOps> CursorData<T> {
+    fn get_ptr(&self) -> *mut T {
         match *self {
             CursorData::Inactive(ptr) => ptr,
             CursorData::SharedRef(ptr) => ptr,
@@ -107,29 +110,29 @@ impl<T: Correspondence> CursorData<T> {
     }
 }
 
-impl<T: Correspondence> Copy for CursorData<T> {}
+impl<T: TreeNodeOps> Copy for CursorData<T> {}
 
-impl<T: Correspondence> Clone for CursorData<T> {
+impl<T: TreeNodeOps> Clone for CursorData<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-pub struct CursorHandle<'cursor_set, T: Correspondence> {
+pub struct CursorHandle<'cursor_set, T: TreeNodeOps> {
     pub(crate) cursor: &'cursor_set Cursor<T>,
     pub(crate) source_set: &'cursor_set CursorSet<T>,
 }
 
-impl<'cursor_set, T: Correspondence> CursorHandle<'cursor_set, T> {
+impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
     /// Make this handle point to the given node
-    pub(crate) fn select_node(&self, node: *mut TreeNode<T>) {
+    pub(crate) fn select_node(&self, node: *mut T) {
         assert_eq!(
             mem::discriminant(&self.cursor.get()),
             mem::discriminant(&CursorData::Allocated),
             "Cursor is not in a state where a node can be selected"
         );
         assert_eq!(
-            unsafe { &*node }.cursors as *const _,
+            unsafe { &*node }.get_tree_data().cursors.get() as *const _,
             self.source_set as *const _,
             "Cursor cannot point to a node from a different Tree"
         );
@@ -194,31 +197,31 @@ impl<'cursor_set, T: Correspondence> CursorHandle<'cursor_set, T> {
     }
 }
 
-impl<T: Correspondence> Drop for CursorHandle<'_, T> {
+impl<T: TreeNodeOps> Drop for CursorHandle<'_, T> {
     fn drop(&mut self) {
         unsafe { &*self.cursor }.set(CursorData::Free)
     }
 }
 
-pub struct CursorRef<'handle, 'cursor_set, T: Correspondence> {
+pub struct CursorRef<'handle, 'cursor_set, T: TreeNodeOps> {
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
-impl<T: Correspondence> CursorRef<'_, '_, T> {
+impl<T: TreeNodeOps> CursorRef<'_, '_, T> {
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
     }
 }
 
-impl<T: Correspondence> Deref for CursorRef<'_, '_, T> {
-    type Target = TreeNode<T>;
+impl<T: TreeNodeOps> Deref for CursorRef<'_, '_, T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.source_handle.cursor.get().get_ptr() }
     }
 }
 
-impl<T: Correspondence> Drop for CursorRef<'_, '_, T> {
+impl<T: TreeNodeOps> Drop for CursorRef<'_, '_, T> {
     fn drop(&mut self) {
         self.source_handle.cursor.set(CursorData::Inactive(
             self.source_handle.cursor.get().get_ptr(),
@@ -226,31 +229,31 @@ impl<T: Correspondence> Drop for CursorRef<'_, '_, T> {
     }
 }
 
-pub struct CursorRefMut<'handle, 'cursor_set, T: Correspondence> {
+pub struct CursorRefMut<'handle, 'cursor_set, T: TreeNodeOps> {
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
-impl<T: Correspondence> CursorRefMut<'_, '_, T> {
+impl<T: TreeNodeOps> CursorRefMut<'_, '_, T> {
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
     }
 }
 
-impl<T: Correspondence> Deref for CursorRefMut<'_, '_, T> {
-    type Target = TreeNode<T>;
+impl<T: TreeNodeOps> Deref for CursorRefMut<'_, '_, T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.source_handle.cursor.get().get_ptr() }
     }
 }
 
-impl<T: Correspondence> DerefMut for CursorRefMut<'_, '_, T> {
+impl<T: TreeNodeOps> DerefMut for CursorRefMut<'_, '_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.source_handle.cursor.get().get_ptr() }
     }
 }
 
-impl<T: Correspondence> Drop for CursorRefMut<'_, '_, T> {
+impl<T: TreeNodeOps> Drop for CursorRefMut<'_, '_, T> {
     fn drop(&mut self) {
         self.source_handle.cursor.set(CursorData::Inactive(
             self.source_handle.cursor.get().get_ptr(),
@@ -270,6 +273,7 @@ mod test {
 
     use crate::assume_init_box;
     use crate::cursors::{CursorData, CursorSet};
+    use crate::test::TestNode;
     use alloc::boxed::Box;
     use core::mem;
     use core::mem::MaybeUninit;
@@ -277,7 +281,7 @@ mod test {
     #[test]
     fn test_allocate_two_cursors() {
         // arrange
-        let mut loc = Box::new(MaybeUninit::<CursorSet<usize>>::uninit());
+        let mut loc = Box::new(MaybeUninit::<CursorSet<TestNode>>::uninit());
         let set = unsafe {
             CursorSet::init(&mut loc);
             assume_init_box(loc)
@@ -303,7 +307,7 @@ mod test {
     #[test]
     fn test_cursor_dropping() {
         // arrange
-        let mut loc = Box::new(MaybeUninit::<CursorSet<usize>>::uninit());
+        let mut loc = Box::new(MaybeUninit::<CursorSet<TestNode>>::uninit());
         let set = unsafe {
             CursorSet::init(&mut loc);
             assume_init_box(loc)

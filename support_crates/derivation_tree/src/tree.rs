@@ -1,16 +1,16 @@
 use crate::correspondence::Correspondence;
 use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
-use crate::node::TreeNode;
+use crate::node::TreeNodeOps;
 use core::mem::MaybeUninit;
 use core::ptr::addr_of_mut;
 
 /// A intrinsic collection for tracking nodes that are derived from each other in a tree-like structure.
-pub struct DerivationTree<T: Correspondence> {
-    root_node: TreeNode<T>,
+pub struct DerivationTree<T: TreeNodeOps> {
+    root_node: T,
     cursors: CursorSet<T>,
 }
 
-impl<T: Correspondence> DerivationTree<T> {
+impl<T: TreeNodeOps> DerivationTree<T> {
     /// TODO
     ///
     /// # Safety
@@ -26,13 +26,14 @@ impl<T: Correspondence> DerivationTree<T> {
         );
 
         // create a new root node at the correct field location
-        let mut node = TreeNode::new(root_value);
-        node.depth.set(1);
-        addr_of_mut!((*loc.as_mut_ptr()).root_node).write(node);
+        root_value.get_tree_data().depth.set(1);
+        addr_of_mut!((*loc.as_mut_ptr()).root_node).write(root_value);
 
         // initialize the root node correctly so that it points to the collections CursorSet
         let DerivationTree { root_node, cursors } = loc.assume_init_mut();
-        root_node.assign_cursor_set(cursors as *mut CursorSet<_>);
+        root_node
+            .get_tree_data()
+            .assign_cursor_set(cursors as *mut CursorSet<_>);
     }
 
     /// Try to get a cursor to the root tree node.
@@ -53,6 +54,7 @@ mod test {
     use super::*;
     use crate::assume_init_box;
     use crate::cursors::CursorRefMut;
+    use crate::test::TestNode;
     use crate::tree::DerivationTree;
     use alloc::boxed::Box;
 
@@ -63,13 +65,13 @@ mod test {
 
         // act
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
         // assert
         assert!(
-            !tree.root_node.cursors.is_null(),
+            !tree.root_node.get_tree_data().cursors.get().is_null(),
             "cursors pointer is still uninitialized"
         )
     }
@@ -79,7 +81,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -95,7 +97,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -113,7 +115,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -131,7 +133,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -151,7 +153,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -173,7 +175,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -193,7 +195,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
@@ -213,7 +215,7 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
         let mut cursor1 = tree.get_root_cursor().unwrap();
@@ -231,21 +233,21 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
         // act
-        let mut new_node = unsafe { TreeNode::new(43usize) };
+        let mut new_node = TestNode::new(42);
         unsafe {
             tree.root_node.insert_copy(&mut new_node);
         }
 
         // assert
-        assert!(!new_node.is_unlinked());
-        assert_eq!(new_node.depth.get(), 1);
-        assert!(!new_node.prev.get().is_null());
-        assert!(new_node.next.get().is_null());
+        assert!(!new_node.tree_data.is_unlinked());
+        assert_eq!(new_node.tree_data.depth.get(), 1);
+        assert!(!new_node.tree_data.prev.get().is_null());
+        assert!(new_node.tree_data.next.get().is_null());
         assert!(new_node.is_last_copy());
         assert!(!tree.root_node.has_derivations());
     }
@@ -255,21 +257,21 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
         // act
-        let mut new_node = unsafe { TreeNode::new(43usize) };
+        let mut new_node = TestNode::new(42);
         unsafe {
             tree.root_node.insert_derivation(&mut new_node);
         }
 
         // assert
-        assert!(!new_node.is_unlinked());
-        assert_eq!(new_node.depth.get(), 2);
-        assert!(!new_node.prev.get().is_null());
-        assert!(new_node.next.get().is_null());
+        assert!(!new_node.tree_data.is_unlinked());
+        assert_eq!(new_node.tree_data.depth.get(), 2);
+        assert!(!new_node.tree_data.prev.get().is_null());
+        assert!(new_node.tree_data.next.get().is_null());
         assert!(tree.root_node.has_derivations());
     }
 
@@ -278,19 +280,19 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
         // act
-        let mut new_node = unsafe { TreeNode::new(43usize) };
+        let mut new_node = TestNode::new(42);
         unsafe {
             tree.root_node.insert_derivation(&mut new_node);
         }
         drop(new_node);
 
         // assert
-        assert!(tree.root_node.next.get().is_null());
+        assert!(tree.root_node.tree_data.next.get().is_null());
         assert!(!tree.root_node.has_derivations());
     }
 
@@ -299,19 +301,19 @@ mod test {
         // arrange
         let mut loc = Box::new(MaybeUninit::uninit());
         let tree = unsafe {
-            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            DerivationTree::init_with_root_value(&mut loc, TestNode::new(42));
             assume_init_box(loc)
         };
 
         // act
-        let mut new_node = unsafe { TreeNode::new(43usize) };
+        let mut new_node = TestNode::new(42);
         unsafe {
             tree.root_node.insert_copy(&mut new_node);
         }
         drop(new_node);
 
         // assert
-        assert!(tree.root_node.next.get().is_null());
+        assert!(tree.root_node.tree_data.next.get().is_null());
         assert!(tree.root_node.is_last_copy());
     }
 }
