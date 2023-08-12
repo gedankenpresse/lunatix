@@ -26,7 +26,9 @@ impl<T: Correspondence> DerivationTree<T> {
         );
 
         // create a new root node at the correct field location
-        addr_of_mut!((*loc.as_mut_ptr()).root_node).write(TreeNode::new(root_value));
+        let mut node = TreeNode::new(root_value);
+        node.depth.set(1);
+        addr_of_mut!((*loc.as_mut_ptr()).root_node).write(node);
 
         // initialize the root node correctly so that it points to the collections CursorSet
         let DerivationTree { root_node, cursors } = loc.assume_init_mut();
@@ -222,5 +224,94 @@ mod test {
 
         // assert
         assert!(cursor2.get_exclusive().is_err()); // this is only an error if the second cursor refers to the same node (which is exclusively locked)
+    }
+
+    #[test]
+    fn test_insert_1_copy() {
+        // arrange
+        let mut loc = Box::new(MaybeUninit::uninit());
+        let tree = unsafe {
+            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            assume_init_box(loc)
+        };
+
+        // act
+        let mut new_node = unsafe { TreeNode::new(43usize) };
+        unsafe {
+            tree.root_node.insert_copy(&mut new_node);
+        }
+
+        // assert
+        assert!(!new_node.is_unlinked());
+        assert_eq!(new_node.depth.get(), 1);
+        assert!(!new_node.prev.get().is_null());
+        assert!(new_node.next.get().is_null());
+        assert!(new_node.is_last_copy());
+        assert!(!tree.root_node.has_derivations());
+    }
+
+    #[test]
+    fn test_insert_1_derivation() {
+        // arrange
+        let mut loc = Box::new(MaybeUninit::uninit());
+        let tree = unsafe {
+            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            assume_init_box(loc)
+        };
+
+        // act
+        let mut new_node = unsafe { TreeNode::new(43usize) };
+        unsafe {
+            tree.root_node.insert_derivation(&mut new_node);
+        }
+
+        // assert
+        assert!(!new_node.is_unlinked());
+        assert_eq!(new_node.depth.get(), 2);
+        assert!(!new_node.prev.get().is_null());
+        assert!(new_node.next.get().is_null());
+        assert!(tree.root_node.has_derivations());
+    }
+
+    #[test]
+    fn test_drop_node_after_insert_derivation() {
+        // arrange
+        let mut loc = Box::new(MaybeUninit::uninit());
+        let tree = unsafe {
+            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            assume_init_box(loc)
+        };
+
+        // act
+        let mut new_node = unsafe { TreeNode::new(43usize) };
+        unsafe {
+            tree.root_node.insert_derivation(&mut new_node);
+        }
+        drop(new_node);
+
+        // assert
+        assert!(tree.root_node.next.get().is_null());
+        assert!(!tree.root_node.has_derivations());
+    }
+
+    #[test]
+    fn test_drop_node_after_insert_copy() {
+        // arrange
+        let mut loc = Box::new(MaybeUninit::uninit());
+        let tree = unsafe {
+            DerivationTree::init_with_root_value(&mut loc, 42usize);
+            assume_init_box(loc)
+        };
+
+        // act
+        let mut new_node = unsafe { TreeNode::new(43usize) };
+        unsafe {
+            tree.root_node.insert_copy(&mut new_node);
+        }
+        drop(new_node);
+
+        // assert
+        assert!(tree.root_node.next.get().is_null());
+        assert!(tree.root_node.is_last_copy());
     }
 }

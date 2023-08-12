@@ -116,22 +116,117 @@ impl<T: Correspondence> TreeNode<T> {
 
     /// Get a cursor to the last copy of `self`
     pub(crate) fn get_last_copy(&self) -> CursorHandle<T> {
-        todo!()
+        // find the last node which corresponds to the same value by walking the next ptr chain
+        let mut current_ptr: *mut TreeNode<T> = self as *const _ as *mut _;
+        loop {
+            let current_node = unsafe { &*current_ptr };
+            if let Some(next_node) = unsafe { current_node.next.get().as_ref() } {
+                if next_node.value.corresponds_to(&self.value) {
+                    assert_eq!(self.depth, next_node.depth);
+                    current_ptr = next_node as *const _ as *mut _;
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        // return a cursor pointing to the same node
+        let mut cursor = self
+            .get_cursors()
+            .get_free_cursor()
+            .expect("Could not obtain a cursor to point to the last copy");
+        cursor.select_node(current_ptr);
+        cursor
     }
 
     /// Whether this node is the last copy of the contained value
     pub(crate) fn is_last_copy(&self) -> bool {
-        todo!()
+        if let Some(prev_node) = unsafe { self.prev.get().as_ref() } {
+            if prev_node.value.corresponds_to(&self.value) {
+                return false;
+            }
+        }
+
+        if let Some(next_node) = unsafe { self.next.get().as_ref() } {
+            if next_node.value.corresponds_to(&self.value) {
+                return false;
+            }
+        }
+
+        true
     }
 
-    /// Insert the given node into the tree as a sibling of `self`.
-    pub(crate) fn insert_after(&self, node: &mut TreeNode<T>) {
-        todo!()
+    /// Insert a new node with *copy* ordering.
+    ///
+    /// Essentially, the new node will be inserted directly after `self` and on the same depth but see the struct
+    /// documentation for ordering details.
+    ///
+    /// Not that this method does not ensure the two nodes are actually copies of each other but instead only inserts
+    /// the new node as a copy is supposed to be inserted.
+    ///
+    /// # Safety
+    /// It is unsafe to access the node via its original handle after it has been inserted into the tree.
+    /// Instead, a cursor must be obtained from the tree.
+    pub(crate) unsafe fn insert_copy(&self, node: &mut TreeNode<T>) {
+        assert!(node.is_unlinked());
+
+        let next_ptr = self.next.get();
+
+        // link existing nodes to the new one
+        self.next.set(node as *mut _);
+        if let Some(next_node) = next_ptr.as_ref() {
+            next_node.prev.set(node as *mut _);
+        }
+
+        // link the new node to existing ones
+        node.prev.set(self as *const _ as *mut _);
+        node.next.set(next_ptr);
+
+        // set the same depth
+        node.depth.set(self.depth.get());
     }
 
-    /// Insert the given node into the tree below `self`
-    pub(crate) fn insert_below(&self, node: &mut TreeNode<T>) {
-        todo!()
+    /// Insert a new node with *derivation* ordering.
+    ///
+    /// Essentially, the new node will be inserted after the last copy of `self` and with an increased depth value.
+    /// See the struct documentation for ordering details.
+    ///
+    /// Not that this method does not ensure that `node` actually is a derivation of `self` but instead only inserts
+    /// the new node as a derivation is supposed to be inserted.
+    ///
+    /// # Safety
+    /// It is unsafe to access the node via its original handle after it has been inserted into the tree.
+    /// Instead, a cursor must be obtained from the tree.
+    pub(crate) unsafe fn insert_derivation(&self, node: &mut TreeNode<T>) {
+        let mut last_copy_curs = self.get_last_copy();
+        let last_copy = last_copy_curs.get_shared().unwrap();
+
+        // this is fine because we are working on the last copy and increase the depth afterwards which makes
+        // this a derivation insertion
+        last_copy.insert_copy(node);
+        node.depth.set(node.depth.get() + 1);
+    }
+
+    /// Whether this node has any derivations
+    pub(crate) fn has_derivations(&self) -> bool {
+        let mut last_copy_curs = self.get_last_copy();
+        let last_copy = last_copy_curs.get_shared().unwrap();
+
+        // if the next node has higher depth, it is a derivation of self
+        if let Some(next_node) = unsafe { last_copy.next.get().as_ref() } {
+            next_node.depth.get() == self.depth.get() + 1
+        } else {
+            false
+        }
+    }
+
+    /// Whether this node is currently not linked into any derivation tree
+    pub(crate) fn is_unlinked(&self) -> bool {
+        self.cursors.is_null()
+            && self.depth.get() == 0
+            && self.prev.get().is_null()
+            && self.next.get().is_null()
     }
 }
 
