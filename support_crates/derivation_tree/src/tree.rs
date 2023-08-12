@@ -1,4 +1,4 @@
-use crate::correspondence::Correspondence;
+use crate::CapabilityOps;
 use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
 use crate::node::TreeNodeOps;
 use core::mem::MaybeUninit;

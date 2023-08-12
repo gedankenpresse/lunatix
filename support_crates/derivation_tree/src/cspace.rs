@@ -1,4 +1,5 @@
-use crate::{Correspondence, TreeNodeOps};
+use crate::correspondence::Correspondence;
+use crate::{CapabilityOps, TreeNodeOps, TreeNodeData};
 use allocators::{AllocError, Allocator, Box};
 use core::cell::RefCell;
 use core::mem;
@@ -9,6 +10,7 @@ pub type CAddr = usize;
 
 /// A handle to backing memory for [`TreeNodes`](TreeNode)
 pub struct CSpace<'alloc, 'mem, A: Allocator<'mem>, T: TreeNodeOps> {
+    pub tree_data: TreeNodeData<T>,
     slots: ManuallyDrop<Box<'alloc, 'mem, A, [RefCell<T>]>>,
 }
 
@@ -27,6 +29,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default + TreeNodeOps> CSpace<'alloc, 
 
         // return result
         Ok(Self {
+            tree_data: unsafe { TreeNodeData::new() },
             slots: ManuallyDrop::new(unsafe { slots.assume_init() }),
         })
     }
@@ -45,5 +48,16 @@ impl<'mem, A: Allocator<'mem>, T: TreeNodeOps> Correspondence for CSpace<'_, 'me
         let self_slots: &[_] = &self.slots;
         let other_slots: &[_] = &other.slots;
         self_slots.as_ptr() == other_slots.as_ptr()
+    }
+
+}
+
+impl<'mem, A: Allocator<'mem>, T: TreeNodeOps> CapabilityOps for CSpace<'_, 'mem, A, T> {
+    fn cap_copy(&self) {
+        todo!()
+    }
+
+    fn destroy(&self) {
+        todo!()
     }
 }
