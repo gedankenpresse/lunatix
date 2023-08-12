@@ -1,5 +1,5 @@
-use crate::CapabilityOps;
 use crate::cursors::{CursorData, CursorHandle, CursorSet};
+use crate::CapabilityOps;
 use core::cell::Cell;
 use core::ptr;
 
@@ -76,13 +76,15 @@ pub trait TreeNodeOps: CapabilityOps + Sized {
     fn get_tree_data(&self) -> &TreeNodeData<Self>;
 
     /// Get a cursor to the last copy of `self`
-    fn get_last_copy(&self) -> CursorHandle<Self> {
+    ///
+    /// # Safety
+    /// You are not allowed to drop any node while holding the returned pointer.
+    unsafe fn get_last_copy(&self) -> *mut Self {
         let tree_data = self.get_tree_data();
 
         // find the last node which corresponds to the same value by walking the next ptr chain
         let mut current_ptr: *mut Self = self as *const _ as *mut _;
         loop {
-            let current_node = unsafe { &*current_ptr };
             if let Some(next_node) = unsafe { tree_data.next.get().as_ref() } {
                 if next_node.corresponds_to(&self) {
                     assert_eq!(self.get_tree_data().depth, next_node.get_tree_data().depth);
@@ -94,14 +96,7 @@ pub trait TreeNodeOps: CapabilityOps + Sized {
             break;
         }
 
-        // return a cursor pointing to the same node
-        let mut cursor = self
-            .get_tree_data()
-            .get_cursors()
-            .get_free_cursor()
-            .expect("Could not obtain a cursor to point to the last copy");
-        cursor.select_node(current_ptr);
-        cursor
+        current_ptr
     }
 
     /// Whether this node is the last copy of the contained value
@@ -153,6 +148,9 @@ pub trait TreeNodeOps: CapabilityOps + Sized {
 
         // set the same depth
         node_tree_data.depth.set(self_tree_data.depth.get());
+
+        // give that node access to the trees cursors
+        node_tree_data.cursors.set(self_tree_data.cursors.get())
     }
 
     /// Insert a new node with *derivation* ordering.
@@ -167,8 +165,7 @@ pub trait TreeNodeOps: CapabilityOps + Sized {
     /// It is unsafe to access the node via its original handle after it has been inserted into the tree.
     /// Instead, a cursor must be obtained from the tree.
     unsafe fn insert_derivation(&self, node: &mut Self) {
-        let mut last_copy_curs = self.get_last_copy();
-        let last_copy = last_copy_curs.get_shared().unwrap();
+        let last_copy = &mut *self.get_last_copy();
 
         // this is fine because we are working on the last copy and increase the depth afterwards which makes
         // this a derivation insertion
@@ -180,8 +177,7 @@ pub trait TreeNodeOps: CapabilityOps + Sized {
 
     /// Whether this node has any derivations
     fn has_derivations(&self) -> bool {
-        let mut last_copy_curs = self.get_last_copy();
-        let last_copy = last_copy_curs.get_shared().unwrap();
+        let last_copy = unsafe { &mut *self.get_last_copy() };
 
         // if the next node has higher depth, it is a derivation of self
         if let Some(next_node) = unsafe { last_copy.get_tree_data().next.get().as_ref() } {

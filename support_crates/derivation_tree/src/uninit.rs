@@ -1,4 +1,5 @@
-use crate::{CapabilityOps, TreeNodeData, TreeNodeOps, correspondence::Correspondence};
+use crate::{correspondence::Correspondence, CapabilityOps, TreeNodeData, TreeNodeOps};
+use core::mem::MaybeUninit;
 
 pub struct Uninit<T: TreeNodeOps> {
     pub tree_data: TreeNodeData<T>,
@@ -18,8 +19,8 @@ impl<T: TreeNodeOps> Correspondence for Uninit<T> {
     }
 }
 
-impl<T: TreeNodeOps> CapabilityOps for Uninit<T>  {
-    fn cap_copy(&self) {
+impl<T: TreeNodeOps> CapabilityOps for Uninit<T> {
+    fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>) {
         todo!()
     }
 

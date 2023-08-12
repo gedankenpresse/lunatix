@@ -1,9 +1,9 @@
 use crate::correspondence::Correspondence;
-use crate::{CapabilityOps, TreeNodeOps, TreeNodeData};
+use crate::{CapabilityOps, TreeNodeData, TreeNodeOps};
 use allocators::{AllocError, Allocator, Box};
 use core::cell::RefCell;
 use core::mem;
-use core::mem::ManuallyDrop;
+use core::mem::{ManuallyDrop, MaybeUninit};
 
 /// An address of a specific capability in a chain of CSpaces
 pub type CAddr = usize;
@@ -22,7 +22,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default + TreeNodeOps> CSpace<'alloc, 
         assert!(num_slots.is_power_of_two());
 
         // allocate memory and initialize it with default values
-        let mut slots = Box::new_uninit_slice(mem::size_of::<T>() * num_slots, allocator)?;
+        let mut slots = Box::new_uninit_slice(num_slots, allocator)?;
         for slot in slots.iter_mut() {
             slot.write(RefCell::new(Default::default()));
         }
@@ -38,8 +38,11 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default + TreeNodeOps> CSpace<'alloc, 
     ///
     /// # Safety
     /// The returned node may not be linked into a derivation tree yet.
+    ///
+    /// Additionally, looking up a node from the cspace may produce overlapping aliases if the node is already part of
+    /// a DerivationTree.
     pub unsafe fn lookup_raw(&self, addr: CAddr) -> Option<*mut T> {
-        Some(self.slots.get(addr)? as *const _ as *mut _)
+        Some(self.slots.get(addr)?.as_ptr())
     }
 }
 
@@ -49,11 +52,10 @@ impl<'mem, A: Allocator<'mem>, T: TreeNodeOps> Correspondence for CSpace<'_, 'me
         let other_slots: &[_] = &other.slots;
         self_slots.as_ptr() == other_slots.as_ptr()
     }
-
 }
 
 impl<'mem, A: Allocator<'mem>, T: TreeNodeOps> CapabilityOps for CSpace<'_, 'mem, A, T> {
-    fn cap_copy(&self) {
+    fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>) {
         todo!()
     }
 

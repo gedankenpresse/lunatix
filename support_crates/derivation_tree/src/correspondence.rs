@@ -1,3 +1,5 @@
+use core::mem::MaybeUninit;
+
 pub trait Correspondence {
     /// Whether `self` corresponds to the same value as `other`.
     ///
@@ -6,8 +8,8 @@ pub trait Correspondence {
     fn corresponds_to(&self, other: &Self) -> bool;
 }
 
-pub trait CapabilityOps: Correspondence {
-    fn cap_copy(&self);
+pub trait CapabilityOps: Sized + Correspondence {
+    fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>);
 
     fn destroy(&self);
 }

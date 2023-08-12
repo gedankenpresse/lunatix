@@ -1,6 +1,6 @@
-use crate::CapabilityOps;
 use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
 use crate::node::TreeNodeOps;
+use crate::CapabilityOps;
 use core::mem::MaybeUninit;
 use core::ptr::addr_of_mut;
 
@@ -54,7 +54,7 @@ mod test {
     use super::*;
     use crate::assume_init_box;
     use crate::cursors::CursorRefMut;
-    use crate::test::TestNode;
+    use crate::test::node_tests::TestNode;
     use crate::tree::DerivationTree;
     use alloc::boxed::Box;
 

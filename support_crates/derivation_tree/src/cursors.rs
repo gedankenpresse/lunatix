@@ -273,7 +273,7 @@ mod test {
 
     use crate::assume_init_box;
     use crate::cursors::{CursorData, CursorSet};
-    use crate::test::TestNode;
+    use crate::test::node_tests::TestNode;
     use alloc::boxed::Box;
     use core::mem;
     use core::mem::MaybeUninit;
