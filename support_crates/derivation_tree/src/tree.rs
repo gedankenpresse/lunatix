@@ -252,7 +252,7 @@ mod test {
         }
 
         // assert
-        assert!(!new_node.tree_data.is_unlinked());
+        assert!(!new_node.tree_data.is_not_in_tree());
         assert_eq!(new_node.tree_data.depth.get(), 1);
         assert!(!new_node.tree_data.prev.get().is_null());
         assert!(new_node.tree_data.next.get().is_null());
@@ -276,7 +276,7 @@ mod test {
         }
 
         // assert
-        assert!(!new_node.tree_data.is_unlinked());
+        assert!(!new_node.tree_data.is_not_in_tree());
         assert_eq!(new_node.tree_data.depth.get(), 2);
         assert!(!new_node.tree_data.prev.get().is_null());
         assert!(new_node.tree_data.next.get().is_null());

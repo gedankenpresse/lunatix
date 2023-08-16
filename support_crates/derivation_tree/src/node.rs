@@ -130,7 +130,7 @@ pub trait TreeNodeOps: Sized + Correspondence {
     /// It is unsafe to access the node via its original handle after it has been inserted into the tree.
     /// Instead, a cursor must be obtained from the tree.
     unsafe fn insert_copy(&self, node: &mut Self) {
-        assert!(node.get_tree_data().is_unlinked());
+        assert!(node.get_tree_data().is_not_in_tree());
 
         let self_tree_data = self.get_tree_data();
         let next_ptr = self.get_tree_data().next.get();
@@ -241,12 +241,17 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
         unsafe { &*self.cursors.get() }
     }
 
-    /// Whether this node is currently not linked into any derivation tree
-    pub fn is_unlinked(&self) -> bool {
+    /// Whether this node is currently part of a derivation tree
+    pub fn is_not_in_tree(&self) -> bool {
         self.cursors.get().is_null()
             && self.depth.get() == 0
             && self.prev.get().is_null()
             && self.next.get().is_null()
+    }
+
+    /// Whether this node is currently linked to any other nodes
+    pub fn is_linked(&self) -> bool {
+        !self.prev.get().is_null() && self.next.get().is_null()
     }
 }
 

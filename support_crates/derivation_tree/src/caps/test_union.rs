@@ -1,7 +1,9 @@
-use crate::caps::{CSpace, CapabilityIface, Uninit};
+use crate::caps::{CSpace, CapabilityIface, Memory, Uninit};
 use crate::{Correspondence, TreeNodeData, TreeNodeOps};
-use allocators::bump_allocator::ForwardBumpingAllocator;
+use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
+use allocators::Allocator;
 use core::mem::ManuallyDrop;
+use core::ops::Deref;
 
 /// A Union type for bundling all builtin + test capabilities together
 pub struct TestCapUnion {
@@ -10,10 +12,11 @@ pub struct TestCapUnion {
     pub payload: TestCapPayload,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TestCapTag {
     Uninit,
     CSpace,
+    Memory,
     UsizeValue,
 }
 
@@ -21,6 +24,14 @@ pub union TestCapPayload {
     pub uninit: ManuallyDrop<Uninit>,
     pub cspace:
         ManuallyDrop<CSpace<'static, 'static, ForwardBumpingAllocator<'static>, TestCapUnion>>,
+    pub memory: ManuallyDrop<
+        Memory<
+            'static,
+            'static,
+            ForwardBumpingAllocator<'static>,
+            ForwardBumpingAllocator<'static>,
+        >,
+    >,
     pub usize_value: ManuallyDrop<ValueCap<usize>>,
 }
 
@@ -44,6 +55,9 @@ impl Correspondence for TestCapUnion {
                     .payload
                     .usize_value
                     .corresponds_to(&other.payload.usize_value),
+                (TestCapTag::Memory, TestCapTag::Memory) => {
+                    self.payload.memory.corresponds_to(&other.payload.memory)
+                }
                 _ => false,
             }
         }
@@ -74,6 +88,7 @@ impl CapabilityIface<TestCapUnion> for TestCapTag {
             TestCapTag::Uninit => UninitIface.copy(src, dst),
             TestCapTag::CSpace => CSpaceIface.copy(src, dst),
             TestCapTag::UsizeValue => ValueCapIface.copy(src, dst),
+            TestCapTag::Memory => MemoryIface.copy(src, dst),
         }
     }
 
@@ -82,6 +97,7 @@ impl CapabilityIface<TestCapUnion> for TestCapTag {
             TestCapTag::Uninit => UninitIface.destroy(target),
             TestCapTag::CSpace => CSpaceIface.destroy(target),
             TestCapTag::UsizeValue => ValueCapIface.destroy(target),
+            TestCapTag::Memory => MemoryIface.destroy(target),
         }
     }
 }
@@ -97,6 +113,9 @@ impl CapabilityIface<TestCapUnion> for ValueCapIface {
     type InitArgs = usize;
 
     fn init(&self, target: &mut TestCapUnion, args: Self::InitArgs) {
+        assert!(!target.tree_data.is_linked());
+        assert_eq!(target.tag, TestCapTag::Uninit);
+
         target.tag = TestCapTag::UsizeValue;
         target.payload = TestCapPayload {
             usize_value: ManuallyDrop::new(ValueCap { value: args }),
@@ -133,6 +152,7 @@ impl CapabilityIface<TestCapUnion> for UninitIface {
     type InitArgs = ();
 
     fn init(&self, target: &mut TestCapUnion, _args: Self::InitArgs) {
+        assert!(!target.tree_data.is_linked());
         assert_eq!(target.tag, TestCapTag::Uninit);
     }
 
@@ -152,10 +172,73 @@ impl CapabilityIface<TestCapUnion> for CSpaceIface {
 
     fn init(&self, target: &mut TestCapUnion, args: Self::InitArgs) {
         let (allocator, num_slots) = args;
+        assert!(!target.tree_data.is_linked());
+        assert_eq!(target.tag, TestCapTag::Uninit);
+
         target.tag = TestCapTag::CSpace;
         target.payload = TestCapPayload {
             cspace: ManuallyDrop::new(CSpace::alloc_new(allocator, num_slots).unwrap()),
         };
+    }
+
+    fn copy(&self, src: &TestCapUnion, dst: &mut TestCapUnion) {
+        todo!()
+    }
+
+    fn destroy(&self, target: &TestCapUnion) {
+        todo!()
+    }
+}
+
+pub struct MemoryIface;
+
+impl MemoryIface {
+    /// Derive the target capability from this memory capability (`mem`) and store it in `target`.
+    pub fn derive(
+        &self,
+        mem: &'static TestCapUnion,
+        target: &'static mut TestCapUnion,
+        target_capability: TestCapTag,
+        size_if_applicable: usize,
+    ) {
+        assert_eq!(target.tag, TestCapTag::Uninit);
+
+        target.tag = target_capability;
+        match target_capability {
+            TestCapTag::Uninit => panic!("uninit cannot be derived"),
+            TestCapTag::CSpace => {
+                CSpaceIface.init(
+                    target,
+                    (
+                        &unsafe { &mem.payload.memory }.allocator,
+                        size_if_applicable,
+                    ),
+                );
+            }
+            TestCapTag::Memory => unimplemented!(),
+            TestCapTag::UsizeValue => unimplemented!(),
+        }
+
+        unsafe { mem.insert_derivation(target) };
+    }
+}
+
+impl CapabilityIface<TestCapUnion> for MemoryIface {
+    type InitArgs = (&'static ForwardBumpingAllocator<'static>, usize);
+
+    fn init(&self, target: &mut TestCapUnion, args: Self::InitArgs) {
+        let (allocator, size) = args;
+        assert!(!target.tree_data.is_linked());
+        assert_eq!(target.tag, TestCapTag::Uninit);
+
+        let instance = unsafe {
+            Memory::alloc_new(allocator, size, |mem| ForwardBumpingAllocator::new(mem)).unwrap()
+        };
+
+        target.tag = TestCapTag::Memory;
+        target.payload = TestCapPayload {
+            memory: ManuallyDrop::new(instance),
+        }
     }
 
     fn copy(&self, src: &TestCapUnion, dst: &mut TestCapUnion) {
