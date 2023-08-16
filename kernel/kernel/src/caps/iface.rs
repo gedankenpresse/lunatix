@@ -37,7 +37,7 @@ pub trait CapabilityInterface {
     ///
     /// Destroying a capability should never fail, therefore you can't return an Error from this function :)
     ///
-    /// After calling destroy on a CSlot, it must be in Uninit state.
+    /// After calling destroy on a CSlot, it must be in CapUninit state.
     fn destroy(&self, slot: &CSlot);
 
     /// Create a copy of this Capability in the target `CSlot`.

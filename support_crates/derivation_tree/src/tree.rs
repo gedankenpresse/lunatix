@@ -1,6 +1,5 @@
 use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
 use crate::node::TreeNodeOps;
-use crate::CapabilityOps;
 use core::mem::MaybeUninit;
 use core::ptr::addr_of_mut;
 
@@ -43,6 +42,15 @@ impl<T: TreeNodeOps> DerivationTree<T> {
     pub fn get_root_cursor(&self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         let cursor = self.cursors.get_free_cursor()?;
         cursor.select_node(&self.root_node as *const _ as *mut _);
+        Ok(cursor)
+    }
+
+    /// Try to get a cursor to the given node.
+    ///
+    /// This can be used to access a node safely if one already knows about e.g. after inserting it into the tree.
+    pub fn get_node(&self, node: *mut T) -> Result<CursorHandle<T>, OutOfCursorsError> {
+        let cursor = self.cursors.get_free_cursor()?;
+        cursor.select_node(node);
         Ok(cursor)
     }
 }

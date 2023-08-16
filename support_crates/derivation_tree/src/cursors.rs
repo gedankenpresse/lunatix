@@ -199,7 +199,7 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
 
 impl<T: TreeNodeOps> Drop for CursorHandle<'_, T> {
     fn drop(&mut self) {
-        unsafe { &*self.cursor }.set(CursorData::Free)
+        self.cursor.set(CursorData::Free)
     }
 }
 
@@ -295,11 +295,11 @@ mod test {
         assert!(cursor1.is_ok());
         assert!(cursor2.is_ok());
         assert_eq!(
-            mem::discriminant(&unsafe { &*cursor1.unwrap().cursor }.get()),
+            mem::discriminant(&cursor1.unwrap().cursor.get()),
             mem::discriminant(&CursorData::Allocated)
         );
         assert_eq!(
-            mem::discriminant(&unsafe { &*cursor2.unwrap().cursor }.get()),
+            mem::discriminant(&cursor2.unwrap().cursor.get()),
             mem::discriminant(&CursorData::Allocated)
         );
     }

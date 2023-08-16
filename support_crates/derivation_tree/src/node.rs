@@ -1,5 +1,5 @@
-use crate::cursors::{CursorData, CursorHandle, CursorSet};
-use crate::CapabilityOps;
+use crate::cursors::{CursorData, CursorSet};
+use crate::Correspondence;
 use core::cell::Cell;
 use core::ptr;
 
@@ -71,7 +71,7 @@ use core::ptr;
 ///
 /// In order to distinguish the two, the trait [`Correspondence`] is used to ask the node if it corresponds to the same
 /// thing as another node (which would mean that the two are copies).
-pub trait TreeNodeOps: CapabilityOps + Sized {
+pub trait TreeNodeOps: Sized + Correspondence {
     /// Return the data structure which holds all tree-related information
     fn get_tree_data(&self) -> &TreeNodeData<Self>;
 

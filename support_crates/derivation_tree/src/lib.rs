@@ -4,14 +4,14 @@
 
 extern crate alloc;
 
+mod cap_counted;
+pub mod caps;
 mod correspondence;
-mod cspace;
 mod cursors;
 mod node;
 mod tree;
-mod uninit;
 
-pub use correspondence::{CapabilityOps, Correspondence};
+pub use correspondence::Correspondence;
 pub use cursors::{AliasingError, CursorHandle, CursorSet, OutOfCursorsError};
 pub use node::{TreeNodeData, TreeNodeOps};
 pub use tree::DerivationTree;
@@ -32,8 +32,7 @@ mod test {
     }
 
     pub mod node_tests {
-        use crate::{CapabilityOps, Correspondence, TreeNodeData, TreeNodeOps};
-        use core::mem::MaybeUninit;
+        use crate::{Correspondence, TreeNodeData, TreeNodeOps};
 
         pub struct TestNode {
             pub tree_data: TreeNodeData<Self>,
@@ -60,192 +59,55 @@ mod test {
                 false
             }
         }
-
-        impl CapabilityOps for TestNode {
-            fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>) {
-                todo!()
-            }
-
-            fn destroy(&self) {}
-        }
     }
 
     pub mod full_capability_tests {
-        use crate::cspace::CSpace;
+        use crate::caps::test_union::{CSpaceIface, TestCapTag, TestCapUnion, ValueCapIface};
+        use crate::caps::CapabilityIface;
         use crate::test::assume_init_box;
-        use crate::uninit::Uninit;
-        use crate::{CapabilityOps, Correspondence, DerivationTree, TreeNodeData, TreeNodeOps};
+        use crate::{DerivationTree, TreeNodeOps};
         use alloc::boxed::Box as StdBox;
         use alloc::vec;
         use alloc::vec::Vec;
-        use allocators::bump_allocator::BumpAllocator;
-        use allocators::Allocator;
-        use core::mem::{ManuallyDrop, MaybeUninit};
-        use core::ptr::addr_of_mut;
-
-        /// A dummy capability that holds a value of type `V`
-        pub struct ValueCap<C: TreeNodeOps, V: Clone> {
-            tree_data: TreeNodeData<C>,
-            value: V,
-        }
-
-        impl<C: TreeNodeOps, V: Clone> ValueCap<C, V> {
-            pub fn new(value: V) -> Self {
-                Self {
-                    tree_data: unsafe { TreeNodeData::new() },
-                    value,
-                }
-            }
-        }
-
-        impl<C: TreeNodeOps, V: Clone> Correspondence for ValueCap<C, V> {
-            fn corresponds_to(&self, other: &Self) -> bool {
-                false
-            }
-        }
-
-        impl<C: TreeNodeOps, V: Clone> CapabilityOps for ValueCap<C, V> {
-            fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>) {
-                unsafe { dest.write(ValueCap::new(source.value.clone())) };
-            }
-
-            fn destroy(&self) {
-                // no-op
-            }
-        }
-
-        /// An enum-like collection of all possible capability types
-        #[repr(C)]
-        pub struct TestCapCollection<'alloc, 'mem, A: Allocator<'mem>> {
-            tag: TestCapTag,
-            payload: TestCapPayload<'alloc, 'mem, A, Self>,
-        }
-
-        #[repr(u8)]
-        enum TestCapTag {
-            CSpace,
-            UsizeCap,
-            Uninit,
-        }
-
-        #[repr(C)]
-        union TestCapPayload<'alloc, 'mem, A: Allocator<'mem>, C: TreeNodeOps> {
-            cspace: ManuallyDrop<CSpace<'alloc, 'mem, A, C>>,
-            usize_cap: ManuallyDrop<ValueCap<C, usize>>,
-            uninit: ManuallyDrop<Uninit<C>>,
-        }
-
-        impl<'mem, A: Allocator<'mem>> TestCapCollection<'_, 'mem, A> {
-            fn init_cap(&mut self, value: Self) {
-                match self.tag {
-                    TestCapTag::Uninit => unsafe { (self as *mut Self).write(value) },
-                    _ => panic!("only uninit caps can be initialized"),
-                }
-            }
-        }
-
-        impl<'mem, A: Allocator<'mem>> Default for TestCapCollection<'_, 'mem, A> {
-            fn default() -> Self {
-                Self {
-                    tag: TestCapTag::Uninit,
-                    payload: TestCapPayload {
-                        uninit: ManuallyDrop::new(Uninit::new()),
-                    },
-                }
-            }
-        }
-
-        impl<'mem, A: Allocator<'mem>> TreeNodeOps for TestCapCollection<'_, 'mem, A> {
-            fn get_tree_data(&self) -> &TreeNodeData<Self> {
-                match self.tag {
-                    TestCapTag::CSpace => unsafe { &self.payload.cspace.tree_data },
-                    TestCapTag::UsizeCap => unsafe { &self.payload.usize_cap.tree_data },
-                    TestCapTag::Uninit => unsafe { &self.payload.uninit.tree_data },
-                }
-            }
-        }
-
-        impl<'mem, A: Allocator<'mem>> Correspondence for TestCapCollection<'_, 'mem, A> {
-            fn corresponds_to(&self, other: &Self) -> bool {
-                match (&self.tag, &other.tag) {
-                    (TestCapTag::CSpace, TestCapTag::CSpace) => todo!(),
-                    (TestCapTag::Uninit, TestCapTag::Uninit) => todo!(),
-                    (TestCapTag::UsizeCap, TestCapTag::UsizeCap) => todo!(),
-                    _ => false,
-                }
-            }
-        }
-
-        impl<'mem, A: Allocator<'mem>> CapabilityOps for TestCapCollection<'_, 'mem, A> {
-            fn cap_copy(source: &Self, dest: &mut MaybeUninit<Self>) {
-                match &source.tag {
-                    TestCapTag::CSpace => unimplemented!(),
-                    TestCapTag::Uninit => unimplemented!(),
-                    TestCapTag::UsizeCap => {
-                        unsafe {
-                            addr_of_mut!((*dest.as_mut_ptr()).tag).write(TestCapTag::UsizeCap);
-                            ValueCap::cap_copy(
-                                &source.payload.usize_cap,
-                                &mut *(addr_of_mut!((*dest.as_mut_ptr()).payload)
-                                    as *mut MaybeUninit<TestCapPayload<A, Self>>
-                                    as *mut MaybeUninit<ValueCap<Self, usize>>),
-                            )
-                        }
-                        todo!()
-                    }
-                }
-            }
-
-            fn destroy(&self) {
-                todo!()
-            }
-        }
+        use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
+        use core::mem::MaybeUninit;
 
         #[test]
         fn full_tree_with_cspaces() {
             // arrange
-            use allocators::bump_allocator::ForwardBumpingAllocator;
-            type Cap<'alloc, 'mem> = TestCapCollection<'alloc, 'mem, ForwardBumpingAllocator<'mem>>;
-            const BYTES: usize = 4096;
-            let mut mem: Vec<u8> = vec![0; BYTES];
-            let allocator = StdBox::new(ForwardBumpingAllocator::new(&mut mem[..]));
+            let mem = Vec::leak::<'static>(vec![0; 4096]);
+            let allocator = StdBox::leak::<'static>(StdBox::new(ForwardBumpingAllocator::new(mem)));
             let mut loc = StdBox::new(MaybeUninit::uninit());
 
             // act
             // initialize a tree with a CSpace node as root
             let tree = unsafe {
-                DerivationTree::init_with_root_value(&mut loc, Cap::default());
+                DerivationTree::init_with_root_value(&mut loc, TestCapUnion::default());
                 assume_init_box(loc)
             };
             let mut cursor = tree.get_root_cursor().unwrap();
             let mut cspace_cap = cursor.get_exclusive().unwrap();
-            cspace_cap.init_cap(TestCapCollection {
-                tag: TestCapTag::CSpace,
-                payload: TestCapPayload {
-                    cspace: ManuallyDrop::new(CSpace::alloc_new(&*allocator, 4).unwrap()),
-                },
-            });
-            if let TestCapTag::CSpace = cspace_cap.tag {
+            CSpaceIface.init(&mut cspace_cap, (allocator, 4));
+
+            if cspace_cap.tag == TestCapTag::CSpace {
                 unsafe {
                     // create a new UsizeCap and store it as a derivation of the CSpace (this semantically does not make sense but we want to test)
-                    let usize_cap = &mut *cspace_cap.payload.cspace.lookup_raw(0).unwrap();
-                    usize_cap.init_cap(TestCapCollection {
-                        tag: TestCapTag::UsizeCap,
-                        payload: TestCapPayload {
-                            usize_cap: ManuallyDrop::new(ValueCap::new(42)),
-                        },
-                    });
+                    let mut usize_cap = &mut *cspace_cap.payload.cspace.lookup_raw(0).unwrap();
+                    ValueCapIface.init(&mut usize_cap, 42);
                     cspace_cap.insert_derivation(usize_cap);
+                    assert!(!usize_cap.get_tree_data().is_unlinked());
+                    let mut usize_cursor = tree.get_node(usize_cap as *mut _).unwrap();
+                    let usize_cap = usize_cursor.get_shared().unwrap();
 
                     // copy the UsizeCap
-                    let usize_cap2 = &mut *(cspace_cap.payload.cspace.lookup_raw(1).unwrap()
-                        as *mut MaybeUninit<Cap>);
-                    TestCapCollection::cap_copy(usize_cap, usize_cap2);
-                    usize_cap.insert_copy(usize_cap2.assume_init_mut());
+                    let usize_cap2 = &mut *cspace_cap.payload.cspace.lookup_raw(1).unwrap();
+                    ValueCapIface.copy(&usize_cap, usize_cap2);
+                    assert!(!usize_cap2.get_tree_data().is_unlinked());
                 }
             }
 
             // assert
+            assert_eq!(cspace_cap.tag, TestCapTag::CSpace);
         }
     }
 }
