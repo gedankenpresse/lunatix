@@ -1,15 +1,15 @@
+use crate::cap_counted::CapCounted;
 use crate::correspondence::Correspondence;
 use crate::TreeNodeOps;
 use allocators::{AllocError, Allocator, Box};
 use core::cell::RefCell;
-use core::mem::ManuallyDrop;
 
 /// An address of a specific capability in a chain of CSpaces
 pub type CAddr = usize;
 
 /// A capability that is a handle to backing memory for [`TreeNodes`](TreeNode).
 pub struct CSpace<'alloc, 'mem, A: Allocator<'mem>, T> {
-    slots: ManuallyDrop<Box<'alloc, 'mem, A, [RefCell<T>]>>,
+    slots: CapCounted<'alloc, 'mem, A, [RefCell<T>]>,
 }
 
 impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
@@ -27,7 +27,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
 
         // return result
         Ok(Self {
-            slots: ManuallyDrop::new(unsafe { slots.assume_init() }),
+            slots: unsafe { slots.assume_init() }.into(),
         })
     }
 
