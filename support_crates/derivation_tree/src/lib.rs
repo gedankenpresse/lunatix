@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+mod as_static_ref;
 mod cap_counted;
 pub mod caps;
 mod correspondence;
@@ -11,6 +12,7 @@ mod cursors;
 mod node;
 mod tree;
 
+pub use as_static_ref::{AsStaticMut, AsStaticRef};
 pub use correspondence::Correspondence;
 pub use cursors::{AliasingError, CursorHandle, CursorSet, OutOfCursorsError};
 pub use node::{TreeNodeData, TreeNodeOps};
@@ -65,7 +67,7 @@ mod test {
         use crate::caps::test_union::{MemoryIface, TestCapTag, TestCapUnion, ValueCapIface};
         use crate::caps::CapabilityIface;
         use crate::test::assume_init_box;
-        use crate::{DerivationTree, TreeNodeOps};
+        use crate::{AsStaticRef, DerivationTree, TreeNodeOps};
         use alloc::boxed::{Box as StdBox, Box};
         use alloc::vec;
         use alloc::vec::Vec;
@@ -91,8 +93,9 @@ mod test {
 
             // derive a cspace from the memory node
             let cspace_slot = StdBox::leak::<'static>(StdBox::new(TestCapUnion::default()));
-            MemoryIface.derive(&mem_cap, cspace_slot, TestCapTag::CSpace, 4);
-            let mut cspace_cursor = tree.get_node(cspace_slot as *mut _).unwrap();
+            let cspace_ptr = cspace_slot as *mut _;
+            MemoryIface.derive(mem_cap.as_static_ref(), cspace_slot, TestCapTag::CSpace, 4);
+            let mut cspace_cursor = tree.get_node(cspace_ptr).unwrap();
             let mut cspace_cap = cspace_cursor.get_exclusive().unwrap();
 
             unsafe {
@@ -111,7 +114,8 @@ mod test {
             }
 
             // assert
-            assert_eq!(mem_cap.tag, TestCapTag::CSpace);
+            assert_eq!(mem_cap.tag, TestCapTag::Memory);
+            assert_eq!(cspace_cap.tag, TestCapTag::CSpace);
         }
     }
 }

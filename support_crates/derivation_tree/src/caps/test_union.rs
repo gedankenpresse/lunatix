@@ -193,7 +193,7 @@ impl CapabilityIface<TestCapUnion> for CSpaceIface {
 pub struct MemoryIface;
 
 impl MemoryIface {
-    /// Derive the target capability from this memory capability (`mem`) and store it in `target`.
+    /// Derive the desired capability from this memory capability (`mem`) and store it in `target`.
     pub fn derive(
         &self,
         mem: &'static TestCapUnion,
@@ -203,7 +203,6 @@ impl MemoryIface {
     ) {
         assert_eq!(target.tag, TestCapTag::Uninit);
 
-        target.tag = target_capability;
         match target_capability {
             TestCapTag::Uninit => panic!("uninit cannot be derived"),
             TestCapTag::CSpace => {
@@ -219,6 +218,7 @@ impl MemoryIface {
             TestCapTag::UsizeValue => unimplemented!(),
         }
 
+        assert_eq!(target.tag, target_capability);
         unsafe { mem.insert_derivation(target) };
     }
 }

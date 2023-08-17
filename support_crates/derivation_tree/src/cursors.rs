@@ -1,4 +1,4 @@
-use crate::TreeNodeOps;
+use crate::{AsStaticMut, AsStaticRef, TreeNodeOps};
 use core::cell::Cell;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
@@ -204,12 +204,19 @@ impl<T: TreeNodeOps> Drop for CursorHandle<'_, T> {
 }
 
 pub struct CursorRef<'handle, 'cursor_set, T: TreeNodeOps> {
+    /// The CursorHandle from which this reference was obtained
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
 impl<T: TreeNodeOps> CursorRef<'_, '_, T> {
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
+    }
+}
+
+unsafe impl<T: TreeNodeOps> AsStaticRef<T> for CursorRef<'_, '_, T> {
+    fn as_static_ref(&self) -> &'static T {
+        unsafe { &*self.source_handle.cursor.get().get_ptr() }
     }
 }
 
@@ -230,12 +237,25 @@ impl<T: TreeNodeOps> Drop for CursorRef<'_, '_, T> {
 }
 
 pub struct CursorRefMut<'handle, 'cursor_set, T: TreeNodeOps> {
+    /// The CursorHandle from which this reference was obtained
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
 impl<T: TreeNodeOps> CursorRefMut<'_, '_, T> {
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
+    }
+}
+
+unsafe impl<T: TreeNodeOps> AsStaticRef<T> for CursorRefMut<'_, '_, T> {
+    fn as_static_ref(&self) -> &'static T {
+        unsafe { &*self.source_handle.cursor.get().get_ptr() }
+    }
+}
+
+unsafe impl<T: TreeNodeOps> AsStaticMut<T> for CursorRefMut<'_, '_, T> {
+    fn as_static_mut(&self) -> &'static mut T {
+        unsafe { &mut *self.source_handle.cursor.get().get_ptr() }
     }
 }
 
