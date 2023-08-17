@@ -1,7 +1,8 @@
 use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
 use crate::node::TreeNodeOps;
+use crate::tree_iter::NextNodeIterator;
 use core::mem::MaybeUninit;
-use core::ptr::addr_of_mut;
+use core::ptr::{addr_of, addr_of_mut};
 
 /// A intrinsic collection for tracking nodes that are derived from each other in a tree-like structure.
 pub struct DerivationTree<T: TreeNodeOps> {
@@ -52,6 +53,15 @@ impl<T: TreeNodeOps> DerivationTree<T> {
         let cursor = self.cursors.get_free_cursor()?;
         cursor.select_node(node);
         Ok(cursor)
+    }
+
+    /// Get an iterator over all nodes in the tree.
+    ///
+    /// *Note:* The iterator only hands out raw pointers to the trees nodes and a valid handle must be obtained
+    /// by calling [`get_node()`](Self::get_node) to safely use it.
+    pub fn iter(&self) -> NextNodeIterator<T> {
+        // TODO Fix const2mut cast
+        NextNodeIterator::from_starting_node(addr_of!(self.root_node) as *mut _)
     }
 }
 

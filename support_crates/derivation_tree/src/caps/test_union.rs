@@ -1,9 +1,7 @@
 use crate::caps::{CSpace, CapabilityIface, Memory, Uninit};
 use crate::{Correspondence, TreeNodeData, TreeNodeOps};
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
-use allocators::Allocator;
 use core::mem::ManuallyDrop;
-use core::ops::Deref;
 
 /// A Union type for bundling all builtin + test capabilities together
 pub struct TestCapUnion {

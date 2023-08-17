@@ -11,6 +11,7 @@ mod correspondence;
 mod cursors;
 mod node;
 mod tree;
+mod tree_iter;
 
 pub use as_static_ref::{AsStaticMut, AsStaticRef};
 pub use correspondence::Correspondence;
@@ -116,6 +117,7 @@ mod test {
             // assert
             assert_eq!(mem_cap.tag, TestCapTag::Memory);
             assert_eq!(cspace_cap.tag, TestCapTag::CSpace);
+            assert_eq!(tree.iter().count(), 4);
         }
     }
 }

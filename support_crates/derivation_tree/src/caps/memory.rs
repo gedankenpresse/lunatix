@@ -1,8 +1,6 @@
 use crate::cap_counted::CapCounted;
-use crate::{Correspondence, TreeNodeData, TreeNodeOps};
-use allocators::{AllocError, AllocInit, Allocator, Box};
-use core::alloc::Layout;
-use core::mem::ManuallyDrop;
+use crate::Correspondence;
+use allocators::{AllocError, Allocator, Box};
 use core::ops::DerefMut;
 
 /// A capability for managing memory
