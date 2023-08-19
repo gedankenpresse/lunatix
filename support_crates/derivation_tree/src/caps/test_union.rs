@@ -1,5 +1,6 @@
 use crate::caps::{CSpace, CapabilityIface, GetCapIface, Memory, Uninit};
-use crate::{AsStaticMut, AsStaticRef, Correspondence, TreeNodeData, TreeNodeOps};
+use crate::tree::{TreeNodeData, TreeNodeOps};
+use crate::{AsStaticMut, AsStaticRef, Correspondence};
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use core::mem::ManuallyDrop;
 use core::ops::DerefMut;

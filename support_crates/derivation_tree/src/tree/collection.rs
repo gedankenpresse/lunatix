@@ -1,6 +1,5 @@
-use crate::cursors::{CursorHandle, CursorSet, OutOfCursorsError};
-use crate::node::TreeNodeOps;
-use crate::tree_iter::NextNodeIterator;
+use crate::tree::cursors::CursorSet;
+use crate::tree::{CursorHandle, NextNodeIterator, OutOfCursorsError, TreeNodeOps};
 use core::mem::MaybeUninit;
 use core::ptr::{addr_of, addr_of_mut};
 
@@ -59,7 +58,7 @@ impl<T: TreeNodeOps> DerivationTree<T> {
     ///
     /// *Note:* The iterator only hands out raw pointers to the trees nodes and a valid handle must be obtained
     /// by calling [`get_node()`](Self::get_node) to safely use it.
-    pub fn iter(&self) -> NextNodeIterator<T> {
+    pub fn iter(&self) -> impl Iterator<Item = *mut T> {
         // TODO Fix const2mut cast
         NextNodeIterator::from_starting_node(addr_of!(self.root_node) as *mut _)
     }
@@ -70,10 +69,9 @@ mod test {
     extern crate std;
 
     use super::*;
-    use crate::assume_init_box;
-    use crate::cursors::CursorRefMut;
+    use crate::test::assume_init_box;
     use crate::test::node_tests::TestNode;
-    use crate::tree::DerivationTree;
+    use crate::tree::{CursorRefMut, DerivationTree};
     use alloc::boxed::Box;
 
     #[test]

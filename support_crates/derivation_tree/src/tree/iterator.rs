@@ -1,4 +1,4 @@
-use crate::TreeNodeOps;
+use crate::tree::TreeNodeOps;
 
 /// An iterator over node which walks the chain of `next` pointers.
 pub struct NextNodeIterator<T: TreeNodeOps> {
@@ -7,7 +7,7 @@ pub struct NextNodeIterator<T: TreeNodeOps> {
 
 impl<T: TreeNodeOps> NextNodeIterator<T> {
     /// Create an iterator which starts at the given node pointer.
-    pub(crate) fn from_starting_node(node: *mut T) -> Self {
+    pub fn from_starting_node(node: *mut T) -> Self {
         Self {
             current_node: Some(node),
         }

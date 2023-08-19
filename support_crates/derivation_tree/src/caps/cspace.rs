@@ -1,6 +1,6 @@
 use crate::cap_counted::CapCounted;
 use crate::correspondence::Correspondence;
-use crate::TreeNodeOps;
+use crate::tree::TreeNodeOps;
 use allocators::{AllocError, Allocator, Box};
 use core::cell::RefCell;
 

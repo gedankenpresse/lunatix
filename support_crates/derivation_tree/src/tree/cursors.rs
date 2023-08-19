@@ -1,5 +1,6 @@
 use crate::caps::{CapabilityIface, GetCapIface};
-use crate::{AsStaticMut, AsStaticRef, TreeNodeOps};
+use crate::tree::TreeNodeOps;
+use crate::{AsStaticMut, AsStaticRef};
 use core::cell::Cell;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
@@ -304,9 +305,9 @@ pub struct OutOfCursorsError;
 mod test {
     extern crate std;
 
-    use crate::assume_init_box;
-    use crate::cursors::{CursorData, CursorSet};
+    use crate::test::assume_init_box;
     use crate::test::node_tests::TestNode;
+    use crate::tree::cursors::{CursorData, CursorSet};
     use alloc::boxed::Box;
     use core::mem;
     use core::mem::MaybeUninit;

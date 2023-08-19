@@ -8,22 +8,13 @@ mod as_static_ref;
 mod cap_counted;
 pub mod caps;
 mod correspondence;
-mod cursors;
-mod node;
-mod tree;
-mod tree_iter;
+pub mod tree;
 
 pub use as_static_ref::{AsStaticMut, AsStaticRef};
 pub use correspondence::Correspondence;
-pub use cursors::{AliasingError, CursorHandle, CursorSet, OutOfCursorsError};
-pub use node::{TreeNodeData, TreeNodeOps};
-pub use tree::DerivationTree;
 
 #[cfg(test)]
-pub(crate) use test::assume_init_box;
-
-#[cfg(test)]
-mod test {
+pub mod test {
     extern crate std;
 
     use alloc::boxed::Box as StdBox;
@@ -35,7 +26,8 @@ mod test {
     }
 
     pub mod node_tests {
-        use crate::{Correspondence, TreeNodeData, TreeNodeOps};
+        use crate::tree::{TreeNodeData, TreeNodeOps};
+        use crate::Correspondence;
 
         pub struct TestNode {
             pub tree_data: TreeNodeData<Self>,
@@ -65,19 +57,15 @@ mod test {
     }
 
     pub mod full_capability_tests {
-        use crate::caps::test_union::{
-            CSpaceIface, MemoryIface, TestCapTag, TestCapUnion, ValueCapIface,
-        };
+        use crate::caps::test_union::{MemoryIface, TestCapTag, TestCapUnion, ValueCapIface};
         use crate::caps::{CapabilityIface, UninitSlot};
-        use crate::cursors::CursorRefMut;
         use crate::test::assume_init_box;
-        use crate::{AsStaticMut, AsStaticRef, DerivationTree, TreeNodeOps};
+        use crate::tree::{DerivationTree, TreeNodeOps};
         use alloc::boxed::{Box as StdBox, Box};
         use alloc::vec;
         use alloc::vec::Vec;
         use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
         use core::mem::MaybeUninit;
-        use core::ops::{Deref, DerefMut};
 
         #[test]
         fn full_tree_with_cspaces() {

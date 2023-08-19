@@ -1,4 +1,4 @@
-use crate::cursors::{CursorData, CursorSet};
+use crate::tree::cursors::{CursorData, CursorSet};
 use crate::Correspondence;
 use core::cell::Cell;
 use core::ptr;
