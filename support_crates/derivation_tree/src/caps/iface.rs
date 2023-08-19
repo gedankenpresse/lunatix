@@ -19,5 +19,12 @@ pub trait CapabilityIface<U> {
     fn copy(&self, src: &impl AsStaticRef<U>, dst: &mut impl AsStaticMut<U>);
 
     /// Destroy the capability located at `target`.
-    fn destroy(&self, target: &mut impl AsStaticMut<U>);
+    fn destroy(&self, target: &mut U);
+}
+
+/// A trait for easily obtaining the matching *CapabilityIface* for a capability type
+pub trait GetCapIface: Sized {
+    type IfaceImpl: CapabilityIface<Self>;
+
+    fn get_capability_iface(&self) -> Self::IfaceImpl;
 }

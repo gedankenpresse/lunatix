@@ -69,6 +69,7 @@ mod test {
             CSpaceIface, MemoryIface, TestCapTag, TestCapUnion, ValueCapIface,
         };
         use crate::caps::{CapabilityIface, UninitSlot};
+        use crate::cursors::CursorRefMut;
         use crate::test::assume_init_box;
         use crate::{AsStaticMut, AsStaticRef, DerivationTree, TreeNodeOps};
         use alloc::boxed::{Box as StdBox, Box};
@@ -131,7 +132,8 @@ mod test {
                             assert_eq!(tree.iter().count(), 4);
 
                             // safely remove the second UsizeCap
-                            ValueCapIface.destroy(&mut usize_cap2);
+                            drop(usize_cap2);
+                            usize_cursor2.destroy_cap();
                             assert_eq!(tree.iter().count(), 3);
 
                             // assert that the original copy has no siblings anymore
@@ -142,12 +144,14 @@ mod test {
                         assert_eq!(tree.iter().count(), 3);
 
                         // safely remove the first UsizeCap
-                        ValueCapIface.destroy(&mut usize_cap);
+                        drop(usize_cap);
+                        usize_cursor.destroy_cap();
                         assert_eq!(tree.iter().count(), 2);
                     }
 
                     // safely remove the CSpace
-                    CSpaceIface.destroy(&mut cspace_cap);
+                    drop(cspace_cap);
+                    cspace_cursor.destroy_cap();
                     assert_eq!(tree.iter().count(), 1);
 
                     // all handles to the CSpace go out of scope here

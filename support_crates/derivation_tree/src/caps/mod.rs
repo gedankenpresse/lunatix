@@ -6,7 +6,7 @@ mod uninit;
 mod uninit_slot;
 
 pub use cspace::CSpace;
-pub use iface::CapabilityIface;
+pub use iface::{CapabilityIface, GetCapIface};
 pub use memory::Memory;
 pub use uninit::Uninit;
 pub use uninit_slot::UninitSlot;

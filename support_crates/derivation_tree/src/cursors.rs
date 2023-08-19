@@ -1,3 +1,4 @@
+use crate::caps::{CapabilityIface, GetCapIface};
 use crate::{AsStaticMut, AsStaticRef, TreeNodeOps};
 use core::cell::Cell;
 use core::mem::MaybeUninit;
@@ -194,6 +195,18 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
         };
 
         Ok(target_cursor)
+    }
+}
+
+impl<T: TreeNodeOps + GetCapIface> CursorHandle<'_, T> {
+    pub fn destroy_cap(self) {
+        // get node data from cursor before dropping it
+        let node = unsafe { &mut *self.cursor.get().get_ptr() };
+        let iface = node.get_capability_iface();
+
+        // drop the cursor so that nothing points to the node before destroying it
+        self.cursor.set(CursorData::Free);
+        iface.destroy(node)
     }
 }
 

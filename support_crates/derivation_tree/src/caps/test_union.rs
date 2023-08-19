@@ -1,4 +1,4 @@
-use crate::caps::{CSpace, CapabilityIface, Memory, Uninit};
+use crate::caps::{CSpace, CapabilityIface, GetCapIface, Memory, Uninit};
 use crate::{AsStaticMut, AsStaticRef, Correspondence, TreeNodeData, TreeNodeOps};
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use core::mem::ManuallyDrop;
@@ -42,9 +42,25 @@ impl TestCapPayload {
     }
 }
 
+impl TestCapUnion {
+    /// Whether a cursor to this node exists
+    fn exists_cursor_to_self(&mut self) -> bool {
+        let self_ptr = self as *mut _;
+        self.tree_data.get_cursors().exists_cursor_to(self_ptr)
+    }
+}
+
 impl TreeNodeOps for TestCapUnion {
     fn get_tree_data(&self) -> &TreeNodeData<Self> {
         &self.tree_data
+    }
+}
+
+impl GetCapIface for TestCapUnion {
+    type IfaceImpl = TestCapTag;
+
+    fn get_capability_iface(&self) -> Self::IfaceImpl {
+        self.tag
     }
 }
 
@@ -99,7 +115,7 @@ impl CapabilityIface<TestCapUnion> for TestCapTag {
         }
     }
 
-    fn destroy(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
+    fn destroy(&self, target: &mut TestCapUnion) {
         match self {
             TestCapTag::Uninit => UninitIface.destroy(target),
             TestCapTag::CSpace => CSpaceIface.destroy(target),
@@ -146,8 +162,11 @@ impl CapabilityIface<TestCapUnion> for ValueCapIface {
         unsafe { src.insert_copy(dst) };
     }
 
-    fn destroy(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
-        let target = target.as_static_mut();
+    fn destroy(&self, target: &mut TestCapUnion) {
+        assert!(
+            !target.exists_cursor_to_self(),
+            "Cannot destroy Capability because there is still a cursor using it"
+        );
 
         // semantically destroy the node
         unsafe {
@@ -183,7 +202,11 @@ impl CapabilityIface<TestCapUnion> for UninitIface {
         assert_eq!(dst.as_static_mut().tag, TestCapTag::Uninit)
     }
 
-    fn destroy(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
+    fn destroy(&self, target: &mut TestCapUnion) {
+        assert!(
+            !target.exists_cursor_to_self(),
+            "Cannot destroy Capability because there is still a cursor using it"
+        );
         panic!("Uninit capabilities should never be destroyed")
     }
 }
@@ -209,8 +232,11 @@ impl CapabilityIface<TestCapUnion> for CSpaceIface {
         todo!()
     }
 
-    fn destroy(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
-        let target = target.as_static_mut();
+    fn destroy(&self, target: &mut TestCapUnion) {
+        assert!(
+            !target.exists_cursor_to_self(),
+            "Cannot destroy Capability because there is still a cursor using it"
+        );
 
         // semantically destroy the CSpace by deallocating the backing memory
         if target.is_final_copy() {
@@ -267,9 +293,7 @@ impl MemoryIface {
     }
 
     /// Destroy all capabilities that were derived from this node
-    pub fn revoke(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
-        let target = target.as_static_mut();
-
+    pub fn revoke(&self, target: &mut TestCapUnion) {
         // obtain the last copy of target so that the next pointer is a child node
         let mut cursor = target.tree_data.get_cursors().get_free_cursor().unwrap();
         let last_copy_ptr = unsafe { target.get_last_copy() };
@@ -314,27 +338,26 @@ impl CapabilityIface<TestCapUnion> for MemoryIface {
         todo!()
     }
 
-    fn destroy(&self, target: &mut impl AsStaticMut<TestCapUnion>) {
+    fn destroy(&self, target: &mut TestCapUnion) {
+        assert!(
+            !target.exists_cursor_to_self(),
+            "Cannot destroy Capability because there is still a cursor using it"
+        );
+
         // semantically destroy the capability
         {
-            if target.as_static_mut().is_final_copy() {
+            if target.is_final_copy() {
                 self.revoke(target);
                 unsafe {
-                    target
-                        .as_static_mut()
-                        .payload
-                        .memory
-                        .deref_mut()
-                        .deallocate();
+                    target.payload.memory.deref_mut().deallocate();
                 }
             }
         }
         unsafe {
-            ManuallyDrop::drop(&mut target.as_static_mut().payload.memory);
+            ManuallyDrop::drop(&mut target.payload.memory);
         }
 
         // remove the node from the tree
-        let target = target.as_static_mut();
         target.tree_data.unlink();
         target.tag = TestCapTag::Uninit;
         target.payload = TestCapPayload::new_uninit();
