@@ -5,8 +5,7 @@ mod userspace;
 mod x86_64;
 
 use allocators::bump_allocator::BumpAllocator;
-use allocators::{Allocator, Arena};
-use libkernel::mem::{ptrs::PhysMutPtr, MemoryPage, PAGESIZE};
+use libkernel::mem::ptrs::PhysMutPtr;
 
 #[cfg(target_arch = "riscv64")]
 pub use riscv64::*;

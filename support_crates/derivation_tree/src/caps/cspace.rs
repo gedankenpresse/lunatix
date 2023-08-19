@@ -9,7 +9,7 @@ pub type CAddr = usize;
 
 /// A capability that is a handle to backing memory for [`TreeNodes`](TreeNode).
 pub struct CSpace<'alloc, 'mem, A: Allocator<'mem>, T> {
-    slots: CapCounted<'mem, A, [RefCell<T>]>,
+    slots: CapCounted<'alloc, 'mem, A, [RefCell<T>]>,
 }
 
 impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
@@ -51,7 +51,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
     }
 }
 
-impl<'mem, A: Allocator<'mem>, T: TreeNodeOps> Correspondence for CSpace<'_, 'mem, A, T> {
+impl<'alloc, 'mem, A: Allocator<'mem>, T: TreeNodeOps> Correspondence for CSpace<'alloc, 'mem, A, T> {
     fn corresponds_to(&self, other: &Self) -> bool {
         let self_slots: &[_] = &self.slots;
         let other_slots: &[_] = &other.slots;

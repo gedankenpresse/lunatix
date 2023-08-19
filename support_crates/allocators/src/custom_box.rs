@@ -36,6 +36,16 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> Box<'alloc, 'mem, A, T> {
         unsafe { &mut *result }
     }
 
+    pub unsafe fn ignore_lifetimes(self) -> Box<'static, 'mem, A, T> {
+        let (inner, source_alloc, source_layout) = self.into_raw();
+        unsafe {
+            Box {
+                inner: (inner as *mut T).as_mut().unwrap(),
+                source_alloc: (source_alloc as *const A).as_ref().unwrap(),
+                source_layout: source_layout
+            }
+        }
+    }
     /// Consume the Box, returning its raw parts.
     ///
     /// After calling this function, the caller is responsible for the memory previously managed by the Box.

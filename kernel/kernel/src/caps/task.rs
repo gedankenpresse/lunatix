@@ -4,7 +4,7 @@ use core::cell::RefCell;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
 use derivation_tree::caps::CapabilityIface;
-use derivation_tree::{AsStaticMut, AsStaticRef, CapCounted};
+use derivation_tree::CapCounted;
 use riscv::trap::TrapFrame;
 
 use super::Capability;
@@ -44,7 +44,7 @@ pub struct TaskIface;
 
 impl TaskIface {
     /// Derive a new [`Task`](super::Task) capability from a memory capability.
-    pub fn derive(&self, src_mem: &impl AsStaticRef<Capability>, target_slot: &mut Capability) {
+    pub fn derive(&self, src_mem: & Capability, target_slot: &mut Capability) {
         assert_eq!(target_slot.tag, Tag::Uninit);
 
         // create a new (uninitialized) task state
@@ -55,7 +55,6 @@ impl TaskIface {
                 frame: TrapFrame::null(),
             }),
             src_mem
-                .as_static_ref()
                 .get_inner_memory()
                 .unwrap()
                 .allocator
@@ -67,11 +66,12 @@ impl TaskIface {
         target_slot.tag = Tag::Memory;
         target_slot.variant = Variant {
             task: ManuallyDrop::new(Task {
-                state: CapCounted::from_box(task_state),
+                // Safety: it is safe to ignore lifetimes for this box, because the derivation tree ensures correct lifetimes at runtime
+                state: CapCounted::from_box(unsafe { Box::ignore_lifetimes(task_state) }),
             }),
         };
 
-        todo!()
+        // todo!()
     }
 }
 
