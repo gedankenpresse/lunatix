@@ -266,7 +266,7 @@ mod test {
         assert_eq!(new_node.tree_data.depth.get(), 1);
         assert!(!new_node.tree_data.prev.get().is_null());
         assert!(new_node.tree_data.next.get().is_null());
-        assert!(new_node.is_last_copy());
+        assert!(new_node.is_final_copy());
         assert!(!tree.root_node.has_derivations());
     }
 
@@ -332,6 +332,6 @@ mod test {
 
         // assert
         assert!(tree.root_node.tree_data.next.get().is_null());
-        assert!(tree.root_node.is_last_copy());
+        assert!(tree.root_node.is_final_copy());
     }
 }

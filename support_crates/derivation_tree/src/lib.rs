@@ -65,15 +65,18 @@ mod test {
     }
 
     pub mod full_capability_tests {
-        use crate::caps::test_union::{MemoryIface, TestCapTag, TestCapUnion, ValueCapIface};
-        use crate::caps::CapabilityIface;
+        use crate::caps::test_union::{
+            CSpaceIface, MemoryIface, TestCapTag, TestCapUnion, ValueCapIface,
+        };
+        use crate::caps::{CapabilityIface, UninitSlot};
         use crate::test::assume_init_box;
-        use crate::{AsStaticRef, DerivationTree, TreeNodeOps};
+        use crate::{AsStaticMut, AsStaticRef, DerivationTree, TreeNodeOps};
         use alloc::boxed::{Box as StdBox, Box};
         use alloc::vec;
         use alloc::vec::Vec;
         use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
         use core::mem::MaybeUninit;
+        use core::ops::{Deref, DerefMut};
 
         #[test]
         fn full_tree_with_cspaces() {
@@ -88,36 +91,70 @@ mod test {
                 DerivationTree::init_with_root_value(&mut loc, TestCapUnion::default());
                 assume_init_box(loc)
             });
-            let mut mem_cap_cursor = tree.get_root_cursor().unwrap();
-            let mut mem_cap = mem_cap_cursor.get_exclusive().unwrap();
-            MemoryIface.init(&mut mem_cap, (allocator, 4096));
 
-            // derive a cspace from the memory node
-            let cspace_slot = StdBox::leak::<'static>(StdBox::new(TestCapUnion::default()));
-            let cspace_ptr = cspace_slot as *mut _;
-            MemoryIface.derive(mem_cap.as_static_ref(), cspace_slot, TestCapTag::CSpace, 4);
-            let mut cspace_cursor = tree.get_node(cspace_ptr).unwrap();
-            let mut cspace_cap = cspace_cursor.get_exclusive().unwrap();
+            {
+                let mut mem_cap_cursor = tree.get_root_cursor().unwrap();
+                let mut mem_cap = mem_cap_cursor.get_exclusive().unwrap();
+                MemoryIface.init(&mut mem_cap, (allocator, 4096));
 
-            unsafe {
-                // create a new UsizeCap and store it as a derivation of the CSpace (this semantically does not make sense but we want to test)
-                let mut usize_cap = &mut *cspace_cap.payload.cspace.lookup_raw(0).unwrap();
-                ValueCapIface.init(&mut usize_cap, 42);
-                mem_cap.insert_derivation(usize_cap);
-                assert!(!usize_cap.get_tree_data().is_not_in_tree());
-                let mut usize_cursor = tree.get_node(usize_cap as *mut _).unwrap();
-                let usize_cap = usize_cursor.get_shared().unwrap();
+                {
+                    // derive a cspace from the memory node
+                    let cspace_slot = StdBox::leak::<'static>(StdBox::new(TestCapUnion::default()));
+                    let cspace_ptr = cspace_slot as *mut _;
+                    let mut cspace_slot = unsafe { UninitSlot::new(cspace_slot) };
+                    MemoryIface.derive(&mem_cap, &mut cspace_slot, TestCapTag::CSpace, 4);
+                    let mut cspace_cursor = tree.get_node(cspace_ptr).unwrap();
+                    let mut cspace_cap = cspace_cursor.get_exclusive().unwrap();
 
-                // copy the UsizeCap
-                let usize_cap2 = &mut *cspace_cap.payload.cspace.lookup_raw(1).unwrap();
-                ValueCapIface.copy(&usize_cap, usize_cap2);
-                assert!(!usize_cap2.get_tree_data().is_not_in_tree());
+                    unsafe {
+                        // create a new UsizeCap and store it as a derivation of the CSpace (this semantically does not make sense but we want to test)
+                        let usize_cap = &mut *cspace_cap.payload.cspace.lookup_raw(0).unwrap();
+                        let mut usize_slot = unsafe { UninitSlot::new(usize_cap) };
+                        ValueCapIface.init(&mut usize_slot, 42);
+                        mem_cap.insert_derivation(usize_cap);
+                        assert!(!usize_cap.get_tree_data().is_not_in_tree());
+                        let mut usize_cursor = tree.get_node(usize_cap as *mut _).unwrap();
+                        let mut usize_cap = usize_cursor.get_exclusive().unwrap();
+
+                        {
+                            // copy the UsizeCap
+                            let usize_cap2 = &mut *cspace_cap.payload.cspace.lookup_raw(1).unwrap();
+                            let mut usize_slot2 = unsafe { UninitSlot::new(usize_cap2) };
+                            ValueCapIface.copy(&usize_cap, &mut usize_slot2);
+                            assert!(!usize_cap2.get_tree_data().is_not_in_tree());
+                            let mut usize_cursor2 = tree.get_node(usize_cap2 as *mut _).unwrap();
+                            let mut usize_cap2 = usize_cursor2.get_exclusive().unwrap();
+
+                            // assert that the tree was correctly constructed
+                            assert_eq!(mem_cap.tag, TestCapTag::Memory);
+                            assert_eq!(cspace_cap.tag, TestCapTag::CSpace);
+                            assert_eq!(tree.iter().count(), 4);
+
+                            // safely remove the second UsizeCap
+                            ValueCapIface.destroy(&mut usize_cap2);
+                            assert_eq!(tree.iter().count(), 3);
+
+                            // assert that the original copy has no siblings anymore
+                            assert!(usize_cap.is_final_copy());
+
+                            // all handles to UsizeCap2 should be dropped at the end of this block
+                        }
+                        assert_eq!(tree.iter().count(), 3);
+
+                        // safely remove the first UsizeCap
+                        ValueCapIface.destroy(&mut usize_cap);
+                        assert_eq!(tree.iter().count(), 2);
+                    }
+
+                    // safely remove the CSpace
+                    CSpaceIface.destroy(&mut cspace_cap);
+                    assert_eq!(tree.iter().count(), 1);
+
+                    // all handles to the CSpace go out of scope here
+                }
+
+                // all handles to the Memory capability go out of scope here
             }
-
-            // assert
-            assert_eq!(mem_cap.tag, TestCapTag::Memory);
-            assert_eq!(cspace_cap.tag, TestCapTag::CSpace);
-            assert_eq!(tree.iter().count(), 4);
         }
     }
 }

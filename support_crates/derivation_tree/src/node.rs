@@ -100,7 +100,7 @@ pub trait TreeNodeOps: Sized + Correspondence {
     }
 
     /// Whether this node is the last copy of the contained value
-    fn is_last_copy(&self) -> bool {
+    fn is_final_copy(&self) -> bool {
         let tree_data = self.get_tree_data();
 
         if let Some(prev_node) = unsafe { tree_data.prev.get().as_ref() } {
@@ -241,6 +241,25 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
         unsafe { &*self.cursors.get() }
     }
 
+    /// Remove all links that this struct has to the containing tree.
+    /// Effectively, this removes the node from the tree without dropping it.
+    pub(crate) fn unlink(&mut self) {
+        // remove this node from the linked list of nodes
+        unsafe {
+            if let Some(prev_node) = self.prev.get().as_ref() {
+                prev_node.get_tree_data().next.set(self.next.get());
+            }
+            if let Some(next_node) = self.next.get().as_ref() {
+                next_node.get_tree_data().prev.set(self.prev.get());
+            }
+            self.next.set(ptr::null_mut());
+            self.prev.set(ptr::null_mut());
+        }
+
+        // reset other data to signal that the node is not in a tree
+        self.depth.set(0);
+    }
+
     /// Whether this node is currently part of a derivation tree
     pub fn is_not_in_tree(&self) -> bool {
         self.cursors.get().is_null()
@@ -277,19 +296,6 @@ impl<T: TreeNodeOps> Drop for TreeNodeData<T> {
         );
 
         // remove this node from the linked list of nodes
-        unsafe {
-            if let Some(prev_node) = self.prev.get().as_ref() {
-                prev_node.get_tree_data().next.set(self.next.get());
-            }
-            if let Some(next_node) = self.next.get().as_ref() {
-                next_node.get_tree_data().prev.set(self.prev.get());
-            }
-            self.next.set(ptr::null_mut());
-            self.prev.set(ptr::null_mut());
-            self.depth.set(0);
-        }
-
-        // reset cursor pointer to signal that the node is not in a tree
-        self.cursors.set(ptr::null());
+        self.unlink();
     }
 }

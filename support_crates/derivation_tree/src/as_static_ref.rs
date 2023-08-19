@@ -19,6 +19,12 @@ pub unsafe trait AsStaticRef<T: ?Sized> {
 /// # Safety
 /// This trait is only allowed to be implemented by types that manage the lifetime of `T` through some other means
 /// and guarantee that `T` exists for as long as references have been handed out.
-pub unsafe trait AsStaticMut<T: ?Sized> {
-    fn as_static_mut(&self) -> &'static mut T;
+pub unsafe trait AsStaticMut<T: ?Sized>: AsStaticRef<T> {
+    fn as_static_mut(&mut self) -> &'static mut T;
+}
+
+unsafe impl<T: ?Sized> AsStaticRef<T> for &'static T {
+    fn as_static_ref(&self) -> &'static T {
+        self
+    }
 }

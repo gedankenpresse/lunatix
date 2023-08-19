@@ -39,6 +39,15 @@ impl<'mem, 'allocator, SourceAllocator: Allocator<'mem>, ContentAllocator: Alloc
             backing_mem: backing_mem.into(),
         })
     }
+
+    /// Deallocate the backing memory of this memory capability.
+    ///
+    /// # Safety
+    /// This method must only be called once and only on the last existing capability copy.
+    pub unsafe fn deallocate(&mut self) {
+        self.backing_mem.destroy();
+        self.allocator.destroy();
+    }
 }
 
 impl<'mem, SourceAllocator: Allocator<'mem>, ContentAllocator: Allocator<'mem>> Correspondence

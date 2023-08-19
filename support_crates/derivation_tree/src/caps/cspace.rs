@@ -31,6 +31,14 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
         })
     }
 
+    /// Deallocate the backing memory of this CSpace.
+    ///
+    /// # Safety
+    /// This method must only be called once and only on the last existing capability copy.
+    pub unsafe fn deallocate(&mut self) {
+        self.slots.destroy();
+    }
+
     /// Perform a lookup based on the given address and return a *TreeNode* if one corresponds to that address.
     ///
     /// # Safety

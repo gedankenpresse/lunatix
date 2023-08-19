@@ -254,7 +254,7 @@ unsafe impl<T: TreeNodeOps> AsStaticRef<T> for CursorRefMut<'_, '_, T> {
 }
 
 unsafe impl<T: TreeNodeOps> AsStaticMut<T> for CursorRefMut<'_, '_, T> {
-    fn as_static_mut(&self) -> &'static mut T {
+    fn as_static_mut(&mut self) -> &'static mut T {
         unsafe { &mut *self.source_handle.cursor.get().get_ptr() }
     }
 }
