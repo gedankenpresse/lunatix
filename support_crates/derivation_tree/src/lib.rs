@@ -3,8 +3,6 @@
 #![no_std]
 #![warn(missing_docs)]
 
-extern crate alloc;
-
 mod as_static_ref;
 mod cap_counted;
 pub mod caps;
@@ -12,12 +10,14 @@ mod correspondence;
 pub mod tree;
 
 pub use as_static_ref::{AsStaticMut, AsStaticRef};
+pub use cap_counted::CapCounted;
 pub use correspondence::Correspondence;
 
 #[cfg(test)]
 pub mod test {
     #![allow(unused_variables)]
 
+    extern crate alloc;
     extern crate std;
 
     use alloc::boxed::Box as StdBox;

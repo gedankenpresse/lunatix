@@ -215,7 +215,7 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
     /// # Safety
     /// Before usage, the containing TreeNode should be assigned inserted into a collection which must call
     /// [`assign_cursor_set()`](Self::assign_cursor_set).
-    pub unsafe fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             prev: Cell::new(ptr::null_mut()),
             next: Cell::new(ptr::null_mut()),

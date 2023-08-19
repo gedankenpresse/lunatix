@@ -10,12 +10,10 @@ use core::ptr;
 ///
 /// When no capabilities need the contained value anymore, [`destroy()`](Self::destroy) must be called to
 /// drop the contained value.
-pub struct CapCounted<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized>(
-    ManuallyDrop<Box<'alloc, 'mem, A, T>>,
-);
+pub struct CapCounted<'mem, A: Allocator<'mem>, T: ?Sized>(ManuallyDrop<Box<'static, 'mem, A, T>>);
 
-impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> CapCounted<'alloc, 'mem, A, T> {
-    pub fn from_box(value: Box<'alloc, 'mem, A, T>) -> Self {
+impl<'mem, A: Allocator<'mem>, T: ?Sized> CapCounted<'mem, A, T> {
+    pub fn from_box<'alloc>(value: Box<'alloc, 'mem, A, T>) -> Self {
         Self(ManuallyDrop::new(value))
     }
 
@@ -44,7 +42,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> CapCounted<'alloc, 'mem, A, T>
     }
 }
 
-impl<'mem, A: Allocator<'mem>, T: ?Sized> Deref for CapCounted<'_, 'mem, A, T> {
+impl<'mem, A: Allocator<'mem>, T: ?Sized> Deref for CapCounted<'mem, A, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -53,7 +51,7 @@ impl<'mem, A: Allocator<'mem>, T: ?Sized> Deref for CapCounted<'_, 'mem, A, T> {
 }
 
 impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> From<Box<'alloc, 'mem, A, T>>
-    for CapCounted<'alloc, 'mem, A, T>
+    for CapCounted<'mem, A, T>
 {
     fn from(value: Box<'alloc, 'mem, A, T>) -> Self {
         CapCounted::from_box(value)

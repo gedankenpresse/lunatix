@@ -6,30 +6,31 @@ pub mod vspace;
 
 use core::{marker::PhantomData, mem::ManuallyDrop};
 
-use cspace::CSpace as GenCSpace;
 pub use cspace::CSpaceIface;
+use derivation_tree::caps::CSpace as GenCSpace;
+pub use derivation_tree::caps::Memory as GenMemory;
 use derivation_tree::{
     tree::{TreeNodeData, TreeNodeOps},
     Correspondence,
 };
-use memory::Memory as GenMemory;
 pub use memory::MemoryIface;
 pub use page::{Page, PageIface};
-pub use task::{Task, TaskIface};
+pub use task::{Task as GenTask, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
 
 use allocators::Allocator;
 pub use errors::Error;
 
-type KernelAlloc = allocators::bump_allocator::ForwardBumpingAllocator<'static>;
+pub type KernelAlloc = allocators::bump_allocator::ForwardBumpingAllocator<'static>;
 
 pub type Memory = GenMemory<'static, 'static, KernelAlloc, KernelAlloc>;
 pub type CSpace = GenCSpace<'static, 'static, KernelAlloc, Capability>;
+pub type Task = GenTask<'static, 'static, KernelAlloc>;
 
 #[derive(Copy, Clone)]
 pub struct Uninit {}
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 #[repr(u8)]
 pub enum Tag {
     Uninit,
@@ -49,7 +50,7 @@ pub union Variant<'alloc, 'mem, A: Allocator<'mem>, Node> {
     page: ManuallyDrop<Page>,
 }
 
-struct GenCapability<'alloc, 'mem, A: Allocator<'mem>> {
+pub struct GenCapability<'alloc, 'mem, A: Allocator<'mem>> {
     tag: Tag,
     tree_data: TreeNodeData<Self>,
     variant: Variant<'alloc, 'mem, A, Self>,
@@ -83,7 +84,8 @@ macro_rules! cap_get_ref_mut {
                     Err(())
                 }
             }
-            pub fn $name<'a>(&'a mut self) -> Result<CapRef<'a, $variant>, ()> {
+
+            pub fn $name<'a>(&'a self) -> Result<CapRef<'a, $variant>, ()> {
                 if self.tag == Tag::$tag {
                     Ok(CapRef {
                         cap: self,
@@ -97,11 +99,56 @@ macro_rules! cap_get_ref_mut {
     };
 }
 
+macro_rules! cap_get_inner_mut {
+    ($typ:ty, $tag:ident, $variant:ident, $name:ident, $name_mut:ident) => {
+        impl Capability {
+            pub fn $name<'a>(&'a self) -> Result<&'a $typ, ()> {
+                if self.tag == Tag::$tag {
+                    Ok(unsafe { &self.variant.$variant })
+                } else {
+                    Err(())
+                }
+            }
+
+            pub fn $name_mut<'a>(&'a mut self) -> Result<&'a mut $typ, ()> {
+                if self.tag == Tag::$tag {
+                    Ok(unsafe { &mut self.variant.$variant })
+                } else {
+                    Err(())
+                }
+            }
+        }
+    };
+}
+
 cap_get_ref_mut!(Task, Task, get_task, get_task_mut);
+cap_get_inner_mut!(Task, Task, task, get_inner_task, get_inner_task_mut);
 cap_get_ref_mut!(VSpace, VSpace, get_vspace, get_vspace_mut);
+cap_get_inner_mut!(
+    VSpace,
+    VSpace,
+    vspace,
+    get_inner_vspace,
+    get_inner_vspace_mut
+);
 cap_get_ref_mut!(CSpace, CSpace, get_cspace, get_cspace_mut);
+cap_get_inner_mut!(
+    CSpace,
+    CSpace,
+    cspace,
+    get_inner_cspace,
+    get_inner_cspace_mut
+);
 cap_get_ref_mut!(Memory, Memory, get_memory, get_memory_mut);
+cap_get_inner_mut!(
+    Memory,
+    Memory,
+    memory,
+    get_inner_memory,
+    get_inner_memory_mut
+);
 cap_get_ref_mut!(Page, Page, get_page, get_page_mut);
+cap_get_inner_mut!(Page, Page, page, get_inner_page, get_inner_page_mut);
 
 pub struct CapRef<'a, T> {
     pub cap: &'a Capability,
@@ -117,19 +164,19 @@ macro_rules! cap_ref_as_ref_impl {
     ($variant:ty, $name:ident) => {
         impl<'a> AsRef<$variant> for CapRef<'a, $variant> {
             fn as_ref(&self) -> &$variant {
-                &self.cap.variant.$name
+                unsafe { &self.cap.variant.$name }
             }
         }
 
         impl<'a> AsRef<$variant> for CapRefMut<'a, $variant> {
             fn as_ref(&self) -> &$variant {
-                &self.cap.variant.$name
+                unsafe { &self.cap.variant.$name }
             }
         }
 
         impl<'a> AsMut<$variant> for CapRefMut<'a, $variant> {
             fn as_mut(&mut self) -> &mut $variant {
-                &mut self.cap.variant.$name
+                unsafe { &mut self.cap.variant.$name }
             }
         }
     };
@@ -143,17 +190,18 @@ cap_ref_as_ref_impl!(Page, page);
 
 impl Default for Capability {
     fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl Capability {
+    /// Create a new empty (in other words uninitialized) capability
+    pub const fn empty() -> Self {
         Self {
             tag: Tag::Uninit,
             tree_data: unsafe { TreeNodeData::new() },
             variant: Variant { uninit: Uninit {} },
         }
-    }
-}
-
-impl Capability {
-    pub fn empty() -> Self {
-        Self::default()
     }
 }
 

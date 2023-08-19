@@ -41,4 +41,7 @@ pub trait BumpAllocator<'mem>: Sized + Allocator<'mem> {
     ///
     /// This makes the stolen memory unavailable to the allocator so that no further regions are allocated from it.
     fn steal_remaining_mem(&self) -> &'mem mut [u8];
+
+    /// How many bytes are still free and not allocated
+    fn get_free_bytes(&self) -> usize;
 }

@@ -25,27 +25,36 @@ fn send(cspace: &caps::CSpace, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc
     assert!(tag.ncaps() <= 8, "too many caps");
     let mut resolved: [Option<&caps::Capability>; 8] =
         [None, None, None, None, None, None, None, None];
-    for (i, &addr) in raw.cap_addresses.iter().enumerate() {
-        resolved[i] = Some(cspace.lookup(addr)?);
-    }
 
-    let object = cspace.lookup(cap).unwrap();
-    let res = object.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
-    Ok(res)
+    todo!("reenable");
+    // for (i, &addr) in raw.cap_addresses.iter().enumerate() {
+    //     resolved[i] = Some(cspace.lookup(addr)?);
+    // }
+
+    // let object = cspace.lookup(cap).unwrap();
+    // let res = object.send(tag.label(), &resolved[..tag.ncaps() as usize], raw.params)?;
+    // Ok(res)
+
+    Ok(0)
 }
 
 fn identify(cspace: &caps::CSpace, cap: usize) -> ipc::IpcResult {
     log::debug!("identifiying: cap: {cap}");
-    let capslot = cspace.lookup(cap)?;
-    let variant = capslot.get_variant();
-    return Ok(variant.discriminant());
+
+    todo!("reenable this");
+    // let capslot = cspace.lookup(cap)?;
+    // let variant = capslot.get_variant();
+    // return Ok(variant.discriminant());
+
+    Ok(0)
 }
 
 fn destroy(cspace: &caps::CSpace, cap: usize) -> ipc::IpcResult {
     log::debug!("destory: cap: {cap}");
-    let capslot = cspace.lookup(cap)?;
-    let variant = capslot.get_variant();
-    variant.as_iface().destroy(capslot);
+    // let capslot = cspace.lookup(cap)?;
+    // let variant = capslot.get_variant();
+    // variant.as_iface().destroy(capslot);
+
     Ok(0)
 }
 

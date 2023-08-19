@@ -1,7 +1,7 @@
 //! Loading and execution of the init process
 
 use crate::caps;
-use crate::caps::MemoryIface;
+use crate::caps::{KernelAlloc, MemoryIface, Tag, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
 
@@ -94,7 +94,8 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
-        let vspaceref = self.vspace.get_vspace_mut().unwrap().as_mut();
+        let mut vspaceref = self.vspace.get_vspace_mut().unwrap();
+        let vspaceref = vspaceref.as_mut();
         let start = self.vbase + base;
         let end = self.vbase + base + region.len() as u64;
         log::debug!(
@@ -119,7 +120,8 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn relocate(&mut self, entry: RelocationEntry) -> Result<(), ElfLoaderErr> {
-        let vspaceref = self.vspace.get_vspace_mut().unwrap().as_mut();
+        let mut vspaceref = self.vspace.get_vspace_mut().unwrap();
+        let vspaceref = vspaceref.as_mut();
 
         use elfloader::arch::riscv::RelocationTypes;
         use RelocationType::RiscV;
@@ -158,76 +160,79 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 }
 
-// Fill INIT_CAPS with appropriate capabilities
-pub fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
+/// Initialize [`INIT_CAPS`](crate::INIT_CAPS) with appropriate capabilities
+pub fn create_init_caps(alloc: &'static KernelAlloc) {
     // create capability objects for userspace code
-    log::debug!("locking INIT_CAPS");
+    log::debug!("creating capabilities for the init task");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();
-    MemoryIface::create_init(&mut guard.mem, alloc).unwrap();
+
     match &mut *guard {
         InitCaps { mem, init_task } => {
-            log::debug!("init task");
+            log::debug!("creating root memory capability");
+            MemoryIface.create_init(mem, alloc).unwrap();
 
-            mem.derive(init_task, |mem| caps::TaskIface.init(init_task, mem))
-                .unwrap();
+            log::debug!("deriving task capability from root memory capability");
+            TaskIface.derive(&mem, init_task);
 
-            let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
-            log::debug!("init vspace");
-            mem.derive(taskstate.vspace, |mem| {
-                caps::VSpaceIface.init(&mut taskstate.vspace, mem)
-            })
-            .unwrap();
+            todo!();
 
-            log::debug!("init cspace");
-            mem.derive(taskstate.cspace, |mem| {
-                caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
-            })
-            .unwrap();
-            {
-                let cspace = taskstate.cspace.get_cspace_mut().unwrap();
-                let memslot = cspace.lookup(1).unwrap();
-                caps::Memory::copy(mem, memslot).unwrap();
-            }
-            {
-                let cspace = &taskstate.cspace;
-                let cref = taskstate.cspace.get_cspace().unwrap();
-                let target_slot = cref.lookup(2).unwrap();
-                caps::CSpaceIface.copy(&cspace, &mut target_slot);
-            }
-
-            log::debug!("setup stack");
-            let stack_start = StackLoader {
-                stack_bytes: 0x1000,
-                vbase: 0x10_0000_0000,
-                mem: &mem,
-                vspace: &mut taskstate.vspace,
-            }
-            .load()
-            .unwrap();
-
-            // load elf binary
-            log::debug!("load elf binary");
-            let mut elf_loader = VSpaceLoader {
-                // choosing arbitrary vbase not supported for relocating data sections
-                // vbase: 0x5_0000_0000,
-                vbase: 0x0,
-                mem: &mem,
-                vspace: &mut taskstate.vspace,
-            };
-
-            let binary = ElfBinary::new(INIT_BIN).unwrap();
-            binary.load(&mut elf_loader).expect("Cant load the binary?");
-            let entry_point = binary.entry_point() + elf_loader.vbase;
-
-            // set stack pointer
-            taskstate.frame.set_stack_start(stack_start as usize);
-
-            // try setting gp
-            // taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
-
-            // set up program counter to point to userspace code
-            log::debug!("entry point: {:0x}", entry_point);
-            taskstate.frame.set_entry_point(entry_point as usize);
+            // let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
+            // log::debug!("init vspace");
+            // mem.derive(taskstate.vspace, |mem| {
+            //     caps::VSpaceIface.init(&mut taskstate.vspace, mem)
+            // })
+            // .unwrap();
+            //
+            // log::debug!("init cspace");
+            // mem.derive(taskstate.cspace, |mem| {
+            //     caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
+            // })
+            // .unwrap();
+            // {
+            //     let cspace = taskstate.cspace.get_cspace_mut().unwrap();
+            //     let memslot = cspace.lookup(1).unwrap();
+            //     caps::Memory::copy(mem, memslot).unwrap();
+            // }
+            // {
+            //     let cspace = &taskstate.cspace;
+            //     let cref = taskstate.cspace.get_cspace().unwrap();
+            //     let target_slot = cref.lookup(2).unwrap();
+            //     caps::CSpaceIface.copy(&cspace, &mut target_slot);
+            // }
+            //
+            // log::debug!("setup stack");
+            // let stack_start = StackLoader {
+            //     stack_bytes: 0x1000,
+            //     vbase: 0x10_0000_0000,
+            //     mem: &mem,
+            //     vspace: &mut taskstate.vspace,
+            // }
+            // .load()
+            // .unwrap();
+            //
+            // // load elf binary
+            // log::debug!("load elf binary");
+            // let mut elf_loader = VSpaceLoader {
+            //     // choosing arbitrary vbase not supported for relocating data sections
+            //     // vbase: 0x5_0000_0000,
+            //     vbase: 0x0,
+            //     mem: &mem,
+            //     vspace: &mut taskstate.vspace,
+            // };
+            //
+            // let binary = ElfBinary::new(INIT_BIN).unwrap();
+            // binary.load(&mut elf_loader).expect("Cant load the binary?");
+            // let entry_point = binary.entry_point() + elf_loader.vbase;
+            //
+            // // set stack pointer
+            // taskstate.frame.set_stack_start(stack_start as usize);
+            //
+            // // try setting gp
+            // // taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
+            //
+            // // set up program counter to point to userspace code
+            // log::debug!("entry point: {:0x}", entry_point);
+            // taskstate.frame.set_entry_point(entry_point as usize);
         }
     }
 }

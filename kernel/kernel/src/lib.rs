@@ -18,6 +18,7 @@ mod arch_specific;
 #[path = "arch/x86_64/mod.rs"]
 mod arch_specific;
 
+use crate::caps::KernelAlloc;
 pub use arch_specific::mmu;
 pub use arch_specific::trap;
 use caps::Capability;
@@ -31,6 +32,7 @@ pub struct InitCaps {
 }
 
 impl InitCaps {
+    /// Create a new instance with uninitialized capabilities
     const fn empty() -> Self {
         Self {
             mem: Capability::empty(),
@@ -43,6 +45,10 @@ impl InitCaps {
 /// CSlot isn't send because raw pointers... meh
 unsafe impl Send for InitCaps {}
 
+/// A global static holding the capabilities given to the init task
 pub static INIT_CAPS: SpinLock<InitCaps> = SpinLock::new(InitCaps::empty());
 
+/// A global static reference to the root PageTable which has only the kernel part mapped
 pub static mut KERNEL_ROOT_PT: PhysConstPtr<PageTable> = PhysConstPtr::null();
+
+pub static mut KERNEL_ALLOCATOR: Option<KernelAlloc> = None;

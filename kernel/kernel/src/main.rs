@@ -3,7 +3,8 @@
 
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
-use kernel::KERNEL_ROOT_PT;
+use kernel::caps::KernelAlloc;
+use kernel::{KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
@@ -48,19 +49,20 @@ extern "C" fn kernel_main(
 ) {
     use kernel::init::*;
 
+    unsafe { KERNEL_ALLOCATOR = Some(init_alloc(phys_mem_start, phys_mem_end)) }
+    let allocator: &'static KernelAlloc = unsafe { (&mut KERNEL_ALLOCATOR).as_mut().unwrap() };
+
     // parse device tree from bootloader
-    let _device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+    // let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
 
     let kernel_root_pt = init_kernel_pagetable();
     unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
 
-    let mut allocator = init_alloc(phys_mem_start, phys_mem_end);
-
-    let trap_stack = init_trap_handler_stack(&mut allocator);
-    init_kernel_trap_handler(&mut allocator, trap_stack);
+    let trap_stack = alloc_trap_handler_stack(&allocator, 10);
+    init_kernel_trap_handler(&allocator, trap_stack);
 
     log::debug!("creating init caps");
-    create_init_caps(allocator);
+    create_init_caps(&allocator);
 
     log::debug!("enabling interrupts");
     //arch::timers::set_next_timer(0).unwrap();

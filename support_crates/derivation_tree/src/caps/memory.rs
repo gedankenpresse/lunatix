@@ -4,18 +4,14 @@ use allocators::{AllocError, Allocator, Box};
 use core::ops::DerefMut;
 
 /// A capability for managing memory
-pub struct Memory<
-    'allocator,
-    'mem,
-    SourceAllocator: Allocator<'mem>,
-    ContentAllocator: Allocator<'mem>,
-> {
-    pub(crate) allocator: CapCounted<'allocator, 'mem, SourceAllocator, ContentAllocator>,
-    backing_mem: CapCounted<'allocator, 'mem, SourceAllocator, [u8]>,
+pub struct Memory<'mem, SourceAllocator: Allocator<'mem>, ContentAllocator: Allocator<'mem>> {
+    /// The allocator from which this capability annotates
+    pub allocator: CapCounted<'mem, SourceAllocator, ContentAllocator>,
+    backing_mem: CapCounted<'mem, SourceAllocator, [u8]>,
 }
 
 impl<'allocator, 'mem, SourceAllocator: Allocator<'mem>, ContentAllocator: Allocator<'mem>>
-    Memory<'allocator, 'mem, SourceAllocator, ContentAllocator>
+    Memory<'mem, SourceAllocator, ContentAllocator>
 {
     /// Create a new Memory capability by allocating space from an existing source allocator.
     ///
@@ -51,7 +47,7 @@ impl<'allocator, 'mem, SourceAllocator: Allocator<'mem>, ContentAllocator: Alloc
 }
 
 impl<'mem, SourceAllocator: Allocator<'mem>, ContentAllocator: Allocator<'mem>> Correspondence
-    for Memory<'_, 'mem, SourceAllocator, ContentAllocator>
+    for Memory<'mem, SourceAllocator, ContentAllocator>
 {
     fn corresponds_to(&self, other: &Self) -> bool {
         self.allocator.is_same_pointer_as(&other.allocator)

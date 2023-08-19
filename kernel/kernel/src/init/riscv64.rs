@@ -1,11 +1,19 @@
-use allocators::{Arena, ArenaAlloc};
+use allocators::{AllocInit, Allocator, Arena, ArenaAlloc};
+use core::alloc::Layout;
+use core::ops::{Deref, DerefMut};
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
 use riscv::pt::{MemoryPage, PageTable};
 use riscv::trap::{trap_frame_restore, TrapFrame};
 
+use crate::caps::task::TaskState;
+use crate::caps::KernelAlloc;
 use crate::{caps, mmu, virtmem, INIT_CAPS};
 
+/// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.
+///
+/// In detail, this function reads the address of the currently active PageTable from [`Satp`](cpu::Satp), ensures
+/// that the userspace area of the pagetable is unmapped and that the kernel area is correctly mapped.
 pub fn init_kernel_pagetable() -> &'static mut PageTable {
     // clean up userspace mapping from kernel loader
     log::debug!("Cleaning up userspace mapping from kernel loader");
@@ -25,41 +33,58 @@ pub fn init_kernel_pagetable() -> &'static mut PageTable {
     root_pt
 }
 
-pub fn init_trap_handler_stack(allocator: &mut Arena<'static, MemoryPage>) -> *mut () {
-    let trap_handler_stack: *mut MemoryPage = unsafe { allocator.alloc_many(10).cast() };
-    let stack_start = unsafe { trap_handler_stack.add(10) as *mut () };
-    log::debug!("trap_stack: {stack_start:p}");
+/// Allocated enough space for the stack of the kernel trap handler and return a pointer to the start of it.
+///
+/// The stack is allocated from the given allocator and holds the specified number of memory pages.
+pub fn alloc_trap_handler_stack(allocator: &KernelAlloc, num_pages: usize) -> *mut () {
+    let stack = allocator
+        .allocate(
+            Layout::array::<MemoryPage>(num_pages).unwrap(),
+            AllocInit::Zeroed,
+        )
+        .unwrap();
+    let stack_end = stack.as_mut_ptr().cast::<MemoryPage>();
+    let stack_start = unsafe { stack_end.add(num_pages) as *mut () };
+
+    log::debug!("allocated trap handler stack: {stack_start:p} - {stack_end:p}");
     return stack_start;
 }
 
-pub fn init_kernel_trap_handler(
-    allocator: &mut Arena<'static, MemoryPage>,
-    trap_stack_start: *mut (),
-) {
-    let trap_frame: *mut TrapFrame = unsafe { allocator.alloc_one().cast() };
-    unsafe { (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize };
+/// Allocate a [`TrapFrame`] from the given allocator, assign the given trap handler stack to it and configure
+/// [`SScratch`](cpu::SScratch) to point to it.
+pub fn init_kernel_trap_handler(allocator: &KernelAlloc, trap_stack_start: *mut ()) {
+    let trap_frame: *mut TrapFrame = allocator
+        .allocate(Layout::new::<TrapFrame>(), AllocInit::Uninitialized)
+        .unwrap()
+        .as_mut_ptr()
+        .cast();
+
     unsafe {
+        (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize;
         cpu::SScratch::write(trap_frame as usize);
     }
-    log::debug!("trap frame: {trap_frame:p}");
+
+    log::debug!("initialized kernel trap frame at {trap_frame:p}");
 }
 
 /// Yield to the task that owns the given `trap_frame`
 unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Capability) -> ! {
-    let taskref = task.get_task_mut().unwrap().as_mut();
+    let mut task = task.get_task_mut().unwrap();
+    let task = task.as_mut();
     unsafe {
-        crate::sched::set_active_task(taskref.state);
+        crate::sched::set_active_task(task.state.borrow_mut().deref_mut() as *mut TaskState);
     }
-    let state = unsafe { taskref.state.as_mut().unwrap() };
-    let trap_frame = &mut state.frame;
-    trap_frame.trap_handler_stack = trap_handler_stack.cast();
-    let vspace = state.vspace.get_vspace_mut().unwrap().as_mut();
+    let mut state = unsafe { task.state.borrow_mut() };
+    state.frame.trap_handler_stack = trap_handler_stack.cast();
+
+    let mut vspace = state.vspace.get_vspace_mut().unwrap();
+    let vspace = vspace.as_mut();
     log::debug!("enabling task pagetable");
     unsafe {
         mmu::use_pagetable(MappedMutPtr::from(vspace.root).as_direct());
     }
     log::debug!("restoring trap frame");
-    trap_frame_restore(trap_frame as *mut TrapFrame);
+    trap_frame_restore(&mut state.frame as *mut TrapFrame);
 }
 
 pub fn run_init(trap_stack: *mut ()) {

@@ -125,4 +125,9 @@ impl<'mem> BumpAllocator<'mem> for ForwardBumpingAllocator<'mem> {
         mem::swap(&mut split.0, &mut state.backing_mem);
         split.1
     }
+
+    fn get_free_bytes(&self) -> usize {
+        let state = self.state.spin_lock();
+        state.backing_mem.len() - state.bytes_allocated
+    }
 }

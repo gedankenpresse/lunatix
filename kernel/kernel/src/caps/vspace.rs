@@ -17,12 +17,12 @@ impl VSpace {
     // TODO: fix usage of memory.get_inner
     pub(crate) fn map_range(
         &self,
-        mem: &caps::Capability,
+        mem: &Capability,
         vaddr_base: usize,
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
-        let mut memref = mem.get_memory_mut().unwrap().as_mut();
+        let memref = mem.get_memory().unwrap().as_ref();
         log::debug!("map range, root: {:p}", self.root);
         todo!();
         /*
