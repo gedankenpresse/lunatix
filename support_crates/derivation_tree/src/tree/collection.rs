@@ -40,7 +40,7 @@ impl<T: TreeNodeOps> DerivationTree<T> {
     /// The returned cursor is in [`Inactive`](crate::cursors::CursorData::Inactive) state and must still be locked
     /// to actually use the node.
     pub fn get_root_cursor(&self) -> Result<CursorHandle<T>, OutOfCursorsError> {
-        let cursor = self.cursors.get_free_cursor()?;
+        let mut cursor = self.cursors.get_free_cursor()?;
         cursor.select_node(&self.root_node as *const _ as *mut _);
         Ok(cursor)
     }
@@ -49,7 +49,7 @@ impl<T: TreeNodeOps> DerivationTree<T> {
     ///
     /// This can be used to access a node safely if one already knows about e.g. after inserting it into the tree.
     pub fn get_node(&self, node: *mut T) -> Result<CursorHandle<T>, OutOfCursorsError> {
-        let cursor = self.cursors.get_free_cursor()?;
+        let mut cursor = self.cursors.get_free_cursor()?;
         cursor.select_node(node);
         Ok(cursor)
     }

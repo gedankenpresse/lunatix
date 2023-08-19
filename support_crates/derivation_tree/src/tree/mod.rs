@@ -1,4 +1,8 @@
 //! The DerivationTree data structure
+//!
+//! # Usage
+//!
+//! TODO
 
 mod collection;
 mod cursors;

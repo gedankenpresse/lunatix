@@ -1,6 +1,7 @@
 use allocators::{Allocator, Box};
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
+use core::ptr;
 
 /// A container for a value whose references are counted by the capabilities containing it.
 ///
@@ -39,7 +40,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: ?Sized> CapCounted<'alloc, 'mem, A, T>
     pub fn is_same_pointer_as(&self, other: &Self) -> bool {
         let self_slots: &T = &self.0;
         let other_slots: &T = &other.0;
-        self_slots as *const T == other_slots as *const T
+        ptr::eq(self_slots, other_slots)
     }
 }
 

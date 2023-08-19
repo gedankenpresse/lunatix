@@ -1,6 +1,7 @@
 //! Abstraction library for working with capability derivations
 
 #![no_std]
+#![warn(missing_docs)]
 
 extern crate alloc;
 
@@ -15,6 +16,8 @@ pub use correspondence::Correspondence;
 
 #[cfg(test)]
 pub mod test {
+    #![allow(unused_variables)]
+
     extern crate std;
 
     use alloc::boxed::Box as StdBox;
@@ -93,26 +96,26 @@ pub mod test {
                     let mut cspace_slot = unsafe { UninitSlot::new(cspace_slot) };
                     MemoryIface.derive(&mem_cap, &mut cspace_slot, TestCapTag::CSpace, 4);
                     let mut cspace_cursor = tree.get_node(cspace_ptr).unwrap();
-                    let mut cspace_cap = cspace_cursor.get_exclusive().unwrap();
+                    let cspace_cap = cspace_cursor.get_exclusive().unwrap();
 
                     unsafe {
                         // create a new UsizeCap and store it as a derivation of the CSpace (this semantically does not make sense but we want to test)
                         let usize_cap = &mut *cspace_cap.payload.cspace.lookup_raw(0).unwrap();
-                        let mut usize_slot = unsafe { UninitSlot::new(usize_cap) };
+                        let mut usize_slot = UninitSlot::new(usize_cap);
                         ValueCapIface.init(&mut usize_slot, 42);
                         mem_cap.insert_derivation(usize_cap);
                         assert!(!usize_cap.get_tree_data().is_not_in_tree());
                         let mut usize_cursor = tree.get_node(usize_cap as *mut _).unwrap();
-                        let mut usize_cap = usize_cursor.get_exclusive().unwrap();
+                        let usize_cap = usize_cursor.get_exclusive().unwrap();
 
                         {
                             // copy the UsizeCap
                             let usize_cap2 = &mut *cspace_cap.payload.cspace.lookup_raw(1).unwrap();
-                            let mut usize_slot2 = unsafe { UninitSlot::new(usize_cap2) };
+                            let mut usize_slot2 = UninitSlot::new(usize_cap2);
                             ValueCapIface.copy(&usize_cap, &mut usize_slot2);
                             assert!(!usize_cap2.get_tree_data().is_not_in_tree());
                             let mut usize_cursor2 = tree.get_node(usize_cap2 as *mut _).unwrap();
-                            let mut usize_cap2 = usize_cursor2.get_exclusive().unwrap();
+                            let usize_cap2 = usize_cursor2.get_exclusive().unwrap();
 
                             // assert that the tree was correctly constructed
                             assert_eq!(mem_cap.tag, TestCapTag::Memory);

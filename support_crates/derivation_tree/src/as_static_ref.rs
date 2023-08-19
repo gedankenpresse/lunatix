@@ -20,6 +20,7 @@ pub unsafe trait AsStaticRef<T: ?Sized> {
 /// This trait is only allowed to be implemented by types that manage the lifetime of `T` through some other means
 /// and guarantee that `T` exists for as long as references have been handed out.
 pub unsafe trait AsStaticMut<T: ?Sized>: AsStaticRef<T> {
+    /// Converts this type into a mutable static reference of the input type.
     fn as_static_mut(&mut self) -> &'static mut T;
 }
 

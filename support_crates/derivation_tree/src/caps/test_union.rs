@@ -1,3 +1,7 @@
+//! Capability interface implementation for testing purposes
+
+#![allow(unused_variables)]
+
 use crate::caps::{CSpace, CapabilityIface, GetCapIface, Memory, Uninit};
 use crate::tree::{TreeNodeData, TreeNodeOps};
 use crate::{AsStaticMut, AsStaticRef, Correspondence};

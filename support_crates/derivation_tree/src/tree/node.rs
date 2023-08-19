@@ -86,7 +86,7 @@ pub trait TreeNodeOps: Sized + Correspondence {
         let mut current_ptr: *mut Self = self as *const _ as *mut _;
         loop {
             if let Some(next_node) = unsafe { tree_data.next.get().as_ref() } {
-                if next_node.corresponds_to(&self) {
+                if next_node.corresponds_to(self) {
                     assert_eq!(self.get_tree_data().depth, next_node.get_tree_data().depth);
                     current_ptr = next_node as *const _ as *mut _;
                     continue;
@@ -104,13 +104,13 @@ pub trait TreeNodeOps: Sized + Correspondence {
         let tree_data = self.get_tree_data();
 
         if let Some(prev_node) = unsafe { tree_data.prev.get().as_ref() } {
-            if prev_node.corresponds_to(&self) {
+            if prev_node.corresponds_to(self) {
                 return false;
             }
         }
 
         if let Some(next_node) = unsafe { self.get_tree_data().next.get().as_ref() } {
-            if next_node.corresponds_to(&self) {
+            if next_node.corresponds_to(self) {
                 return false;
             }
         }
@@ -215,7 +215,7 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
     /// # Safety
     /// Before usage, the containing TreeNode should be assigned inserted into a collection which must call
     /// [`assign_cursor_set()`](Self::assign_cursor_set).
-    pub(crate) unsafe fn new() -> Self {
+    pub unsafe fn new() -> Self {
         Self {
             prev: Cell::new(ptr::null_mut()),
             next: Cell::new(ptr::null_mut()),
@@ -237,7 +237,7 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
         self.cursors.set(cursor_set);
     }
 
-    pub fn get_cursors(&self) -> &CursorSet<T> {
+    pub(crate) fn get_cursors(&self) -> &CursorSet<T> {
         unsafe { &*self.cursors.get() }
     }
 

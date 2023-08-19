@@ -49,7 +49,7 @@ impl<T: TreeNodeOps> CursorSet<T> {
     ///
     /// A cursor is considered to point to the node if it is in *Inactive*, *SharedRef* or *ExclusiveRef* state
     /// with the given node selected.
-    pub(crate) fn exists_cursor_to(&self, node: *mut T) -> bool {
+    pub fn exists_cursor_to(&self, node: *mut T) -> bool {
         self.cursors.iter().any(|cursor| match cursor.get() {
             CursorData::Inactive(c_node) => c_node == node,
             CursorData::SharedRef(c_node) => c_node == node,
@@ -120,14 +120,22 @@ impl<T: TreeNodeOps> Clone for CursorData<T> {
     }
 }
 
+/// A handle to a cursor of a DerivationTree.
+///
+/// It can be used to safely access a selected node via [`get_shared()`](CursorHandle::get_shared) for shared
+/// (`&`) references or [`get_exclusive()`](CursorHandle::get_exclusive) for exclusive and mutable (`&mut`) references.
 pub struct CursorHandle<'cursor_set, T: TreeNodeOps> {
     pub(crate) cursor: &'cursor_set Cursor<T>,
     pub(crate) source_set: &'cursor_set CursorSet<T>,
 }
 
 impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
-    /// Make this handle point to the given node
-    pub(crate) fn select_node(&self, node: *mut T) {
+    /// Make this cursor point to the given node.
+    ///
+    /// # Panics
+    /// This method panics if the given node is not part of the same derivation tree as the cursor.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    pub fn select_node(&mut self, node: *mut T) {
         assert_eq!(
             mem::discriminant(&self.cursor.get()),
             mem::discriminant(&CursorData::Allocated),
@@ -142,11 +150,14 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
         self.cursor.set(CursorData::Inactive(node));
     }
 
-    pub(crate) fn get_shared(&mut self) -> Result<CursorRef<'_, 'cursor_set, T>, AliasingError> {
+    /// Try to get a shared reference (`&`) to this cursors node.
+    ///
+    /// The returned [`CursorRef`] implements `Deref` to access the nodes content.
+    pub fn get_shared(&mut self) -> Result<CursorRef<'_, 'cursor_set, T>, AliasingError> {
         assert_eq!(
             mem::discriminant(&self.cursor.get()),
             mem::discriminant(&CursorData::Inactive(ptr::null_mut())),
-            "Cursor is not in a state where a reference can be extracted"
+            "Cursor has no node selected"
         );
 
         if self
@@ -163,9 +174,10 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
         }
     }
 
-    pub(crate) fn get_exclusive(
-        &mut self,
-    ) -> Result<CursorRefMut<'_, 'cursor_set, T>, AliasingError> {
+    /// Try to get an exclusive reference (`&mut`) to this cursors node.
+    ///
+    /// The returned [`CursorRefMut`] implements `DerefMut` to access the nodes content.
+    pub fn get_exclusive(&mut self) -> Result<CursorRefMut<'_, 'cursor_set, T>, AliasingError> {
         assert_eq!(
             mem::discriminant(&self.cursor.get()),
             mem::discriminant(&CursorData::Inactive(ptr::null_mut())),
@@ -186,8 +198,9 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
         }
     }
 
+    /// Duplicate this cursor by allocating a new one from the DerivationTree that points to the same node as this one.
     pub fn duplicate(source: &Self) -> Result<Self, OutOfCursorsError> {
-        let target_cursor = source.source_set.get_free_cursor()?;
+        let mut target_cursor = source.source_set.get_free_cursor()?;
 
         match &source.cursor.get() {
             CursorData::Free => unreachable!("users should never be able to obtain a free cursor"),
@@ -200,6 +213,7 @@ impl<'cursor_set, T: TreeNodeOps> CursorHandle<'cursor_set, T> {
 }
 
 impl<T: TreeNodeOps + GetCapIface> CursorHandle<'_, T> {
+    /// Destroy the selected capability node.
     pub fn destroy_cap(self) {
         // get node data from cursor before dropping it
         let node = unsafe { &mut *self.cursor.get().get_ptr() };
@@ -217,12 +231,18 @@ impl<T: TreeNodeOps> Drop for CursorHandle<'_, T> {
     }
 }
 
+/// A shared reference (`&`) to a node of the tree.
+///
+/// This type implements `Deref` for accessing the actual node.
 pub struct CursorRef<'handle, 'cursor_set, T: TreeNodeOps> {
     /// The CursorHandle from which this reference was obtained
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
 impl<T: TreeNodeOps> CursorRef<'_, '_, T> {
+    /// Duplicate the underlying cursor of this reference.
+    ///
+    /// See [`CursorHandle::duplicate()`](CursorHandle::duplicate) for details.
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
     }
@@ -250,12 +270,18 @@ impl<T: TreeNodeOps> Drop for CursorRef<'_, '_, T> {
     }
 }
 
+/// An exclusive / mutable reference (`&mut`) to a node of the tree.
+///
+/// This type implements `DerefMut` for accessing the actual node.
 pub struct CursorRefMut<'handle, 'cursor_set, T: TreeNodeOps> {
     /// The CursorHandle from which this reference was obtained
     source_handle: &'handle mut CursorHandle<'cursor_set, T>,
 }
 
 impl<T: TreeNodeOps> CursorRefMut<'_, '_, T> {
+    /// Duplicate the underlying cursor handle.
+    ///
+    /// See [`CursorHandle::duplicate()`](CursorHandle::duplicate) for details.
     pub fn duplicate(source: &Self) -> Result<CursorHandle<T>, OutOfCursorsError> {
         CursorHandle::duplicate(source.source_handle)
     }
@@ -295,9 +321,11 @@ impl<T: TreeNodeOps> Drop for CursorRefMut<'_, '_, T> {
     }
 }
 
+/// The error type for when it is attempted to get overlapping handles on a tree node.
 #[derive(Debug)]
 pub struct AliasingError;
 
+/// The error type for when no cursors are available for use anymore but one was requested.
 #[derive(Debug)]
 pub struct OutOfCursorsError;
 
