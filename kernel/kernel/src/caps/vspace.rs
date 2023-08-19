@@ -1,12 +1,11 @@
-use core::mem::MaybeUninit;
-
 use crate::caps;
 use caps::errors::NoMem;
-use riscv::pt::{EntryFlags, MemoryPage, PageTable};
+use derivation_tree::caps::CapabilityIface;
+use riscv::pt::{EntryFlags, PageTable};
 
 use crate::virtmem;
 
-use super::{CapabilityInterface, Error, Memory};
+use super::Capability;
 
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
@@ -18,13 +17,15 @@ impl VSpace {
     // TODO: fix usage of memory.get_inner
     pub(crate) fn map_range(
         &self,
-        mem: &caps::CSlot,
+        mem: &caps::Capability,
         vaddr_base: usize,
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
-        let mut memref = mem.get_memory_mut().unwrap();
+        let mut memref = mem.get_memory_mut().unwrap().as_mut();
         log::debug!("map range, root: {:p}", self.root);
+        todo!();
+        /*
         virtmem::map_range_alloc(
             memref.get_inner_mut(),
             unsafe { self.root.as_mut().unwrap() },
@@ -33,58 +34,33 @@ impl VSpace {
             EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
-    }
-
-    // Allocate a page
-    // Currently implicitly allcates a new page from given memory, but should in theory be provided page
-    pub(crate) fn map_page(
-        &self,
-        mem: &mut caps::Memory,
-        vaddr: usize,
-        flags: usize,
-    ) -> Result<(), NoMem> {
-        let phys_page = mem.alloc_pages_raw(1)?;
-        virtmem::map(
-            mem.get_inner_mut(),
-            unsafe { self.root.as_mut().unwrap() },
-            vaddr,
-            phys_page as usize,
-            EntryFlags::from_bits_truncate(flags as u64),
-        );
-        Ok(())
+        */
     }
 }
 
 #[derive(Copy, Clone)]
-pub struct VspaceIface;
+pub struct VSpaceIface;
 
-impl CapabilityInterface for VspaceIface {
-    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
-        let ptpage = mem.alloc_pages_raw(1)?;
-        let root = PageTable::init_copy(ptpage.cast::<MaybeUninit<MemoryPage>>(), unsafe {
-            crate::KERNEL_ROOT_PT
-                .as_mapped()
-                .raw()
-                .as_ref()
-                .expect("No Kernel Root Page Table found")
-        });
-        return Ok(VSpace { root }.into());
-    }
+impl CapabilityIface<Capability> for VSpaceIface {
+    type InitArgs = ();
 
-    fn init_sz(
+    fn init(
         &self,
-        slot: &caps::CSlot,
-        mem: &mut Memory,
-        size: usize,
-    ) -> Result<caps::Capability, Error> {
+        target: &mut impl derivation_tree::AsStaticMut<Capability>,
+        args: Self::InitArgs,
+    ) {
         todo!()
     }
 
-    fn destroy(&self, slot: &caps::CSlot) {
+    fn copy(
+        &self,
+        src: &impl derivation_tree::AsStaticRef<Capability>,
+        dst: &mut impl derivation_tree::AsStaticMut<Capability>,
+    ) {
         todo!()
     }
 
-    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+    fn destroy(&self, target: &mut Capability) {
         todo!()
     }
 }

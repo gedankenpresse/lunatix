@@ -1,12 +1,13 @@
 //! Loading and execution of the init process
 
 use crate::caps;
-use crate::caps::iface::CapabilityInterface;
+use crate::caps::MemoryIface;
 use crate::virtmem;
 use crate::InitCaps;
 
 use align_data::{include_aligned, Align16};
 use allocators::Arena;
+use derivation_tree::caps::CapabilityIface;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
@@ -22,8 +23,8 @@ static INIT_BIN: &[u8] = include_aligned!(
 struct StackLoader<'v, 'm> {
     vbase: u64,
     stack_bytes: u64,
-    vspace: &'v mut caps::CSlot,
-    mem: &'m caps::CSlot,
+    vspace: &'v mut caps::Capability,
+    mem: &'m caps::Capability,
 }
 
 impl<'a, 'b> StackLoader<'a, 'b> {
@@ -35,6 +36,7 @@ impl<'a, 'b> StackLoader<'a, 'b> {
         vspace
             .get_vspace_mut()
             .unwrap()
+            .as_ref()
             .map_range(
                 mem,
                 self.vbase as usize,
@@ -48,8 +50,8 @@ impl<'a, 'b> StackLoader<'a, 'b> {
 
 struct VSpaceLoader<'v, 'm> {
     vbase: u64,
-    vspace: &'v mut caps::CSlot,
-    mem: &'m caps::CSlot,
+    vspace: &'v mut caps::Capability,
+    mem: &'m caps::Capability,
 }
 
 impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
@@ -79,6 +81,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
             self.vspace
                 .get_vspace_mut()
                 .unwrap()
+                .as_ref()
                 .map_range(
                     &mut self.mem,
                     virt_start as usize,
@@ -91,7 +94,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
-        let vspaceref = self.vspace.get_vspace_mut().unwrap();
+        let vspaceref = self.vspace.get_vspace_mut().unwrap().as_mut();
         let start = self.vbase + base;
         let end = self.vbase + base + region.len() as u64;
         log::debug!(
@@ -116,7 +119,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 
     fn relocate(&mut self, entry: RelocationEntry) -> Result<(), ElfLoaderErr> {
-        let vspaceref = self.vspace.get_vspace_mut().unwrap();
+        let vspaceref = self.vspace.get_vspace_mut().unwrap().as_mut();
 
         use elfloader::arch::riscv::RelocationTypes;
         use RelocationType::RiscV;
@@ -160,23 +163,23 @@ pub fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
     // create capability objects for userspace code
     log::debug!("locking INIT_CAPS");
     let mut guard = crate::INIT_CAPS.try_lock().unwrap();
-    guard.mem.set(caps::Memory::create_init(alloc)).unwrap();
+    MemoryIface::create_init(&mut guard.mem, alloc).unwrap();
     match &mut *guard {
         InitCaps { mem, init_task } => {
             log::debug!("init task");
 
-            mem.derive(&init_task, |mem| caps::TaskIface.init(init_task, mem))
+            mem.derive(init_task, |mem| caps::TaskIface.init(init_task, mem))
                 .unwrap();
 
             let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
             log::debug!("init vspace");
-            mem.derive(&taskstate.vspace, |mem| {
-                caps::VspaceIface.init(&taskstate.vspace, mem)
+            mem.derive(taskstate.vspace, |mem| {
+                caps::VSpaceIface.init(&mut taskstate.vspace, mem)
             })
             .unwrap();
 
             log::debug!("init cspace");
-            mem.derive(&taskstate.cspace, |mem| {
+            mem.derive(taskstate.cspace, |mem| {
                 caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
             })
             .unwrap();
@@ -189,7 +192,7 @@ pub fn create_init_caps(alloc: Arena<'static, MemoryPage>) {
                 let cspace = &taskstate.cspace;
                 let cref = taskstate.cspace.get_cspace().unwrap();
                 let target_slot = cref.lookup(2).unwrap();
-                caps::CSpaceIface.copy(&cspace, &target_slot).unwrap();
+                caps::CSpaceIface.copy(&cspace, &mut target_slot);
             }
 
             log::debug!("setup stack");

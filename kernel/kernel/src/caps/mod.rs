@@ -1,219 +1,159 @@
 pub mod cspace;
-pub mod iface;
 pub mod memory;
 pub mod page;
 pub mod task;
 pub mod vspace;
 
-use core::cell::{Ref, RefMut};
+use core::{marker::PhantomData, mem::ManuallyDrop};
 
-pub use self::memory::{Memory, MemoryIface};
-use self::{errors::OccupiedSlot, iface::CapabilityInterface};
-pub use cspace::{CSpace, CSpaceIface};
+use cspace::CSpace as GenCSpace;
+pub use cspace::CSpaceIface;
+use derivation_tree::{
+    tree::{TreeNodeData, TreeNodeOps},
+    Correspondence,
+};
+use memory::Memory as GenMemory;
+pub use memory::MemoryIface;
 pub use page::{Page, PageIface};
 pub use task::{Task, TaskIface};
-pub use vspace::{VSpace, VspaceIface};
+pub use vspace::{VSpace, VSpaceIface};
 
+use allocators::Allocator;
 pub use errors::Error;
-pub use iface::UninitIface;
 
-pub type CNode = derivation_tree::Slot<Capability>;
+type KernelAlloc = allocators::bump_allocator::ForwardBumpingAllocator<'static>;
 
-pub enum Capability {
-    CSpace(CSpace),
-    Memory(Memory),
-    Task(Task),
-    VSpace(VSpace),
-    Page(Page),
-    Uninit,
-}
+pub type Memory = GenMemory<'static, 'static, KernelAlloc, KernelAlloc>;
+pub type CSpace = GenCSpace<'static, 'static, KernelAlloc, Capability>;
 
-#[repr(usize)]
 #[derive(Copy, Clone)]
-pub enum Variant {
-    Uninit(UninitIface) = 0,
-    Memory(MemoryIface) = 1,
-    CSpace(CSpaceIface) = 2,
-    VSpace(VspaceIface) = 3,
-    Task(TaskIface) = 4,
-    Page(PageIface) = 5,
+pub struct Uninit {}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Tag {
+    Uninit,
+    Memory,
+    CSpace,
+    VSpace,
+    Task,
+    Page,
 }
 
-impl Variant {
-    #[inline(always)]
-    pub fn discriminant(&self) -> usize {
-        // SAFETY: Because `Self` is marked `repr(usize)`, its layout is a `repr(C)` `union`
-        // between `repr(C)` structs, each of which has the `u8` discriminant as its first
-        // field, so we can read the discriminant without offsetting the pointer.
-        unsafe { *(self as *const Variant).cast::<usize>() }
+pub union Variant<'alloc, 'mem, A: Allocator<'mem>, Node> {
+    uninit: Uninit,
+    memory: ManuallyDrop<GenMemory<'alloc, 'mem, A, A>>,
+    cspace: ManuallyDrop<GenCSpace<'alloc, 'mem, A, Node>>,
+    vspace: ManuallyDrop<VSpace>,
+    task: ManuallyDrop<Task>,
+    page: ManuallyDrop<Page>,
+}
+
+struct GenCapability<'alloc, 'mem, A: Allocator<'mem>> {
+    tag: Tag,
+    tree_data: TreeNodeData<Self>,
+    variant: Variant<'alloc, 'mem, A, Self>,
+}
+
+impl<'alloc, 'mem, A: Allocator<'mem>> Correspondence for GenCapability<'alloc, 'mem, A> {
+    fn corresponds_to(&self, other: &Self) -> bool {
+        todo!()
     }
 }
 
-impl TryFrom<usize> for Variant {
-    type Error = Error;
+impl<'alloc, 'mem, A: Allocator<'mem>> TreeNodeOps for GenCapability<'alloc, 'mem, A> {
+    fn get_tree_data(&self) -> &TreeNodeData<Self> {
+        &self.tree_data
+    }
+}
 
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::Uninit(UninitIface)),
-            1 => Ok(Self::Memory(MemoryIface)),
-            2 => Ok(Self::CSpace(CSpaceIface)),
-            3 => Ok(Self::VSpace(VspaceIface)),
-            4 => Ok(Self::Task(TaskIface)),
-            _ => Err(Error::InvalidArg),
+pub type Capability =
+    GenCapability<'static, 'static, allocators::bump_allocator::ForwardBumpingAllocator<'static>>;
+
+macro_rules! cap_get_ref_mut {
+    ($variant:ty, $tag:ident, $name:ident, $name_mut: ident) => {
+        impl Capability {
+            pub fn $name_mut<'a>(&'a mut self) -> Result<CapRefMut<'a, $variant>, ()> {
+                if self.tag == Tag::$tag {
+                    Ok(CapRefMut {
+                        cap: self,
+                        _type: PhantomData,
+                    })
+                } else {
+                    Err(())
+                }
+            }
+            pub fn $name<'a>(&'a mut self) -> Result<CapRef<'a, $variant>, ()> {
+                if self.tag == Tag::$tag {
+                    Ok(CapRef {
+                        cap: self,
+                        _type: PhantomData,
+                    })
+                } else {
+                    Err(())
+                }
+            }
+        }
+    };
+}
+
+cap_get_ref_mut!(Task, Task, get_task, get_task_mut);
+cap_get_ref_mut!(VSpace, VSpace, get_vspace, get_vspace_mut);
+cap_get_ref_mut!(CSpace, CSpace, get_cspace, get_cspace_mut);
+cap_get_ref_mut!(Memory, Memory, get_memory, get_memory_mut);
+cap_get_ref_mut!(Page, Page, get_page, get_page_mut);
+
+pub struct CapRef<'a, T> {
+    pub cap: &'a Capability,
+    _type: PhantomData<T>,
+}
+
+pub struct CapRefMut<'a, T> {
+    cap: &'a mut Capability,
+    _type: PhantomData<T>,
+}
+
+macro_rules! cap_ref_as_ref_impl {
+    ($variant:ty, $name:ident) => {
+        impl<'a> AsRef<$variant> for CapRef<'a, $variant> {
+            fn as_ref(&self) -> &$variant {
+                &self.cap.variant.$name
+            }
+        }
+
+        impl<'a> AsRef<$variant> for CapRefMut<'a, $variant> {
+            fn as_ref(&self) -> &$variant {
+                &self.cap.variant.$name
+            }
+        }
+
+        impl<'a> AsMut<$variant> for CapRefMut<'a, $variant> {
+            fn as_mut(&mut self) -> &mut $variant {
+                &mut self.cap.variant.$name
+            }
+        }
+    };
+}
+
+cap_ref_as_ref_impl!(CSpace, cspace);
+cap_ref_as_ref_impl!(VSpace, vspace);
+cap_ref_as_ref_impl!(Memory, memory);
+cap_ref_as_ref_impl!(Task, task);
+cap_ref_as_ref_impl!(Page, page);
+
+impl Default for Capability {
+    fn default() -> Self {
+        Self {
+            tag: Tag::Uninit,
+            tree_data: unsafe { TreeNodeData::new() },
+            variant: Variant { uninit: Uninit {} },
         }
     }
 }
 
 impl Capability {
-    pub(crate) fn get_variant(&self) -> Variant {
-        match self {
-            Capability::CSpace(_) => Variant::CSpace(CSpaceIface),
-            Capability::Memory(_) => Variant::Memory(MemoryIface),
-            Capability::Task(_) => Variant::Task(TaskIface),
-            Capability::VSpace(_) => Variant::VSpace(VspaceIface),
-            Capability::Page(_) => Variant::Page(PageIface),
-            Capability::Uninit => Variant::Uninit(UninitIface),
-        }
-    }
-}
-
-impl Default for Capability {
-    fn default() -> Self {
-        Self::Uninit
-    }
-}
-
-macro_rules! cap_from_node_impl {
-    ($v:ident, $t:ty) => {
-        impl From<$t> for Capability {
-            fn from(value: $t) -> Self {
-                Self::$v(value)
-            }
-        }
-    };
-}
-
-cap_from_node_impl!(CSpace, CSpace);
-cap_from_node_impl!(Memory, Memory);
-cap_from_node_impl!(Task, Task);
-cap_from_node_impl!(VSpace, VSpace);
-cap_from_node_impl!(Page, Page);
-
-macro_rules! cap_get_mut {
-    ($v:ident, $n: ident, $t:ty) => {
-        impl CSlot {
-            pub fn $n(&self) -> Result<RefMut<$t>, errors::InvalidCap> {
-                let val = self.cap.get();
-                match RefMut::filter_map(val.borrow_mut(), |cap| match cap {
-                    Capability::$v(m) => Some(m),
-                    _ => None,
-                }) {
-                    Ok(v) => Ok(v),
-                    Err(_) => Err(errors::InvalidCap),
-                }
-            }
-        }
-    };
-}
-
-macro_rules! cap_get {
-    ($v:ident, $n: ident, $t:ty) => {
-        impl CSlot {
-            pub fn $n(&self) -> Result<Ref<$t>, errors::InvalidCap> {
-                let val = self.cap.get();
-                match Ref::filter_map(val.borrow(), |cap| match cap {
-                    Capability::$v(m) => Some(m),
-                    _ => None,
-                }) {
-                    Ok(v) => Ok(v),
-                    Err(_) => Err(errors::InvalidCap),
-                }
-            }
-        }
-    };
-}
-
-cap_get_mut!(Memory, get_memory_mut, Memory);
-cap_get_mut!(Task, get_task_mut, Task);
-cap_get_mut!(VSpace, get_vspace_mut, VSpace);
-cap_get_mut!(CSpace, get_cspace_mut, CSpace);
-
-cap_get!(CSpace, get_cspace, CSpace);
-
-pub struct CSlot {
-    // TODO: put refcell in slot or in derivation tree node? maybe both?
-    cap: CNode,
-}
-
-impl CSlot {
-    pub fn get_variant(&self) -> Variant {
-        if self.cap.is_uninit() {
-            return Variant::Uninit(UninitIface);
-        }
-        self.cap.get().borrow().get_variant()
-    }
-
-    pub fn is_uninit(&self) -> bool {
-        return self.get_variant().discriminant() as usize
-            == Variant::Uninit(UninitIface).discriminant();
-    }
-
-    pub fn send(
-        &self,
-        label: usize,
-        caps: &[Option<&CSlot>],
-        params: &[usize],
-    ) -> Result<usize, Error> {
-        let variant = self.cap.get().borrow().get_variant();
-        match variant {
-            Variant::CSpace(_) => todo!("implement cspace send"),
-            Variant::Memory(_) => Memory::send(self, label, caps, params),
-            Variant::Task(_) => todo!("implement task send"),
-            Variant::VSpace(_) => todo!("implement vspace send"),
-            Variant::Page(_) => todo!("implement page compare"),
-            Variant::Uninit(_) => Err(Error::InvalidCap),
-        }
-    }
-
-    /// sets the slot to given value.
-    /// you propably want to panic on this error, because if the slot is occupied, you have to undo all the work to produce the value
-    /// asserting unoccupied slot beforehand and using panic as a check seems better.
-    pub(crate) fn set(&self, v: impl Into<Capability>) -> Result<(), OccupiedSlot> {
-        self.cap.set(v.into()).ok().ok_or(OccupiedSlot)
-    }
-
-    pub const fn empty() -> Self {
-        Self {
-            cap: CNode::uninit(),
-        }
-    }
-
-    pub fn derive(
-        &self,
-        target: &CSlot,
-        f: impl FnOnce(&mut Memory) -> Result<Capability, Error>,
-    ) -> Result<(), Error> {
-        log::debug!("CSlot::derive derive_link");
-        self.cap.derive_link(&target.cap);
-        log::debug!("CSlot::derive get memory");
-        let res = match self.get_memory_mut() {
-            Ok(mut cap) => {
-                let res = match f(&mut cap) {
-                    Err(e) => Err(e),
-                    Ok(cap) => target.set(cap).map_err(Into::into),
-                };
-                res
-            }
-            Err(e) => Err(e.into()),
-        };
-        match res {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                todo!("unlink target, error: {:?}", e);
-                #[allow(unreachable_code)]
-                Err(e)
-            }
-        }
+    pub fn empty() -> Self {
+        Self::default()
     }
 }
 

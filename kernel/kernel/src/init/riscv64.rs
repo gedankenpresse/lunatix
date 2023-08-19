@@ -45,18 +45,18 @@ pub fn init_kernel_trap_handler(
 }
 
 /// Yield to the task that owns the given `trap_frame`
-unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::CSlot) -> ! {
-    let taskref = task.get_task_mut().unwrap();
+unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Capability) -> ! {
+    let taskref = task.get_task_mut().unwrap().as_mut();
     unsafe {
         crate::sched::set_active_task(taskref.state);
     }
     let state = unsafe { taskref.state.as_mut().unwrap() };
     let trap_frame = &mut state.frame;
     trap_frame.trap_handler_stack = trap_handler_stack.cast();
-    let root_pt = state.vspace.get_vspace_mut().unwrap().root;
+    let vspace = state.vspace.get_vspace_mut().unwrap().as_mut();
     log::debug!("enabling task pagetable");
     unsafe {
-        mmu::use_pagetable(MappedMutPtr::from(root_pt).as_direct());
+        mmu::use_pagetable(MappedMutPtr::from(vspace.root).as_direct());
     }
     log::debug!("restoring trap frame");
     trap_frame_restore(trap_frame as *mut TrapFrame);

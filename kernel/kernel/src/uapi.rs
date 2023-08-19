@@ -23,7 +23,8 @@ fn send(cspace: &caps::CSpace, cap: usize, tag: ipc::Tag, args: &[usize]) -> ipc
 
     // TODO: remove this
     assert!(tag.ncaps() <= 8, "too many caps");
-    let mut resolved: [Option<&caps::CSlot>; 8] = [None, None, None, None, None, None, None, None];
+    let mut resolved: [Option<&caps::Capability>; 8] =
+        [None, None, None, None, None, None, None, None];
     for (i, &addr) in raw.cap_addresses.iter().enumerate() {
         resolved[i] = Some(cspace.lookup(addr)?);
     }
@@ -68,17 +69,22 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
         SYS_SEND => {
             log::debug!("SEND: {:?}", args);
             let cspace = sched::cspace().get_cspace().unwrap();
-            send(&cspace, args[1], ipc::Tag::from_raw(args[2]), &args[3..])
+            send(
+                cspace.as_ref(),
+                args[1],
+                ipc::Tag::from_raw(args[2]),
+                &args[3..],
+            )
         }
         SYS_IDENTIFY => {
             log::debug!("IDENTIFY: {:?}", args);
             let cspace = sched::cspace().get_cspace().unwrap();
-            identify(&cspace, args[1])
+            identify(cspace.as_ref(), args[1])
         }
         SYS_DESTROY => {
             log::debug!("DESTORY: {:?}", args);
             let cspace = sched::cspace().get_cspace().unwrap();
-            destroy(&cspace, args[1])
+            destroy(cspace.as_ref(), args[1])
         }
         no => {
             panic!("unsupported syscall: {}", no);

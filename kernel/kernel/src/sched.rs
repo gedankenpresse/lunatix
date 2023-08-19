@@ -1,7 +1,6 @@
-use crate::caps;
+use crate::caps::{self, Capability};
 
 use caps::task::TaskState;
-use caps::CSlot;
 
 static mut ACTIVE_TASK: *mut TaskState = core::ptr::null_mut();
 
@@ -17,12 +16,12 @@ fn active_task() -> &'static mut TaskState {
     }
 }
 
-pub fn cspace() -> &'static CSlot {
+pub fn cspace() -> &'static Capability {
     let active = active_task();
     return &active.cspace;
 }
 
-pub fn vspace() -> &'static CSlot {
+pub fn vspace() -> &'static Capability {
     let active = active_task();
     return &active.vspace;
 }

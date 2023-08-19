@@ -1,20 +1,21 @@
 use crate::caps;
 use core::ptr;
-use libkernel::mem::PAGESIZE;
+use derivation_tree::caps::CapabilityIface;
 use riscv::trap::TrapFrame;
 
-use super::{CapabilityInterface, Error, Memory};
+use super::Capability;
 
 pub struct TaskState {
     pub frame: TrapFrame,
-    pub cspace: caps::CSlot,
-    pub vspace: caps::CSlot,
+    pub cspace: caps::Capability,
+    pub vspace: caps::Capability,
 }
 
 pub struct Task {
     pub state: *mut TaskState,
 }
 
+/*
 impl TaskState {
     pub fn init(mem: &mut caps::Memory) -> Result<*mut TaskState, caps::errors::NoMem> {
         // allocate a pointer from memory to store our task state
@@ -32,32 +33,31 @@ impl TaskState {
         Ok(ptr)
     }
 }
+*/
 
 #[derive(Copy, Clone)]
 pub struct TaskIface;
 
-impl CapabilityInterface for TaskIface {
-    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
-        let taskcap = Task {
-            state: TaskState::init(mem)?,
-        };
-        return Ok(taskcap.into());
-    }
+impl CapabilityIface<Capability> for TaskIface {
+    type InitArgs = ();
 
-    fn init_sz(
+    fn init(
         &self,
-        slot: &caps::CSlot,
-        mem: &mut Memory,
-        size: usize,
-    ) -> Result<caps::Capability, Error> {
-        return Err(Error::Unsupported);
-    }
-
-    fn destroy(&self, slot: &caps::CSlot) {
+        target: &mut impl derivation_tree::AsStaticMut<Capability>,
+        args: Self::InitArgs,
+    ) {
         todo!()
     }
 
-    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+    fn copy(
+        &self,
+        src: &impl derivation_tree::AsStaticRef<Capability>,
+        dst: &mut impl derivation_tree::AsStaticMut<Capability>,
+    ) {
+        todo!()
+    }
+
+    fn destroy(&self, target: &mut Capability) {
         todo!()
     }
 }

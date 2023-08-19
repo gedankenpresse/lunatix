@@ -20,21 +20,21 @@ mod arch_specific;
 
 pub use arch_specific::mmu;
 pub use arch_specific::trap;
-use caps::CSlot;
+use caps::Capability;
 use ksync::SpinLock;
 use libkernel::mem::ptrs::PhysConstPtr;
 use riscv::pt::PageTable;
 
 pub struct InitCaps {
-    mem: CSlot,
-    init_task: CSlot,
+    mem: Capability,
+    init_task: Capability,
 }
 
 impl InitCaps {
     const fn empty() -> Self {
         Self {
-            mem: CSlot::empty(),
-            init_task: CSlot::empty(),
+            mem: Capability::empty(),
+            init_task: Capability::empty(),
         }
     }
 }

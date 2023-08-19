@@ -28,7 +28,7 @@ pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             drop(guard);
             let init_caps = unsafe { &mut *init_caps };
 
-            unsafe { &mut (*(init_caps.init_task.get_task_mut().unwrap().state)).frame }
+            unsafe { &mut (*(init_caps.init_task.get_task_mut().unwrap().as_mut().state)).frame }
         }
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);

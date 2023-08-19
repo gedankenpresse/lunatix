@@ -1,48 +1,35 @@
+use super::Capability;
+use derivation_tree::caps::CapabilityIface;
 use libkernel::mem;
-
-use crate::caps;
-
-use super::{CapabilityInterface, Error, Memory};
 
 /// A capability to physical memory.
 pub struct Page {
     pub(crate) kernel_addr: *mut mem::MemoryPage,
 }
 
-impl Page {
-    pub fn init(slot: &caps::CSlot, memslot: &caps::CSlot) -> Result<(), caps::Error> {
-        memslot.derive(slot, |mem| {
-            let memory_page = mem.alloc_pages_raw(1)?;
-            let pagecap = Self {
-                kernel_addr: memory_page,
-            };
-            return Ok(pagecap.into());
-        })
-    }
-}
-
 #[derive(Copy, Clone)]
 pub struct PageIface;
 
-impl CapabilityInterface for PageIface {
-    fn init(&self, slot: &caps::CSlot, mem: &mut Memory) -> Result<caps::Capability, Error> {
-        todo!()
-    }
+impl CapabilityIface<Capability> for PageIface {
+    type InitArgs = ();
 
-    fn init_sz(
+    fn init(
         &self,
-        slot: &caps::CSlot,
-        mem: &mut Memory,
-        size: usize,
-    ) -> Result<caps::Capability, Error> {
+        target: &mut impl derivation_tree::AsStaticMut<Capability>,
+        args: Self::InitArgs,
+    ) {
         todo!()
     }
 
-    fn destroy(&self, slot: &caps::CSlot) {
+    fn copy(
+        &self,
+        src: &impl derivation_tree::AsStaticRef<Capability>,
+        dst: &mut impl derivation_tree::AsStaticMut<Capability>,
+    ) {
         todo!()
     }
 
-    fn copy(&self, this: &caps::CSlot, target: &caps::CSlot) -> Result<(), Error> {
+    fn destroy(&self, target: &mut Capability) {
         todo!()
     }
 }
