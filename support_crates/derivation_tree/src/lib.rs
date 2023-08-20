@@ -60,15 +60,16 @@ pub mod test {
     }
 
     pub mod full_capability_tests {
+        extern crate std;
         use crate::caps::test_union::{MemoryIface, TestCapTag, TestCapUnion, ValueCapIface};
         use crate::caps::{CapabilityIface, UninitSlot};
         use crate::test::assume_init_box;
         use crate::tree::{DerivationTree, TreeNodeOps};
-        use alloc::boxed::{Box as StdBox, Box};
-        use alloc::vec;
-        use alloc::vec::Vec;
         use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
         use core::mem::MaybeUninit;
+        use std::boxed::{Box as StdBox, Box};
+        use std::vec;
+        use std::vec::Vec;
 
         #[test]
         fn full_tree_with_cspaces() {

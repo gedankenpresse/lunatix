@@ -8,14 +8,17 @@ use core::cell::RefCell;
 pub type CAddr = usize;
 
 /// A capability that is a handle to backing memory for [`TreeNodes`](TreeNode).
-pub struct CSpace<'alloc, 'mem, A: Allocator<'mem>, T> {
-    slots: CapCounted<'alloc, 'mem, A, [RefCell<T>]>,
+pub struct CSpace<'alloc, 'mem, T> {
+    slots: CapCounted<'alloc, 'mem, [RefCell<T>]>,
 }
 
-impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
+impl<'alloc, 'mem, T: Default> CSpace<'alloc, 'mem, T> {
     /// Allocate enough memory from an allocator to hold the given number of slots and construct
     /// a CSpace from it
-    pub fn alloc_new(allocator: &'alloc A, num_slots: usize) -> Result<Self, AllocError> {
+    pub fn alloc_new(
+        allocator: &'alloc dyn Allocator<'mem>,
+        num_slots: usize,
+    ) -> Result<Self, AllocError> {
         // this is necessary because otherwise CAddrs don't work correctly
         assert!(num_slots.is_power_of_two());
 
@@ -51,7 +54,7 @@ impl<'alloc, 'mem, A: Allocator<'mem>, T: Default> CSpace<'alloc, 'mem, A, T> {
     }
 }
 
-impl<'alloc, 'mem, A: Allocator<'mem>, T: TreeNodeOps> Correspondence for CSpace<'alloc, 'mem, A, T> {
+impl<'alloc, 'mem, T: TreeNodeOps> Correspondence for CSpace<'alloc, 'mem, T> {
     fn corresponds_to(&self, other: &Self) -> bool {
         let self_slots: &[_] = &self.slots;
         let other_slots: &[_] = &other.slots;

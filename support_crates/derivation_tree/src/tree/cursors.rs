@@ -336,9 +336,9 @@ mod test {
     use crate::test::assume_init_box;
     use crate::test::node_tests::TestNode;
     use crate::tree::cursors::{CursorData, CursorSet};
-    use alloc::boxed::Box;
     use core::mem;
     use core::mem::MaybeUninit;
+    use std::boxed::Box;
 
     #[test]
     fn test_allocate_two_cursors() {

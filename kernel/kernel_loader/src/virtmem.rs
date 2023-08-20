@@ -33,7 +33,7 @@ pub fn map<'a>(
     flags: EntryFlags,
 ) {
     while let Err(e) = riscv::pt::map(IdMapper, root, vaddr, paddr, flags) {
-        let new_pt_box: Box<'_, '_, _, PageTable> =
+        let new_pt_box: Box<'_, '_, PageTable> =
             unsafe { Box::new_zeroed(alloc).unwrap().assume_init() };
         let new_pt = new_pt_box.leak();
         riscv::pt::map_pt(IdMapper, root, e.level, e.target_vaddr, new_pt).unwrap();

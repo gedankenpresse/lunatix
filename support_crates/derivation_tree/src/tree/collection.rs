@@ -72,7 +72,7 @@ mod test {
     use crate::test::assume_init_box;
     use crate::test::node_tests::TestNode;
     use crate::tree::{CursorRefMut, DerivationTree};
-    use alloc::boxed::Box;
+    use std::boxed::Box;
 
     #[test]
     fn test_derivation_tree_creation() {

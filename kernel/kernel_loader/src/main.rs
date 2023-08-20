@@ -107,7 +107,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // allocate a root PageTable for the initial kernel execution environment
     log::debug!("allocating root table");
-    let root_table_box: Box<'_, '_, _, PageTable> = unsafe {
+    let root_table_box: Box<'_, '_, PageTable> = unsafe {
         Box::new_zeroed(&allocator)
             .expect("Could not setup root PageTable")
             .assume_init()

@@ -26,16 +26,8 @@ pub enum TestCapTag {
 
 pub union TestCapPayload {
     pub uninit: ManuallyDrop<Uninit>,
-    pub cspace:
-        ManuallyDrop<CSpace<'static, 'static, ForwardBumpingAllocator<'static>, TestCapUnion>>,
-    pub memory: ManuallyDrop<
-        Memory<
-            'static,
-            'static,
-            ForwardBumpingAllocator<'static>,
-            ForwardBumpingAllocator<'static>,
-        >,
-    >,
+    pub cspace: ManuallyDrop<CSpace<'static, 'static, TestCapUnion>>,
+    pub memory: ManuallyDrop<Memory<'static, 'static, ForwardBumpingAllocator<'static>>>,
     pub usize_value: ManuallyDrop<ValueCap<usize>>,
 }
 

@@ -15,8 +15,8 @@ pub struct TaskState {
     pub vspace: Capability,
 }
 
-pub struct Task<'alloc, 'mem, A: Allocator<'mem>> {
-    pub state: CapCounted<'alloc, 'mem, A, RefCell<TaskState>>,
+pub struct Task<'alloc, 'mem> {
+    pub state: CapCounted<'alloc, 'mem, RefCell<TaskState>>,
 }
 
 /*
@@ -44,7 +44,7 @@ pub struct TaskIface;
 
 impl TaskIface {
     /// Derive a new [`Task`](super::Task) capability from a memory capability.
-    pub fn derive(&self, src_mem: & Capability, target_slot: &mut Capability) {
+    pub fn derive(&self, src_mem: &Capability, target_slot: &mut Capability) {
         assert_eq!(target_slot.tag, Tag::Uninit);
 
         // create a new (uninitialized) task state
@@ -54,11 +54,7 @@ impl TaskIface {
                 cspace: Capability::empty(),
                 frame: TrapFrame::null(),
             }),
-            src_mem
-                .get_inner_memory()
-                .unwrap()
-                .allocator
-                .deref(),
+            src_mem.get_inner_memory().unwrap().allocator.deref(),
         )
         .unwrap();
 

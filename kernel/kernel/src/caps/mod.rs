@@ -23,9 +23,9 @@ pub use errors::Error;
 
 pub type KernelAlloc = allocators::bump_allocator::ForwardBumpingAllocator<'static>;
 
-pub type Memory = GenMemory<'static, 'static, KernelAlloc, KernelAlloc>;
-pub type CSpace = GenCSpace<'static, 'static, KernelAlloc, Capability>;
-pub type Task = GenTask<'static, 'static, KernelAlloc>;
+pub type Memory = GenMemory<'static, 'static, KernelAlloc>;
+pub type CSpace = GenCSpace<'static, 'static, Capability>;
+pub type Task = GenTask<'static, 'static>;
 
 #[derive(Copy, Clone)]
 pub struct Uninit {}
@@ -43,8 +43,8 @@ pub enum Tag {
 
 pub union Variant<'alloc, 'mem, A: Allocator<'mem>, Node> {
     uninit: Uninit,
-    memory: ManuallyDrop<GenMemory<'alloc, 'mem, A, A>>,
-    cspace: ManuallyDrop<GenCSpace<'alloc, 'mem, A, Node>>,
+    memory: ManuallyDrop<GenMemory<'alloc, 'mem, A>>,
+    cspace: ManuallyDrop<GenCSpace<'alloc, 'mem, Node>>,
     vspace: ManuallyDrop<VSpace>,
     task: ManuallyDrop<Task>,
     page: ManuallyDrop<Page>,
