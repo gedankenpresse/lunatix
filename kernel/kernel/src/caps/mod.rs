@@ -1,31 +1,25 @@
 pub mod cspace;
 pub mod memory;
 pub mod page;
+pub mod prelude;
 pub mod task;
 pub mod vspace;
 
 use core::{marker::PhantomData, mem::ManuallyDrop};
 
-pub use cspace::CSpaceIface;
-use derivation_tree::caps::CSpace as GenCSpace;
-pub use derivation_tree::caps::Memory as GenMemory;
 use derivation_tree::{
     tree::{TreeNodeData, TreeNodeOps},
     Correspondence,
 };
-pub use memory::MemoryIface;
+
+pub use cspace::{CSpace, CSpaceIface};
+pub use memory::{Memory, MemoryIface};
 pub use page::{Page, PageIface};
-pub use task::{Task as GenTask, TaskIface};
+pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
 
-use allocators::Allocator;
 pub use errors::Error;
-
-pub type KernelAlloc = allocators::bump_allocator::ForwardBumpingAllocator<'static>;
-
-pub type Memory = GenMemory<'static, 'static, KernelAlloc>;
-pub type CSpace = GenCSpace<'static, 'static, Capability>;
-pub type Task = GenTask<'static, 'static>;
+pub use prelude::*;
 
 #[derive(Copy, Clone)]
 pub struct Uninit {}
@@ -41,35 +35,50 @@ pub enum Tag {
     Page,
 }
 
-pub union Variant<'alloc, 'mem, A: Allocator<'mem>, Node> {
+pub union Variant {
     uninit: Uninit,
-    memory: ManuallyDrop<GenMemory<'alloc, 'mem, A>>,
-    cspace: ManuallyDrop<GenCSpace<'alloc, 'mem, Node>>,
+    memory: ManuallyDrop<Memory>,
+    cspace: ManuallyDrop<CSpace>,
     vspace: ManuallyDrop<VSpace>,
     task: ManuallyDrop<Task>,
     page: ManuallyDrop<Page>,
 }
 
-pub struct GenCapability<'alloc, 'mem, A: Allocator<'mem>> {
+pub struct Capability {
     tag: Tag,
     tree_data: TreeNodeData<Self>,
-    variant: Variant<'alloc, 'mem, A, Self>,
+    variant: Variant,
 }
 
-impl<'alloc, 'mem, A: Allocator<'mem>> Correspondence for GenCapability<'alloc, 'mem, A> {
+impl Correspondence for Capability {
     fn corresponds_to(&self, other: &Self) -> bool {
-        todo!()
+        match (self.tag, other.tag) {
+            (Tag::Uninit, Tag::Uninit) => false,
+            (Tag::Memory, Tag::Memory) => unsafe {
+                self.variant.memory.corresponds_to(&other.variant.memory)
+            },
+            (Tag::CSpace, Tag::CSpace) => unsafe {
+                self.variant.cspace.corresponds_to(&other.variant.cspace)
+            },
+            (Tag::VSpace, Tag::VSpace) => unsafe {
+                self.variant.vspace.corresponds_to(&other.variant.vspace)
+            },
+            (Tag::Task, Tag::Task) => unsafe {
+                self.variant.task.corresponds_to(&other.variant.task)
+            },
+            (Tag::Page, Tag::Page) => unsafe {
+                self.variant.page.corresponds_to(&other.variant.page)
+            },
+            _ => false,
+        }
     }
 }
 
-impl<'alloc, 'mem, A: Allocator<'mem>> TreeNodeOps for GenCapability<'alloc, 'mem, A> {
+impl TreeNodeOps for Capability {
     fn get_tree_data(&self) -> &TreeNodeData<Self> {
         &self.tree_data
     }
 }
-
-pub type Capability =
-    GenCapability<'static, 'static, allocators::bump_allocator::ForwardBumpingAllocator<'static>>;
 
 macro_rules! cap_get_ref_mut {
     ($variant:ty, $tag:ident, $name:ident, $name_mut: ident) => {

@@ -1,14 +1,23 @@
-use crate::caps;
-use caps::errors::NoMem;
-use derivation_tree::caps::CapabilityIface;
-use riscv::pt::{EntryFlags, PageTable};
+use core::mem::{ManuallyDrop, MaybeUninit};
 
-use crate::virtmem;
+use crate::caps::{self, Tag, Variant};
+use allocators::Box;
+use caps::errors::NoMem;
+use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
+use riscv::pt::PageTable;
+
+// use crate::virtmem;
 
 use super::Capability;
 
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
+}
+
+impl Correspondence for VSpace {
+    fn corresponds_to(&self, other: &Self) -> bool {
+        todo!("correspondence not implemented for vspace")
+    }
 }
 
 impl VSpace {
@@ -40,6 +49,34 @@ impl VSpace {
 
 #[derive(Copy, Clone)]
 pub struct VSpaceIface;
+
+impl VSpaceIface {
+    pub fn derive(&self, src: &Capability, target: &mut Capability) {
+        assert_eq!(target.tag, Tag::Uninit);
+        // TODO: make sure layout is the same
+        let mut page: Box<MaybeUninit<PageTable>> =
+            Box::new_uninit(&*src.get_inner_memory().unwrap().allocator).unwrap();
+        PageTable::init_copy(page.as_mut_ptr().cast(), unsafe {
+            crate::KERNEL_ROOT_PT
+                .as_mapped()
+                .raw()
+                .as_ref()
+                .expect("No Kernel Root Page Table found")
+        });
+        let page = unsafe { page.assume_init() };
+        // save the capability into the target slot
+        target.tag = Tag::VSpace;
+        target.variant = Variant {
+            vspace: ManuallyDrop::new(VSpace {
+                root: page.leak() as *mut _,
+            }),
+        };
+
+        unsafe {
+            src.insert_derivation(target);
+        }
+    }
+}
 
 impl CapabilityIface<Capability> for VSpaceIface {
     type InitArgs = ();

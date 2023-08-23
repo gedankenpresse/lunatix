@@ -1,10 +1,11 @@
-use super::{Capability, KernelAlloc};
-use crate::caps::{Memory, Tag, Variant};
 use allocators::bump_allocator::BumpAllocator;
 use core::mem;
 use core::mem::ManuallyDrop;
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::AsStaticMut;
+
+use super::{Capability, KernelAlloc, Tag, Variant};
+pub type Memory = derivation_tree::caps::Memory<'static, 'static, KernelAlloc>;
 
 #[derive(Copy, Clone)]
 pub struct MemoryIface;

@@ -1,13 +1,16 @@
-use crate::caps::{Tag, Variant};
-use allocators::{Allocator, Box};
+use allocators::Box;
 use core::cell::RefCell;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
 use derivation_tree::caps::CapabilityIface;
-use derivation_tree::CapCounted;
+use derivation_tree::tree::TreeNodeOps;
+use derivation_tree::Correspondence;
 use riscv::trap::TrapFrame;
 
+use super::CapCounted;
 use super::Capability;
+use super::Tag;
+use super::Variant;
 
 pub struct TaskState {
     pub frame: TrapFrame,
@@ -15,8 +18,14 @@ pub struct TaskState {
     pub vspace: Capability,
 }
 
-pub struct Task<'alloc, 'mem> {
-    pub state: CapCounted<'alloc, 'mem, RefCell<TaskState>>,
+pub struct Task {
+    pub state: CapCounted<RefCell<TaskState>>,
+}
+
+impl Correspondence for Task {
+    fn corresponds_to(&self, other: &Self) -> bool {
+        todo!("correspondence not implemented for task")
+    }
 }
 
 /*
@@ -59,7 +68,7 @@ impl TaskIface {
         .unwrap();
 
         // save the capability into the target slot
-        target_slot.tag = Tag::Memory;
+        target_slot.tag = Tag::Task;
         target_slot.variant = Variant {
             task: ManuallyDrop::new(Task {
                 // Safety: it is safe to ignore lifetimes for this box, because the derivation tree ensures correct lifetimes at runtime
@@ -67,7 +76,9 @@ impl TaskIface {
             }),
         };
 
-        // todo!()
+        unsafe {
+            src_mem.insert_derivation(target_slot);
+        }
     }
 }
 

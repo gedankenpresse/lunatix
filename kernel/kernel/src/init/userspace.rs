@@ -1,6 +1,6 @@
 //! Loading and execution of the init process
 
-use crate::caps;
+use crate::caps::{self, CSpaceIface, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, Tag, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
@@ -174,20 +174,15 @@ pub fn create_init_caps(alloc: &'static KernelAlloc) {
             log::debug!("deriving task capability from root memory capability");
             TaskIface.derive(&mem, init_task);
 
-            todo!();
+            let task = init_task.get_inner_task_mut().unwrap();
+            let mut taskstate = task.state.borrow_mut();
 
-            // let taskstate = unsafe { init_task.get_task_mut().unwrap().state.as_mut().unwrap() };
-            // log::debug!("init vspace");
-            // mem.derive(taskstate.vspace, |mem| {
-            //     caps::VSpaceIface.init(&mut taskstate.vspace, mem)
-            // })
-            // .unwrap();
-            //
-            // log::debug!("init cspace");
-            // mem.derive(taskstate.cspace, |mem| {
-            //     caps::CSpaceIface.init_sz(&taskstate.cspace, mem, 4)
-            // })
-            // .unwrap();
+            log::debug!("init vspace");
+            VSpaceIface.derive(&mem, &mut taskstate.vspace);
+
+            log::debug!("init cspace");
+            CSpaceIface.derive(&mem, &mut taskstate.cspace);
+
             // {
             //     let cspace = taskstate.cspace.get_cspace_mut().unwrap();
             //     let memslot = cspace.lookup(1).unwrap();

@@ -1,10 +1,16 @@
 use super::Capability;
-use derivation_tree::caps::CapabilityIface;
+use derivation_tree::{caps::CapabilityIface, Correspondence};
 use libkernel::mem;
 
 /// A capability to physical memory.
 pub struct Page {
     pub(crate) kernel_addr: *mut mem::MemoryPage,
+}
+
+impl Correspondence for Page {
+    fn corresponds_to(&self, other: &Self) -> bool {
+        todo!("correspondence for page not implemented")
+    }
 }
 
 #[derive(Copy, Clone)]
