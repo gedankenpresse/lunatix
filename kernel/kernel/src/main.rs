@@ -68,7 +68,7 @@ extern "C" fn kernel_main(
     //arch::timers::set_next_timer(0).unwrap();
     riscv::trap::enable_interrupts();
 
-    log::debug!("switching to userspace");
+    log::info!("🚀 launching init");
     run_init(trap_stack);
 }
 
