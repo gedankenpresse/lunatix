@@ -39,6 +39,7 @@ impl<'alloc, 'mem, T: ?Sized> Box<'alloc, 'mem, T> {
     pub unsafe fn ignore_lifetimes(self) -> Box<'static, 'mem, T> {
         unsafe { core::mem::transmute::<Box<'alloc, 'mem, T>, Box<'static, 'mem, T>>(self) }
     }
+
     /// Consume the Box, returning its raw parts.
     ///
     /// After calling this function, the caller is responsible for the memory previously managed by the Box.
@@ -54,6 +55,21 @@ impl<'alloc, 'mem, T: ?Sized> Box<'alloc, 'mem, T> {
         );
         mem::forget(self);
         result
+    }
+
+    /// Return the raw parts of the box.
+    ///
+    /// # Safety
+    /// Since the box is not consumed by this function, it is up to the caller to ensure that no aliasing errors are
+    /// created when using the contained memory and that no double-free occurs.
+    pub unsafe fn as_raw(&self) -> (&'mem mut T, &'alloc dyn Allocator<'mem>, Layout) {
+        unsafe {
+            (
+                &mut *(self.inner as *const _ as *mut _),
+                &*(self.source_alloc as *const _),
+                self.source_layout,
+            )
+        }
     }
 
     /// Construct a box from raw data in the given allocator.

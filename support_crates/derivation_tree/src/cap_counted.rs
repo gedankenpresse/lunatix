@@ -50,6 +50,19 @@ impl<'alloc, 'mem, T: ?Sized> Deref for CapCounted<'alloc, 'mem, T> {
     }
 }
 
+impl<'alloc, 'mem, T: ?Sized> Clone for CapCounted<'alloc, 'mem, T> {
+    fn clone(&self) -> Self {
+        // Safety: This is safe because Cap-Counted ensures that no double-free occurs and the derivation trees cursor
+        // ensure aliasing rules
+        let (raw_value, raw_allocator, raw_layout) = unsafe { self.0.as_raw() };
+        Self(ManuallyDrop::new(Box::from_raw(
+            raw_value,
+            raw_allocator,
+            raw_layout,
+        )))
+    }
+}
+
 impl<'alloc, 'mem, T: ?Sized> From<Box<'alloc, 'mem, T>> for CapCounted<'alloc, 'mem, T> {
     fn from(value: Box<'alloc, 'mem, T>) -> Self {
         CapCounted::from_box(value)

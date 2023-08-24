@@ -1,10 +1,11 @@
 use core::mem::{ManuallyDrop, MaybeUninit};
 
 use crate::caps::{self, Tag, Variant};
-use allocators::Box;
+use crate::virtmem;
+use allocators::{Allocator, Box};
 use caps::errors::NoMem;
-use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
-use riscv::pt::PageTable;
+use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, AsStaticRef, Correspondence};
+use riscv::pt::{EntryFlags, PageTable};
 
 // use crate::virtmem;
 
@@ -31,19 +32,15 @@ impl VSpace {
         size: usize,
         flags: usize,
     ) -> Result<(), NoMem> {
-        let memref = mem.get_memory().unwrap().as_ref();
-        log::debug!("map range, root: {:p}", self.root);
-        todo!();
-        /*
+        let mem = mem.get_inner_memory().unwrap();
         virtmem::map_range_alloc(
-            memref.get_inner_mut(),
+            &*mem.allocator,
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
             EntryFlags::from_bits_truncate(flags as u64),
         );
         Ok(())
-        */
     }
 }
 
@@ -94,7 +91,26 @@ impl CapabilityIface<Capability> for VSpaceIface {
         src: &impl derivation_tree::AsStaticRef<Capability>,
         dst: &mut impl derivation_tree::AsStaticMut<Capability>,
     ) {
-        todo!()
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::VSpace);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        // semantically copy the vspace
+        dst.tag = Tag::VSpace;
+        {
+            let src_vspace = src.get_inner_vspace().unwrap();
+            dst.variant = Variant {
+                vspace: ManuallyDrop::new(VSpace {
+                    root: src_vspace.root,
+                }),
+            }
+        }
+
+        // insert the new copy into the derivation tree
+        unsafe {
+            src.insert_copy(dst);
+        }
     }
 
     fn destroy(&self, target: &mut Capability) {

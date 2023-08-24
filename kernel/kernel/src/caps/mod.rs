@@ -5,11 +5,11 @@ pub mod prelude;
 pub mod task;
 pub mod vspace;
 
-use core::{marker::PhantomData, mem::ManuallyDrop};
+use core::{marker::PhantomData, mem, mem::ManuallyDrop};
 
 use derivation_tree::{
     tree::{TreeNodeData, TreeNodeOps},
-    Correspondence,
+    AsStaticMut, AsStaticRef, Correspondence,
 };
 
 pub use cspace::{CSpace, CSpaceIface};
@@ -200,6 +200,23 @@ cap_ref_as_ref_impl!(Page, page);
 impl Default for Capability {
     fn default() -> Self {
         Self::empty()
+    }
+}
+
+// TODO: This should be done via a cursor (where it is already implemented)
+unsafe impl AsStaticRef<Capability> for Capability {
+    fn as_static_ref(&self) -> &'static Capability {
+        // Safety: This is safe because capabilities can only be retrieved by getting them from the derivation tree
+        // which tracks lifetimes at runtime
+        unsafe { mem::transmute(self) }
+    }
+}
+
+unsafe impl AsStaticMut<Capability> for Capability {
+    fn as_static_mut(&mut self) -> &'static mut Capability {
+        // Safety: This is safe because capabilities can only be retrieved by getting them from the derivation tree
+        // which tracks lifetimes at runtime
+        unsafe { mem::transmute(self) }
     }
 }
 

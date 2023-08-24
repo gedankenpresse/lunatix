@@ -1,6 +1,8 @@
-use allocators::{Arena, ArenaAlloc};
+use allocators::{AllocInit, Allocator, Arena, ArenaAlloc, Box};
+use core::alloc::Layout;
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 
+use crate::caps::KernelAlloc;
 use riscv::pt;
 use riscv::pt::{EntryFlags, MemoryPage, PageTable, PAGESIZE};
 use riscv::PhysMapper;
@@ -26,14 +28,18 @@ unsafe impl PhysMapper for KernelMapper {
 }
 
 pub fn map(
-    alloc: &mut Arena<'static, MemoryPage>,
+    alloc: &KernelAlloc,
     root: &mut PageTable,
     vaddr: usize,
     paddr: usize,
     flags: EntryFlags,
 ) {
     while let Err(e) = riscv::pt::map(KernelMapper, root, vaddr, paddr, flags) {
-        let new_pt = unsafe { alloc.alloc_one().cast() };
+        let new_pt = alloc
+            .allocate(Layout::new::<MemoryPage>(), AllocInit::Zeroed)
+            .unwrap()
+            .as_mut_ptr()
+            .cast();
         riscv::pt::map_pt(KernelMapper, root, e.level, e.target_vaddr, new_pt).unwrap();
     }
 }
@@ -42,31 +48,34 @@ pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     pt::virt_to_phys(KernelMapper, root, vaddr)
 }
 
+/// Allocate a range of addresses from the given allocate and map them starting from `start_base` into the virtual
+/// memory indicated by `root`.
 pub fn map_range_alloc(
-    alloc: &mut Arena<'static, MemoryPage>,
+    alloc: &KernelAlloc,
     root: &mut PageTable,
     virt_base: usize,
     size: usize,
     flags: EntryFlags,
 ) {
-    log::debug!("[map range alloc] virt_base {virt_base:0x} size {size:0x}");
+    log::debug!(
+        "allocating and mapping virtual memory: virt_base = {virt_base:0x}    size = {size:0x}"
+    );
     let ptr: *mut MemoryPage = (virt_base & !(PAGESIZE - 1)) as *mut MemoryPage;
     let mut offset = 0;
     while unsafe { (ptr.add(offset) as usize) < (virt_base + size) } {
         let addr = unsafe { ptr.add(offset) } as usize;
+
         log::debug!("mapping page {:x}", addr);
-        let page_addr = unsafe { alloc.alloc_one().cast::<MemoryPage>() };
-        if page_addr.is_null() {
-            panic!("Could not alloc page");
-        }
+        let page_addr = alloc
+            .allocate(Layout::new::<MemoryPage>(), AllocInit::Zeroed)
+            .unwrap()
+            .as_ptr();
 
         map(
             alloc,
             root,
             addr,
-            MappedConstPtr::from(page_addr as *const u8)
-                .as_direct()
-                .raw() as usize,
+            MappedConstPtr::from(page_addr).as_direct().raw() as usize,
             flags,
         );
 

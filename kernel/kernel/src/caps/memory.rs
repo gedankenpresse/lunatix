@@ -2,7 +2,8 @@ use allocators::bump_allocator::BumpAllocator;
 use core::mem;
 use core::mem::ManuallyDrop;
 use derivation_tree::caps::CapabilityIface;
-use derivation_tree::AsStaticMut;
+use derivation_tree::tree::TreeNodeOps;
+use derivation_tree::{AsStaticMut, AsStaticRef};
 
 use super::{Capability, KernelAlloc, Tag, Variant};
 pub type Memory = derivation_tree::caps::Memory<'static, 'static, KernelAlloc>;
@@ -44,12 +45,26 @@ impl CapabilityIface<Capability> for MemoryIface {
         todo!()
     }
 
-    fn copy(
-        &self,
-        src: &impl derivation_tree::AsStaticRef<Capability>,
-        dst: &mut impl AsStaticMut<Capability>,
-    ) {
-        todo!()
+    fn copy(&self, src: &impl AsStaticRef<Capability>, dst: &mut impl AsStaticMut<Capability>) {
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::Memory);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        // semantically copy the cspace
+        dst.tag = Tag::Memory;
+        {
+            let src_mem = src.get_inner_memory().unwrap();
+            dst.variant = Variant {
+                memory: ManuallyDrop::new(Memory {
+                    allocator: src_mem.allocator.clone(),
+                    backing_mem: src_mem.backing_mem.clone(),
+                }),
+            };
+        }
+
+        // insert the new copy into the derivation tree
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {

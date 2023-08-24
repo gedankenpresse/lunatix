@@ -1,6 +1,6 @@
 //! Loading and execution of the init process
 
-use crate::caps::{self, CSpaceIface, VSpaceIface};
+use crate::caps::{self, CSpace, CSpaceIface, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, Tag, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
@@ -20,6 +20,7 @@ static INIT_BIN: &[u8] = include_aligned!(
     "../../../../target/riscv64imac-unknown-none-elf/release/init"
 );
 
+/// A struct for allocating and mapping (loading) memory so that it can be used for userspace stack
 struct StackLoader<'v, 'm> {
     vbase: u64,
     stack_bytes: u64,
@@ -28,7 +29,7 @@ struct StackLoader<'v, 'm> {
 }
 
 impl<'a, 'b> StackLoader<'a, 'b> {
-    // returns virtual address of stack start
+    /// Perform the allocate and map operation
     fn load(self) -> Result<u64, caps::Error> {
         let vspace = self.vspace;
         let mem = self.mem;
@@ -48,6 +49,7 @@ impl<'a, 'b> StackLoader<'a, 'b> {
     }
 }
 
+/// An ElfLoader implementation that loads the elf binary into the configured vspace
 struct VSpaceLoader<'v, 'm> {
     vbase: u64,
     vspace: &'v mut caps::Capability,
@@ -177,57 +179,75 @@ pub fn create_init_caps(alloc: &'static KernelAlloc) {
             let task = init_task.get_inner_task_mut().unwrap();
             let mut taskstate = task.state.borrow_mut();
 
-            log::debug!("init vspace");
+            log::debug!("initializing vspace for the init task");
             VSpaceIface.derive(&mem, &mut taskstate.vspace);
 
-            log::debug!("init cspace");
-            CSpaceIface.derive(&mem, &mut taskstate.cspace);
+            log::debug!("initializing cspace for the init task");
+            const INITIAL_CSPACE_SLOTS: usize = 8;
+            CSpaceIface.derive(&mem, &mut taskstate.cspace, INITIAL_CSPACE_SLOTS);
 
-            // {
-            //     let cspace = taskstate.cspace.get_cspace_mut().unwrap();
-            //     let memslot = cspace.lookup(1).unwrap();
-            //     caps::Memory::copy(mem, memslot).unwrap();
-            // }
-            // {
-            //     let cspace = &taskstate.cspace;
-            //     let cref = taskstate.cspace.get_cspace().unwrap();
-            //     let target_slot = cref.lookup(2).unwrap();
-            //     caps::CSpaceIface.copy(&cspace, &mut target_slot);
-            // }
-            //
-            // log::debug!("setup stack");
-            // let stack_start = StackLoader {
-            //     stack_bytes: 0x1000,
-            //     vbase: 0x10_0000_0000,
-            //     mem: &mem,
-            //     vspace: &mut taskstate.vspace,
-            // }
-            // .load()
-            // .unwrap();
-            //
-            // // load elf binary
-            // log::debug!("load elf binary");
-            // let mut elf_loader = VSpaceLoader {
-            //     // choosing arbitrary vbase not supported for relocating data sections
-            //     // vbase: 0x5_0000_0000,
-            //     vbase: 0x0,
-            //     mem: &mem,
-            //     vspace: &mut taskstate.vspace,
-            // };
-            //
-            // let binary = ElfBinary::new(INIT_BIN).unwrap();
-            // binary.load(&mut elf_loader).expect("Cant load the binary?");
-            // let entry_point = binary.entry_point() + elf_loader.vbase;
-            //
-            // // set stack pointer
-            // taskstate.frame.set_stack_start(stack_start as usize);
-            //
-            // // try setting gp
-            // // taskstate.frame.general_purpose_regs[3] = entry_point as usize + 0x1000;
-            //
-            // // set up program counter to point to userspace code
-            // log::debug!("entry point: {:0x}", entry_point);
-            // taskstate.frame.set_entry_point(entry_point as usize);
+            log::debug!("copying memory, vspace and cspace of the init task into its cspace");
+            {
+                let target_slot = unsafe {
+                    &mut *taskstate
+                        .cspace
+                        .get_inner_cspace()
+                        .unwrap()
+                        .lookup_raw(1)
+                        .unwrap()
+                };
+                MemoryIface.copy(mem, target_slot);
+            }
+            {
+                let target_slot = unsafe {
+                    &mut *taskstate
+                        .cspace
+                        .get_inner_cspace()
+                        .unwrap()
+                        .lookup_raw(2)
+                        .unwrap()
+                };
+                CSpaceIface.copy(&taskstate.cspace, target_slot);
+            }
+            {
+                let target_slot = unsafe {
+                    &mut *taskstate
+                        .cspace
+                        .get_inner_cspace()
+                        .unwrap()
+                        .lookup_raw(3)
+                        .unwrap()
+                };
+                VSpaceIface.copy(&taskstate.vspace, target_slot);
+            }
+
+            log::debug!("creating a stack for the init binary and mapping it for the init task");
+            let stack_start = StackLoader {
+                stack_bytes: 0x1000,
+                vbase: 0x10_0000_0000,
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
+            }
+            .load()
+            .unwrap();
+
+            log::debug!("loading the init binary into its vspace");
+            let elf_binary = ElfBinary::new(INIT_BIN).unwrap();
+            let mut elf_loader = VSpaceLoader {
+                vbase: 0x0,
+                mem: &mem,
+                vspace: &mut taskstate.vspace,
+            };
+            elf_binary
+                .load(&mut elf_loader)
+                .expect("Cannot load init binary");
+            let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
+
+            // configure the task for the init binary
+            taskstate.frame.set_stack_start(stack_start as usize);
+            taskstate.frame.set_entry_point(init_entry_point as usize);
+            // this sets the gp
+            taskstate.frame.general_purpose_regs[3] = init_entry_point as usize + 0x1000;
         }
     }
 }

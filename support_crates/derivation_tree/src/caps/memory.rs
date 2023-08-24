@@ -7,7 +7,8 @@ use core::ops::DerefMut;
 pub struct Memory<'alloc, 'mem, ContentAllocator: Allocator<'mem>> {
     /// The allocator from which this capability annotates
     pub allocator: CapCounted<'alloc, 'mem, ContentAllocator>,
-    backing_mem: CapCounted<'alloc, 'mem, [u8]>,
+    /// The memory from which the contained allocator allocates
+    pub backing_mem: CapCounted<'alloc, 'mem, [u8]>,
 }
 
 impl<'allocator, 'mem, ContentAllocator: Allocator<'mem>>

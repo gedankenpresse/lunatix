@@ -9,7 +9,8 @@ pub type CAddr = usize;
 
 /// A capability that is a handle to backing memory for [`TreeNodes`](TreeNode).
 pub struct CSpace<'alloc, 'mem, T> {
-    slots: CapCounted<'alloc, 'mem, [RefCell<T>]>,
+    /// The backing slice of slots
+    pub slots: CapCounted<'alloc, 'mem, [RefCell<T>]>,
 }
 
 impl<'alloc, 'mem, T: Default> CSpace<'alloc, 'mem, T> {
@@ -30,7 +31,7 @@ impl<'alloc, 'mem, T: Default> CSpace<'alloc, 'mem, T> {
 
         // return result
         Ok(Self {
-            slots: unsafe { slots.assume_init() }.into(),
+            slots: CapCounted::from_box(unsafe { slots.assume_init() }),
         })
     }
 
