@@ -1,11 +1,13 @@
 #![no_std]
 
 pub mod identify;
+pub(crate) mod syscalls;
 // pub(crate) mod ipc;
 // pub mod memory;
+pub mod alloc_page;
 pub mod print;
-pub(crate) mod syscalls;
 
+pub use alloc_page::alloc_page;
 pub use identify::identify;
 pub use print::print;
 pub use print::put_c;

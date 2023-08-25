@@ -1,11 +1,14 @@
+mod alloc_page;
 mod debug_log;
 mod debug_putc;
 mod identify;
 
+use crate::syscalls::alloc_page::sys_alloc_page;
 use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
 use riscv::trap::TrapFrame;
+use syscall_abi::alloc_page::{AllocPage, AllocPageArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
 use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
 use syscall_abi::generic_return::GenericReturn;
@@ -63,7 +66,24 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
             result.into()
         }
 
-        no => GenericReturn::UnsupportedSyscall.into(),
+        AllocPage::SYSCALL_NO => {
+            log::debug!(
+                "handling alloc_page syscall with args {:?}",
+                AllocPageArgs::try_from(args).unwrap()
+            );
+            let result = sys_alloc_page(AllocPageArgs::try_from(args).unwrap());
+            log::debug!("alloc_page syscall result is {:?}", result);
+            result.into()
+        }
+
+        no => {
+            log::debug!(
+                "received unknown syscall {} with args {:x?}",
+                syscall_no,
+                args
+            );
+            GenericReturn::UnsupportedSyscall.into()
+        }
     };
 
     // write the result back to userspace
