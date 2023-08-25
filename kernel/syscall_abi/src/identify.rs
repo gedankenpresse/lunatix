@@ -1,5 +1,6 @@
 //! Definitions for the `identify` syscall.
 
+use crate::generic_return::GenericReturn;
 use crate::{RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 use core::convert::Infallible;
 
@@ -26,6 +27,7 @@ pub struct IdentifyArgs {
 pub enum IdentifyReturn {
     Success(CapabilityVariant) = 0,
     InvalidCAddr = 1,
+    UnsupportedSyscall = usize::MAX,
 }
 
 impl SyscallBinding for Identify {
@@ -57,7 +59,8 @@ impl Into<RawSyscallReturn> for IdentifyReturn {
 
         let reg1 = match self {
             IdentifyReturn::Success(variant) => variant as usize,
-            IdentifyReturn::InvalidCAddr => 0,
+            IdentifyReturn::InvalidCAddr => 1,
+            IdentifyReturn::UnsupportedSyscall => usize::MAX,
         };
 
         [reg0, reg1]
@@ -88,7 +91,18 @@ impl TryFrom<RawSyscallReturn> for IdentifyReturn {
                 _ => return Err(ReturnValueDecodingError::UnknownCapabilityVariant),
             }),
             1 => IdentifyReturn::InvalidCAddr,
+            usize::MAX => IdentifyReturn::UnsupportedSyscall,
             _ => return Err(ReturnValueDecodingError::UnknownReturnCode),
         })
+    }
+}
+
+impl Into<GenericReturn> for IdentifyReturn {
+    fn into(self) -> GenericReturn {
+        match self {
+            IdentifyReturn::Success(_) => GenericReturn::Success,
+            IdentifyReturn::InvalidCAddr => GenericReturn::Error,
+            IdentifyReturn::UnsupportedSyscall => GenericReturn::UnsupportedSyscall,
+        }
     }
 }

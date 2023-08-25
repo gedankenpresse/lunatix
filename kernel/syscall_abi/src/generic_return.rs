@@ -5,6 +5,7 @@ use crate::RawSyscallReturn;
 #[repr(usize)]
 pub enum GenericReturn {
     Success = 0,
+    Error = 1,
     UnsupportedSyscall = usize::MAX,
 }
 
@@ -20,7 +21,9 @@ impl From<GenericReturn> for RawSyscallReturn {
 impl TryFrom<RawSyscallReturn> for GenericReturn {
     type Error = UnidentifiableReturnCode;
 
-    fn try_from(value: RawSyscallReturn) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: RawSyscallReturn,
+    ) -> Result<Self, <GenericReturn as TryFrom<RawSyscallReturn>>::Error> {
         let reg0 = value[0];
         // TODO Figure out if this can be done in a more generic way
         match reg0 {

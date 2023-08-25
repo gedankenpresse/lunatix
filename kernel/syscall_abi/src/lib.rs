@@ -15,6 +15,8 @@
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
 
+use crate::generic_return::GenericReturn;
+
 pub mod alloc_page;
 pub mod debug_log;
 pub mod debug_putc;
@@ -29,9 +31,19 @@ pub trait SyscallBinding {
     /// The syscall number which identifies this syscall.
     const SYSCALL_NO: usize;
 
+    /// The type that is used to encode the syscalls arguments.
+    ///
+    /// These are usually syscall specific but are required to be represent themselves as `RawSyscallArgs` since that
+    /// is what is written to the CPUs registers when the syscall is executed.
+    /// Accordingly, the kernel needs to be able to reconstruct the arguments by reading the registers and thus,
+    /// a backwards conversion from `RawSyscallArgs` must also be possible.
     type CallArgs: TryFrom<RawSyscallArgs> + Into<RawSyscallArgs>;
 
-    type Return: TryFrom<RawSyscallReturn> + Into<RawSyscallReturn>;
+    /// The type that is used to encode the syscalls result.
+    ///
+    /// The syscall result is usually specific to a syscall but must be a superset of `GenericReturn` which is why
+    /// conversion to and from `GenericReturn` must be possible.
+    type Return: TryFrom<RawSyscallReturn> + Into<RawSyscallReturn> + Into<GenericReturn>;
 }
 
 /// The arguments to a syscall as they are encoded in the CPUs registers.

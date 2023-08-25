@@ -1,6 +1,6 @@
 //! Definitions for the `alloc_page` syscall.
 
-use crate::generic_return::UnidentifiableReturnCode;
+use crate::generic_return::{GenericReturn, UnidentifiableReturnCode};
 use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 use core::convert::Infallible;
 
@@ -21,6 +21,7 @@ pub enum AllocPageReturn {
     InvalidMemCAddr = 1,
     InvalidTargetCAddr = 2,
     OutOfMemory = 3,
+    UnsupportedSyscall = usize::MAX,
 }
 
 impl SyscallBinding for AllocPage {
@@ -62,6 +63,18 @@ impl TryFrom<RawSyscallReturn> for AllocPageReturn {
             2 => Ok(AllocPageReturn::InvalidTargetCAddr),
             3 => Ok(AllocPageReturn::OutOfMemory),
             _ => Err(UnidentifiableReturnCode),
+        }
+    }
+}
+
+impl Into<GenericReturn> for AllocPageReturn {
+    fn into(self) -> GenericReturn {
+        match self {
+            AllocPageReturn::Success => GenericReturn::Success,
+            AllocPageReturn::InvalidMemCAddr => GenericReturn::Error,
+            AllocPageReturn::InvalidTargetCAddr => GenericReturn::Error,
+            AllocPageReturn::OutOfMemory => GenericReturn::Error,
+            AllocPageReturn::UnsupportedSyscall => GenericReturn::Error,
         }
     }
 }
