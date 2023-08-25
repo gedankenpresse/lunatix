@@ -117,6 +117,7 @@ dependencies = [
  "rlibc",
  "sbi",
  "sifive_shutdown_driver",
+ "syscall_abi",
  "thiserror-no-std",
 ]
 
@@ -160,6 +161,9 @@ dependencies = [
 [[package]]
 name = "librust"
 version = "0.1.0"
+dependencies = [
+ "syscall_abi",
+]
 
 [[package]]
 name = "log"
@@ -294,6 +298,10 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "syscall_abi"
+version = "0.1.0"
 
 [[package]]
 name = "thiserror-impl-no-std"

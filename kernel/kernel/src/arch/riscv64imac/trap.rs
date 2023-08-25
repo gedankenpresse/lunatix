@@ -1,4 +1,4 @@
-use crate::uapi;
+use crate::syscalls;
 use crate::{InitCaps, INIT_CAPS};
 use core::ops::DerefMut;
 use libkernel::println;
@@ -6,6 +6,14 @@ use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::timer::set_next_timer;
 use riscv::trap::TrapFrame;
 
+/// Handle a RISCV trap.
+///
+/// The function expects the trap to have been triggered in the context of the given TrapFrame `tf`
+/// which should already have the trap information stored in its `tf.last_trap` field.
+///
+/// After the trap has been handled, the function returns another TrapFrame which should now be
+/// executed on the CPU.
+/// It might be the same as `tf` but it might also not be.
 #[no_mangle]
 pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     let last_trap = tf.last_trap.as_ref().unwrap();
@@ -13,7 +21,7 @@ pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
             tf.start_pc = last_trap.epc + 4;
-            uapi::handle_syscall(tf)
+            syscalls::handle_syscall(tf)
         }
         TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
             log::debug!("timer interrupt triggered. switching back to init task");

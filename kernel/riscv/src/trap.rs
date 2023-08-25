@@ -52,18 +52,31 @@ impl TrapFrame {
         }
     }
 
+    /// Set the stack start address to the given value
     pub fn set_stack_start(&mut self, stack_start: usize) {
-        self.general_purpose_regs[2] = stack_start as usize;
+        self.general_purpose_regs[2] = stack_start;
     }
 
     pub fn set_entry_point(&mut self, entry_point: usize) {
         self.start_pc = entry_point;
     }
 
-    pub fn get_ipc_args(&mut self) -> &mut [usize] {
-        return &mut self.general_purpose_regs[10..=17];
+    pub fn get_syscall_number(&mut self) -> usize {
+        self.general_purpose_regs[10]
     }
 
+    /// Get the arguments that are used for syscalls and IPC mechanisms.
+    ///
+    /// These are the registers `x10`-`x17` as they are defined in the RISCV specification to be
+    /// used for function arguments.
+    pub fn get_syscall_args(&mut self) -> &mut [usize] {
+        &mut self.general_purpose_regs[11..=17]
+    }
+
+    /// Write the result of a syscall into the frames registers.
+    ///
+    /// These are the registers `a0` and `a1` as they are defined in the RISCV specification to be
+    /// used for function return values.
     pub fn write_syscall_result(&mut self, a0: usize, a1: usize) {
         self.general_purpose_regs[10] = a0;
         self.general_purpose_regs[11] = a1;

@@ -1,7 +1,9 @@
 #![no_std]
 #![no_main]
 
+use core::panic::PanicInfo;
 use librust::println;
+use librust::syscall_abi::identify::{CapabilityVariant, IdentifyReturn};
 
 #[no_mangle]
 fn _start() {
@@ -10,30 +12,29 @@ fn _start() {
 
 static MESSAGE: &'static str = ":This is a very long userspace message from outer space!";
 
-const MEM_CAP: usize = 1;
-const CSPACE_CAP: usize = 2;
-const NEW_TASK_CAP: usize = 3;
-const NEW_VSPACE_CAP: usize = 4;
-const NEW_CSPACE_CAP: usize = 5;
+const CADDR_MEM: usize = 1;
+const CADDR_CSPACE: usize = 2;
+const CADDR_VSPACE: usize = 3;
 
 fn main() {
-    println!("hello word!");
     println!("{}", MESSAGE);
     println!("{}", MESSAGE);
 
-    assert_eq!(librust::identify(MEM_CAP), Ok(librust::Variant::Memory));
-    assert_eq!(librust::identify(CSPACE_CAP), Ok(librust::Variant::CSpace));
-    librust::allocate(MEM_CAP, NEW_TASK_CAP, librust::Variant::Task, 0).unwrap();
-    println!("new alloc: {:?}", librust::identify(NEW_TASK_CAP));
+    assert_eq!(
+        librust::identify(CADDR_MEM),
+        IdentifyReturn::Success(CapabilityVariant::Memory)
+    );
+    assert_eq!(
+        librust::identify(CADDR_CSPACE),
+        IdentifyReturn::Success(CapabilityVariant::CSpace)
+    );
+    assert_eq!(
+        librust::identify(CADDR_VSPACE),
+        IdentifyReturn::Success(CapabilityVariant::VSpace)
+    );
 
-    librust::allocate(MEM_CAP, NEW_CSPACE_CAP, librust::Variant::CSpace, 4).unwrap();
-    println!("new alloc: {:?}", librust::identify(NEW_CSPACE_CAP));
-
-    librust::allocate(MEM_CAP, NEW_VSPACE_CAP, librust::Variant::VSpace, 0).unwrap();
-    println!("new alloc: {:?}", librust::identify(NEW_VSPACE_CAP));
+    println!("👋 Init task says good bye");
 }
-
-use core::panic::PanicInfo;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {

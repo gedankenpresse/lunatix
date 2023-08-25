@@ -7,7 +7,6 @@ pub mod caps;
 pub mod init;
 pub mod ipc;
 pub mod sched;
-pub mod uapi;
 pub mod virtmem;
 
 #[cfg(target_arch = "riscv64")]
@@ -17,6 +16,7 @@ mod arch_specific;
 #[cfg(target_arch = "x86_64")]
 #[path = "arch/x86_64/mod.rs"]
 mod arch_specific;
+mod syscalls;
 
 use crate::caps::KernelAlloc;
 pub use arch_specific::mmu;

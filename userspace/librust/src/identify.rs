@@ -1,7 +1,6 @@
-use crate::syscalls::{self, syscall};
-use crate::Variant;
+use crate::syscalls::syscall;
+use syscall_abi::identify::{Identify, IdentifyArgs, IdentifyReturn};
 
-pub fn identify(cap: usize) -> Result<Variant, crate::Error> {
-    let v = syscall(syscalls::SYS_IDENTIFY, cap, 0, 0, 0, 0, 0, 0)?;
-    v.try_into()
+pub fn identify(caddr: usize) -> IdentifyReturn {
+    syscall::<Identify>(IdentifyArgs { caddr }).unwrap()
 }

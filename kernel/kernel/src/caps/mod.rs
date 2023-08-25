@@ -50,6 +50,12 @@ pub struct Capability {
     variant: Variant,
 }
 
+impl Capability {
+    pub fn get_tag(&self) -> &Tag {
+        &self.tag
+    }
+}
+
 impl Correspondence for Capability {
     fn corresponds_to(&self, other: &Self) -> bool {
         match (self.tag, other.tag) {

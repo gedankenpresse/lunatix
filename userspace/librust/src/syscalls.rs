@@ -1,12 +1,8 @@
 use core::arch::asm;
-
-pub(crate) const SYS_DEBUG_LOG: usize = 0;
-pub(crate) const SYS_DEBUG_PUTC: usize = 1;
-pub(crate) const SYS_SEND: usize = 2;
-pub(crate) const SYS_IDENTIFY: usize = 3;
+use syscall_abi::{RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 
 #[inline(always)]
-pub(crate) fn raw_syscall(
+fn raw_syscall(
     syscallno: usize,
     a1: usize,
     a2: usize,
@@ -15,7 +11,7 @@ pub(crate) fn raw_syscall(
     a5: usize,
     a6: usize,
     a7: usize,
-) -> (usize, usize) {
+) -> [usize; 2] {
     let mut out0: usize;
     let mut out1: usize;
     unsafe {
@@ -31,23 +27,17 @@ pub(crate) fn raw_syscall(
             in("x17") a7,
         );
     }
-    return (out0, out1);
+    return [out0, out1];
 }
 
 #[inline(always)]
-pub(crate) fn syscall(
-    syscallno: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-    a5: usize,
-    a6: usize,
-    a7: usize,
-) -> Result<usize, crate::Error> {
-    let (a0, a1) = raw_syscall(syscallno, a1, a2, a3, a4, a5, a6, a7);
-    if a0 == 0 {
-        return Ok(a1);
-    }
-    return Err(a0.into());
+pub(crate) fn syscall<T>(
+    args: T::CallArgs,
+) -> Result<T::Return, <<T as SyscallBinding>::Return as TryFrom<RawSyscallReturn>>::Error>
+where
+    T: SyscallBinding,
+{
+    let [a1, a2, a3, a4, a5, a6, a7] = args.into();
+    let result = raw_syscall(T::SYSCALL_NO, a1, a2, a3, a4, a5, a6, a7);
+    result.try_into()
 }
