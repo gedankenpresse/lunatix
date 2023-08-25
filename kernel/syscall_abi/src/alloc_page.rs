@@ -7,6 +7,7 @@ use core::convert::Infallible;
 pub struct AllocPage;
 
 #[derive(Debug, Eq, PartialEq)]
+#[repr(C)]
 pub struct AllocPageArgs {
     /// The CAddr of the memory capability from which a page should be allocated.
     pub src_mem: CAddr,

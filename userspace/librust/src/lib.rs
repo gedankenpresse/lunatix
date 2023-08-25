@@ -4,11 +4,13 @@ pub mod identify;
 pub(crate) mod syscalls;
 // pub(crate) mod ipc;
 // pub mod memory;
-pub mod alloc_page;
+mod alloc_page;
+mod map_page;
 pub mod print;
 
 pub use alloc_page::alloc_page;
 pub use identify::identify;
+pub use map_page::map_page;
 pub use print::print;
 pub use print::put_c;
 // pub use ipc::IpcResult;
