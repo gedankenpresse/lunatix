@@ -3,10 +3,11 @@
 
 use core::panic::PanicInfo;
 use librust::syscall_abi::alloc_page::AllocPageReturn;
+use librust::syscall_abi::assign_ipc_buffer::AssignIpcBufferReturn;
 use librust::syscall_abi::identify::{CapabilityVariant, IdentifyReturn};
 use librust::syscall_abi::map_page::MapPageReturn;
 use librust::syscall_abi::CAddr;
-use librust::{alloc_page, map_page, println};
+use librust::{alloc_page, assign_ipc_buffer, map_page, println};
 
 #[no_mangle]
 fn _start() {
@@ -41,13 +42,15 @@ fn main() {
         alloc_page(CADDR_MEM, CADDR_ALLOCATED_PAGE),
         AllocPageReturn::Success
     );
-    match map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM) {
-        MapPageReturn::Success(page_ptr) => unsafe {
-            page_ptr.write(42);
-            println!("mapped value is {}", page_ptr.read())
-        },
-        result => panic!("Could not map page {:?}", result),
-    }
+    assert!(matches!(
+        map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM),
+        MapPageReturn::Success(_)
+    ));
+
+    assert_eq!(
+        assign_ipc_buffer(CADDR_ALLOCATED_PAGE),
+        AssignIpcBufferReturn::Success
+    );
 
     println!("👋 Init task says good bye");
 }

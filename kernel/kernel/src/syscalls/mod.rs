@@ -1,16 +1,19 @@
 mod alloc_page;
+mod assign_ipc_buffer;
 mod debug_log;
 mod debug_putc;
 mod identify;
 mod map_page;
 
 use crate::syscalls::alloc_page::sys_alloc_page;
+use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::map_page::sys_map_page;
 use riscv::trap::TrapFrame;
 use syscall_abi::alloc_page::{AllocPage, AllocPageArgs};
+use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
 use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
 use syscall_abi::generic_return::GenericReturn;
@@ -89,8 +92,18 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
             result.into()
         }
 
-        no => {
+        AssignIpcBuffer::SYSCALL_NO => {
             log::debug!(
+                "handling assign_ipc_buffer syscall with args {:?}",
+                AssignIpcBufferArgs::try_from(args).unwrap()
+            );
+            let result = sys_assign_ipc_buffer(AssignIpcBufferArgs::try_from(args).unwrap());
+            log::debug!("assign_ipc_buffer syscall result is {:?}", result);
+            result.into()
+        }
+
+        no => {
+            log::warn!(
                 "received unknown syscall {} with args {:x?}",
                 syscall_no,
                 args

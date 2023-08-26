@@ -5,10 +5,12 @@ pub(crate) mod syscalls;
 // pub(crate) mod ipc;
 // pub mod memory;
 mod alloc_page;
+mod assign_ipc_buffer;
 mod map_page;
 pub mod print;
 
 pub use alloc_page::alloc_page;
+pub use assign_ipc_buffer::assign_ipc_buffer;
 pub use identify::identify;
 pub use map_page::map_page;
 pub use print::print;

@@ -5,6 +5,7 @@ use core::ops::Deref;
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::tree::TreeNodeOps;
 use derivation_tree::Correspondence;
+use riscv::pt::MemoryPage;
 use riscv::trap::TrapFrame;
 
 use super::CapCounted;
@@ -16,6 +17,7 @@ pub struct TaskState {
     pub frame: TrapFrame,
     pub cspace: Capability,
     pub vspace: Capability,
+    pub ipc_buffer: Option<*mut MemoryPage>,
 }
 
 pub struct Task {
@@ -62,6 +64,7 @@ impl TaskIface {
                 vspace: Capability::empty(),
                 cspace: Capability::empty(),
                 frame: TrapFrame::null(),
+                ipc_buffer: None,
             }),
             src_mem.get_inner_memory().unwrap().allocator.deref(),
         )
