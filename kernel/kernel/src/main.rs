@@ -20,7 +20,7 @@ static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
-    println!("!!! Kernel Panic !!!\n  {}", info);
+    println!("🚨🚨🚨 Kernel Panic 🚨🚨🚨\n  {}", info);
 
     // shutdown the device
     arch::shutdown()
