@@ -1,13 +1,10 @@
-use allocators::{AllocInit, Allocator};
-use core::alloc::Layout;
 use core::ops::DerefMut;
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
-use riscv::pt::{MemoryPage, PageTable};
+use riscv::pt::PageTable;
 use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
 use crate::caps::task::TaskState;
-use crate::caps::KernelAlloc;
 use crate::{caps, mmu, virtmem};
 
 /// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.
@@ -31,40 +28,6 @@ pub fn init_kernel_pagetable() -> &'static mut PageTable {
         core::arch::asm!("sfence.vma");
     }
     root_pt
-}
-
-/// Allocated enough space for the stack of the kernel trap handler and return a pointer to the start of it.
-///
-/// The stack is allocated from the given allocator and holds the specified number of memory pages.
-pub fn alloc_trap_handler_stack(allocator: &KernelAlloc, num_pages: usize) -> *mut () {
-    let stack = allocator
-        .allocate(
-            Layout::array::<MemoryPage>(num_pages).unwrap(),
-            AllocInit::Zeroed,
-        )
-        .unwrap();
-    let stack_end = stack.as_mut_ptr().cast::<MemoryPage>();
-    let stack_start = unsafe { stack_end.add(num_pages) as *mut () };
-
-    log::debug!("allocated trap handler stack: {stack_start:p} - {stack_end:p}");
-    return stack_start;
-}
-
-/// Allocate a [`TrapFrame`] from the given allocator, assign the given trap handler stack to it and configure
-/// [`SScratch`](cpu::SScratch) to point to it.
-pub fn init_kernel_trap_handler(allocator: &KernelAlloc, trap_stack_start: *mut ()) {
-    let trap_frame: *mut TrapFrame = allocator
-        .allocate(Layout::new::<TrapFrame>(), AllocInit::Uninitialized)
-        .unwrap()
-        .as_mut_ptr()
-        .cast();
-
-    unsafe {
-        (*trap_frame).trap_handler_stack = trap_stack_start as *mut usize;
-        cpu::SScratch::write(trap_frame as usize);
-    }
-
-    log::debug!("initialized kernel trap frame at {trap_frame:p}");
 }
 
 /// Yield to the task that owns the given `trap_frame`

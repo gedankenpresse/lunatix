@@ -2,7 +2,6 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use fdt_rs::base::DevTree;
 use kernel::caps::KernelAlloc;
 use kernel::sched::Schedule;
 use kernel::trap::handle_trap;
@@ -59,9 +58,6 @@ extern "C" fn kernel_main(
 
     let kernel_root_pt = init_kernel_pagetable();
     unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
-
-    let trap_stack = alloc_trap_handler_stack(&allocator, 10);
-    init_kernel_trap_handler(&allocator, trap_stack);
 
     log::debug!("creating init caps");
     create_init_caps(&allocator);
