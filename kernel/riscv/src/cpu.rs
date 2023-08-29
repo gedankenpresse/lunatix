@@ -248,6 +248,8 @@ bitflags! {
         /// Bits sip.SEIP and sie.SEIE are the interrupt-pending and interrupt-enable bits for supervisor-level external interrupts.
         /// If implemented, SEIP is read-only in [sip](Sip), and is set and cleared by the execution environment, typically through a platform-specific interrupt controller.
         const SupervisorExternalInterrupt = 1 << 9;
+
+        const UserTimerInterrupt = 1 << 4;
     }
 }
 

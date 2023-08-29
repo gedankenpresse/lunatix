@@ -4,6 +4,7 @@
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use kernel::caps::KernelAlloc;
+use kernel::sched::Schedule;
 use kernel::trap::handle_trap;
 use kernel::{INIT_CAPS, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
@@ -66,18 +67,27 @@ extern "C" fn kernel_main(
     create_init_caps(&allocator);
 
     log::debug!("enabling interrupts");
-    //riscv::timer::set_next_timer(0).unwrap();
+    riscv::timer::set_next_timer(0).unwrap();
     riscv::trap::enable_interrupts();
 
     unsafe {
         set_return_to_user();
     };
+
+    let mut init_guard = INIT_CAPS.try_lock().unwrap();
     log::info!("🚀 launching init");
+    let mut active = &mut init_guard.init_task;
     loop {
-        let mut guard = INIT_CAPS.try_lock().unwrap();
-        let mut task = &mut guard.init_task;
-        unsafe { yield_to_task(task) };
-        let tf = handle_trap(&mut task.get_inner_task_mut().unwrap().state.borrow_mut().frame);
+        let trap_info = yield_to_task(active);
+
+        match handle_trap(active, trap_info) {
+            Schedule::RunInit => {
+                active = &mut init_guard.init_task;
+            }
+            Schedule::Keep => {}
+            Schedule::RunTask(_) => todo!(),
+            Schedule::Stop => break,
+        }
     }
 }
 

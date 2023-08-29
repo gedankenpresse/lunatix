@@ -30,3 +30,10 @@ pub fn vspace() -> &'static Capability {
     let active = get_active_task();
     return &active.vspace;
 }
+
+pub enum Schedule {
+    RunInit,
+    Keep,
+    RunTask(*mut Capability),
+    Stop,
+}

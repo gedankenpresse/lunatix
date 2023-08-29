@@ -5,6 +5,7 @@ mod debug_putc;
 mod identify;
 mod map_page;
 
+use crate::sched::Schedule;
 use crate::syscalls::alloc_page::sys_alloc_page;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;
@@ -48,7 +49,7 @@ pub enum SyscallError {
 /// executed on the CPU.
 /// It might be the same as `tf` but might also not be.
 #[inline(always)]
-pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
+pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
     let syscall_no = tf.get_syscall_number();
     let args: RawSyscallArgs = tf.get_syscall_args().try_into().unwrap();
 
@@ -115,7 +116,5 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> &mut TrapFrame {
     // write the result back to userspace
     let [a0, a1]: RawSyscallReturn = res.into();
     tf.write_syscall_result(a0, a1);
-
-    // switch back to the calling frame
-    tf
+    Schedule::Keep
 }

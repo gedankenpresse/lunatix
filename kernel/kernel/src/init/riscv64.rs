@@ -4,7 +4,7 @@ use core::ops::DerefMut;
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
 use riscv::pt::{MemoryPage, PageTable};
-use riscv::trap::{trap_frame_load, TrapFrame};
+use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
 use crate::caps::task::TaskState;
 use crate::caps::KernelAlloc;
@@ -68,13 +68,14 @@ pub fn init_kernel_trap_handler(allocator: &KernelAlloc, trap_stack_start: *mut 
 }
 
 /// Yield to the task that owns the given `trap_frame`
-pub unsafe fn yield_to_task(task: &mut caps::Capability) {
+#[must_use]
+pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
     unsafe {
         crate::sched::set_active_task(task.state.borrow_mut().deref_mut() as *mut TaskState);
     }
-    let mut state = unsafe { task.state.borrow_mut() };
+    let mut state = task.state.borrow_mut();
     let mut vspace = state.vspace.get_vspace_mut().unwrap();
     let vspace = vspace.as_mut();
     log::trace!("enabling task pagetable");
@@ -82,8 +83,9 @@ pub unsafe fn yield_to_task(task: &mut caps::Capability) {
         mmu::use_pagetable(MappedMutPtr::from(vspace.root).as_direct());
     }
     log::trace!("loading trap frame");
-    trap_frame_load(&mut state.frame as *mut TrapFrame);
+    unsafe { trap_frame_load(&mut state.frame as *mut TrapFrame) };
     log::trace!("returned from trap handler");
+    TrapInfo::from_current_regs()
 }
 
 pub unsafe fn set_return_to_user() {

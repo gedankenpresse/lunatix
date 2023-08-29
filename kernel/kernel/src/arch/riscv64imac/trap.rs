@@ -1,10 +1,10 @@
+use crate::caps::Capability;
+use crate::sched::Schedule;
 use crate::syscalls;
-use crate::{InitCaps, INIT_CAPS};
-use core::ops::DerefMut;
 use libkernel::println;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::timer::set_next_timer;
-use riscv::trap::{TrapFrame, TrapInfo};
+use riscv::trap::TrapInfo;
 
 /// Handle a RISCV trap.
 ///
@@ -14,9 +14,9 @@ use riscv::trap::{TrapFrame, TrapInfo};
 /// executed on the CPU.
 /// It might be the same as `tf` but it might also not be.
 #[no_mangle]
-pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
-    let last_trap = TrapInfo::from_current_regs();
-
+pub fn handle_trap(task: &mut Capability, last_trap: TrapInfo) -> Schedule {
+    let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
+    let tf = &mut task_state.frame;
     match last_trap.cause {
         TrapEvent::Exception(Exception::EnvCallFromUMode) => {
             tf.start_pc = last_trap.epc + 4;
@@ -27,25 +27,7 @@ pub fn handle_trap(tf: &mut TrapFrame) -> &mut TrapFrame {
             set_next_timer(10_000_000).expect("Could not set new timer interrupt");
             tf.start_pc = last_trap.epc;
 
-            // get a handle to the init caps but also drop the guard so that it can be acquired later too
-            let mut guard = INIT_CAPS
-                .try_lock()
-                .expect("Could not acquire lock for INIT_CAPS");
-            let init_caps = guard.deref_mut() as *mut InitCaps;
-            drop(guard);
-            let init_caps = unsafe { &mut *init_caps };
-
-            unsafe {
-                todo!("reenable and fix")
-                // &mut (*(init_caps
-                //     .init_task
-                //     .get_task_mut()
-                //     .unwrap()
-                //     .as_mut()
-                //     .state
-                //     .borrow_mut()))
-                // .frame
-            }
+            Schedule::RunInit
         }
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);

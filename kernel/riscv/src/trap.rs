@@ -157,6 +157,6 @@ pub fn enable_interrupts() {
                 | InterruptBits::SupervisorTimerInterrupt,
         );
         //  globally enable interrupts for the previous configuration now
-        cpu::SStatus::write(SStatusFlags::SIE);
+        cpu::SStatus::write(SStatusFlags::SPIE);
     }
 }
