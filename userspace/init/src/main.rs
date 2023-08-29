@@ -39,20 +39,20 @@ fn main() {
 
     const CADDR_ALLOCATED_PAGE: CAddr = 4;
     assert_eq!(
-        alloc_page(CADDR_MEM, CADDR_ALLOCATED_PAGE),
+        librust::alloc_page(CADDR_MEM, CADDR_ALLOCATED_PAGE),
         AllocPageReturn::Success
     );
     assert!(matches!(
-        map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM),
+        librust::map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM),
         MapPageReturn::Success(_)
     ));
 
     assert_eq!(
-        assign_ipc_buffer(CADDR_ALLOCATED_PAGE),
+        librust::assign_ipc_buffer(CADDR_ALLOCATED_PAGE),
         AssignIpcBufferReturn::Success
     );
 
-    println!("👋 Init task says good bye");
+    println!("Init task says good bye 👋");
 }
 
 #[panic_handler]
