@@ -209,6 +209,7 @@ impl Default for Capability {
     }
 }
 
+// TODO: remove
 // TODO: This should be done via a cursor (where it is already implemented)
 unsafe impl AsStaticRef<Capability> for Capability {
     fn as_static_ref(&self) -> &'static Capability {

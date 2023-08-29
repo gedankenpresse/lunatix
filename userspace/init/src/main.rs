@@ -2,12 +2,12 @@
 #![no_main]
 
 use core::panic::PanicInfo;
+use librust::println;
 use librust::syscall_abi::alloc_page::AllocPageReturn;
 use librust::syscall_abi::assign_ipc_buffer::AssignIpcBufferReturn;
 use librust::syscall_abi::identify::{CapabilityVariant, IdentifyReturn};
 use librust::syscall_abi::map_page::MapPageReturn;
 use librust::syscall_abi::CAddr;
-use librust::{alloc_page, assign_ipc_buffer, map_page, println};
 
 #[no_mangle]
 fn _start() {

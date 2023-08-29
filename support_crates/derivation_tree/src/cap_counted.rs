@@ -1,4 +1,4 @@
-use allocators::{Allocator, Box};
+use allocators::Box;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
 use core::ptr;
@@ -13,6 +13,7 @@ use core::ptr;
 pub struct CapCounted<'alloc, 'mem, T: ?Sized>(ManuallyDrop<Box<'alloc, 'mem, T>>);
 
 impl<'alloc, 'mem, T: ?Sized> CapCounted<'alloc, 'mem, T> {
+    /// Turn a box into a CapCounted variable
     pub fn from_box(value: Box<'alloc, 'mem, T>) -> Self {
         Self(ManuallyDrop::new(value))
     }

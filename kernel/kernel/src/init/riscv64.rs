@@ -1,10 +1,8 @@
-use core::ops::DerefMut;
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
 use riscv::pt::PageTable;
 use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
-use crate::caps::task::TaskState;
 use crate::{caps, mmu, virtmem};
 
 /// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.

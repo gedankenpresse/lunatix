@@ -1,5 +1,5 @@
 use core::arch::asm;
-use syscall_abi::{RawSyscallArgs, RawSyscallReturn, SyscallBinding};
+use syscall_abi::{RawSyscallReturn, SyscallBinding};
 
 #[inline(always)]
 fn raw_syscall(

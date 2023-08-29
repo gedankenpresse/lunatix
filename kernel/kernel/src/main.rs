@@ -86,6 +86,9 @@ extern "C" fn kernel_main(
     log::info!("🚀 launching init");
     let mut active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
     loop {
+        // TODO: move match on Schedule decision to top, so that we can unify logic
+        // for enabling the new page table, instead of doing it on every loop iteration
+        // in yield_to_task
         let mut active_task = active_cursor.get_exclusive().unwrap();
         let trap_info = yield_to_task(&mut active_task);
 

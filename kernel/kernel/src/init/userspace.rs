@@ -1,12 +1,12 @@
 //! Loading and execution of the init process
 
-use crate::caps::{self, CSpace, CSpaceIface, Capability, VSpaceIface};
-use crate::caps::{KernelAlloc, MemoryIface, Tag, TaskIface};
+use crate::caps::{self, CSpaceIface, Capability, VSpaceIface};
+use crate::caps::{KernelAlloc, MemoryIface, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
 
 use align_data::{include_aligned, Align16};
-use allocators::{Arena, Box};
+use allocators::Box;
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::tree::DerivationTree;
 use elfloader::{
@@ -14,7 +14,7 @@ use elfloader::{
     VAddr,
 };
 use libkernel::mem::ptrs::PhysMutPtr;
-use libkernel::mem::{EntryFlags, MemoryPage};
+use libkernel::mem::EntryFlags;
 
 static INIT_BIN: &[u8] = include_aligned!(
     Align16,

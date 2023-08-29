@@ -77,6 +77,7 @@ pub trait TreeNodeOps: Sized + Correspondence {
     /// Return the data structure which holds all tree-related information
     fn get_tree_data(&self) -> &TreeNodeData<Self>;
 
+    /// get a cursor to this capability
     fn cursor_handle(&self) -> CursorHandle<'_, Self> {
         let tree_data = self.get_tree_data();
         let cursor_set = tree_data.get_cursors();

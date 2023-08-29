@@ -24,7 +24,7 @@ pub fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) 
     let mem_slice: &mut [u8] = unsafe {
         core::slice::from_raw_parts_mut(
             virt_start.cast::<u8>(),
-            (virt_end as usize - virt_start as usize),
+            virt_end as usize - virt_start as usize,
         )
     };
 

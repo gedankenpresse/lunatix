@@ -1,4 +1,4 @@
-use allocators::{AllocInit, Allocator, Arena, ArenaAlloc, Box};
+use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
 use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 

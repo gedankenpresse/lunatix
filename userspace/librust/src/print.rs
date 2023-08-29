@@ -1,8 +1,5 @@
 use crate::syscalls::syscall;
-use core::{
-    fmt::{self, Write},
-    mem, ptr,
-};
+use core::fmt::{self, Write};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
 use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
 

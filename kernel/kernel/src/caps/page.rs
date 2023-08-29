@@ -6,7 +6,6 @@ use core::mem::ManuallyDrop;
 use core::ptr;
 use derivation_tree::tree::TreeNodeOps;
 use derivation_tree::{caps::CapabilityIface, Correspondence};
-use libkernel::mem;
 use riscv::pt::MemoryPage;
 
 /// A capability to physical memory.

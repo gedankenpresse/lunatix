@@ -2,9 +2,9 @@ use core::mem::{ManuallyDrop, MaybeUninit};
 
 use crate::caps::{self, Tag, Variant};
 use crate::virtmem;
-use allocators::{Allocator, Box};
+use allocators::Box;
 use caps::errors::NoMem;
-use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, AsStaticRef, Correspondence};
+use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
 use riscv::pt::{EntryFlags, PageTable};
 
 // use crate::virtmem;
