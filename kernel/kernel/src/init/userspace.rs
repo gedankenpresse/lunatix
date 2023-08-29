@@ -1,13 +1,14 @@
 //! Loading and execution of the init process
 
-use crate::caps::{self, CSpace, CSpaceIface, VSpaceIface};
+use crate::caps::{self, CSpace, CSpaceIface, Capability, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, Tag, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
 
 use align_data::{include_aligned, Align16};
-use allocators::Arena;
+use allocators::{Arena, Box};
 use derivation_tree::caps::CapabilityIface;
+use derivation_tree::tree::DerivationTree;
 use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
@@ -162,92 +163,116 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
     }
 }
 
-/// Initialize [`INIT_CAPS`](crate::INIT_CAPS) with appropriate capabilities
-pub fn create_init_caps(alloc: &'static KernelAlloc) {
+/// Initialize the derivation tree with necessary init capabilities.
+pub fn create_init_caps(
+    alloc: &'static KernelAlloc,
+    derivation_tree: &DerivationTree<Capability>,
+) -> InitCaps<'static, 'static> {
     // create capability objects for userspace code
     log::debug!("creating capabilities for the init task");
-    let mut guard = crate::INIT_CAPS.try_lock().unwrap();
+    let mut init_caps = InitCaps {
+        init_task: Box::new(Capability::empty(), alloc).unwrap(),
+    };
 
-    match &mut *guard {
-        InitCaps { mem, init_task } => {
-            log::debug!("creating root memory capability");
-            MemoryIface.create_init(mem, alloc).unwrap();
+    // initializing root memory capability with remaining free space from the kernel allocator#
+    log::debug!("creating root memory capability");
+    MemoryIface
+        .create_init(
+            &mut derivation_tree
+                .get_root_cursor()
+                .unwrap()
+                .get_exclusive()
+                .unwrap(),
+            alloc,
+        )
+        .unwrap();
+    let mut mem_cap = derivation_tree.get_root_cursor().unwrap();
+    let mem_cap = mem_cap.get_exclusive().unwrap();
 
-            log::debug!("deriving task capability from root memory capability");
-            TaskIface.derive(&mem, init_task);
+    log::debug!("deriving task capability from root memory capability");
+    TaskIface.derive(&mem_cap, &mut init_caps.init_task);
+    let mut task_cap = derivation_tree
+        .get_node(unsafe { init_caps.init_task.as_raw() }.0)
+        .unwrap();
+    let mut task_cap = task_cap.get_exclusive().unwrap();
+    let mut task_state = task_cap.get_inner_task_mut().unwrap().state.borrow_mut();
 
-            let task = init_task.get_inner_task_mut().unwrap();
-            let mut taskstate = task.state.borrow_mut();
+    log::debug!("initializing vspace for the init task");
+    VSpaceIface.derive(&mem_cap, &mut task_state.vspace);
 
-            log::debug!("initializing vspace for the init task");
-            VSpaceIface.derive(&mem, &mut taskstate.vspace);
+    log::debug!("initializing cspace for the init task");
+    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 8);
 
-            log::debug!("initializing cspace for the init task");
-            const INITIAL_CSPACE_SLOTS: usize = 8;
-            CSpaceIface.derive(&mem, &mut taskstate.cspace, INITIAL_CSPACE_SLOTS);
-
-            log::debug!("copying memory, vspace and cspace of the init task into its cspace");
-            {
-                let target_slot = unsafe {
-                    &mut *taskstate
-                        .cspace
-                        .get_inner_cspace()
-                        .unwrap()
-                        .lookup_raw(1)
-                        .unwrap()
-                };
-                MemoryIface.copy(mem, target_slot);
-            }
-            {
-                let target_slot = unsafe {
-                    &mut *taskstate
-                        .cspace
-                        .get_inner_cspace()
-                        .unwrap()
-                        .lookup_raw(2)
-                        .unwrap()
-                };
-                CSpaceIface.copy(&taskstate.cspace, target_slot);
-            }
-            {
-                let target_slot = unsafe {
-                    &mut *taskstate
-                        .cspace
-                        .get_inner_cspace()
-                        .unwrap()
-                        .lookup_raw(3)
-                        .unwrap()
-                };
-                VSpaceIface.copy(&taskstate.vspace, target_slot);
-            }
-
-            log::debug!("creating a stack for the init binary and mapping it for the init task");
-            let stack_start = StackLoader {
-                stack_bytes: 0x1000,
-                vbase: 0x10_0000_0000,
-                mem: &mem,
-                vspace: &mut taskstate.vspace,
-            }
-            .load()
-            .unwrap();
-
-            log::debug!("loading the init binary into its vspace");
-            let elf_binary = ElfBinary::new(INIT_BIN).unwrap();
-            let mut elf_loader = VSpaceLoader {
-                vbase: 0x0,
-                mem: &mem,
-                vspace: &mut taskstate.vspace,
-            };
-            elf_binary
-                .load(&mut elf_loader)
-                .expect("Cannot load init binary");
-            let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
-
-            // configure the task for the init binary
-            taskstate.frame.set_stack_start(stack_start as usize);
-            taskstate.frame.set_entry_point(init_entry_point as usize);
-            // this sets the gp
-            taskstate.frame.general_purpose_regs[3] = init_entry_point as usize + 0x1000;
-        }
+    log::debug!("copying memory, vspace and cspace of the init task into its cspace");
+    {
+        // copy memory
+        let target_slot = unsafe {
+            &mut *task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(1)
+                .unwrap()
+        };
+        MemoryIface.copy(&mem_cap, target_slot);
     }
+    {
+        // copy cspace
+        let target_slot = unsafe {
+            &mut *task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(2)
+                .unwrap()
+        };
+        CSpaceIface.copy(&task_state.cspace, target_slot);
+    }
+    {
+        // copy vspace
+        let target_slot = unsafe {
+            &mut *task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(3)
+                .unwrap()
+        };
+        VSpaceIface.copy(&task_state.vspace, target_slot);
+    }
+
+    init_caps
+}
+
+pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
+    log::debug!("loading the init binary");
+    let mut task_state = task_cap.get_inner_task_mut().unwrap().state.borrow_mut();
+
+    log::debug!("creating a stack for the init binary and mapping it for the init task");
+    let stack_start = StackLoader {
+        stack_bytes: 0x1000,
+        vbase: 0x10_0000_0000,
+        mem: mem_cap,
+        vspace: &mut task_state.vspace,
+    }
+    .load()
+    .unwrap();
+
+    log::debug!("loading the init binary into its vspace");
+    let elf_binary = ElfBinary::new(INIT_BIN).unwrap();
+    let mut elf_loader = VSpaceLoader {
+        vbase: 0x0,
+        mem: &mem_cap,
+        vspace: &mut task_state.vspace,
+    };
+    elf_binary
+        .load(&mut elf_loader)
+        .expect("Cannot load init binary");
+    let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
+
+    // configure the task for the init binary
+    task_state.frame.set_stack_start(stack_start as usize);
+    task_state.frame.set_entry_point(init_entry_point as usize);
+    // this sets the gp
+    task_state.frame.general_purpose_regs[3] = init_entry_point as usize + 0x1000;
 }

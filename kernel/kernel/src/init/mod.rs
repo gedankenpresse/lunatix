@@ -13,7 +13,7 @@ pub use riscv64::*;
 pub use x86_64::*;
 
 use crate::caps::KernelAlloc;
-pub use userspace::create_init_caps;
+pub use userspace::{create_init_caps, load_init_binary};
 
 /// Create an allocator that can be used for kernel initialization
 pub fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) -> KernelAlloc {

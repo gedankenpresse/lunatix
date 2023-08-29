@@ -1,11 +1,13 @@
 #![no_std]
 #![no_main]
 
+use allocators::Box;
 use core::panic::PanicInfo;
-use kernel::caps::KernelAlloc;
+use derivation_tree::tree::DerivationTree;
+use kernel::caps::{Capability, KernelAlloc};
 use kernel::sched::Schedule;
 use kernel::trap::handle_trap;
-use kernel::{INIT_CAPS, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
+use kernel::{KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
@@ -59,8 +61,20 @@ extern "C" fn kernel_main(
     let kernel_root_pt = init_kernel_pagetable();
     unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
 
-    log::debug!("creating init caps");
-    create_init_caps(&allocator);
+    // fill the derivation tree with initially required capabilities
+    let mut derivation_tree = Box::new_uninit(allocator).unwrap();
+    let derivation_tree = unsafe {
+        DerivationTree::init_with_root_value(&mut derivation_tree, Capability::empty());
+        derivation_tree.assume_init()
+    };
+    let mut init_caps = create_init_caps(&allocator, &derivation_tree);
+
+    // load the init binary
+    {
+        let mut mem_cap = derivation_tree.get_root_cursor().unwrap();
+        let mut mem_cap = mem_cap.get_exclusive().unwrap();
+        load_init_binary(&mut init_caps.init_task, &mut mem_cap)
+    }
 
     log::debug!("enabling interrupts");
     riscv::timer::set_next_timer(0).unwrap();
@@ -69,16 +83,16 @@ extern "C" fn kernel_main(
     unsafe {
         set_return_to_user();
     };
-
-    let mut init_guard = INIT_CAPS.try_lock().unwrap();
     log::info!("🚀 launching init");
-    let mut active = &mut init_guard.init_task;
+    let mut init_task_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
+    let mut active_task = init_task_cursor.get_exclusive().unwrap();
     loop {
-        let trap_info = yield_to_task(active);
+        let trap_info = yield_to_task(&mut active_task);
 
-        match handle_trap(active, trap_info) {
+        match handle_trap(&mut active_task, trap_info) {
             Schedule::RunInit => {
-                active = &mut init_guard.init_task;
+                drop(active_task);
+                active_task = init_task_cursor.get_exclusive().unwrap();
             }
             Schedule::Keep => {}
             Schedule::RunTask(_) => todo!(),
