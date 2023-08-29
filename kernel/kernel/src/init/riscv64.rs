@@ -1,14 +1,14 @@
-use allocators::{AllocInit, Allocator, Arena, ArenaAlloc};
+use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
-use core::ops::{Deref, DerefMut};
+use core::ops::DerefMut;
 use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
 use riscv::pt::{MemoryPage, PageTable};
-use riscv::trap::{trap_frame_restore, TrapFrame};
+use riscv::trap::{trap_frame_load, TrapFrame};
 
 use crate::caps::task::TaskState;
 use crate::caps::KernelAlloc;
-use crate::{caps, mmu, virtmem, INIT_CAPS};
+use crate::{caps, mmu, virtmem};
 
 /// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.
 ///
@@ -68,35 +68,25 @@ pub fn init_kernel_trap_handler(allocator: &KernelAlloc, trap_stack_start: *mut 
 }
 
 /// Yield to the task that owns the given `trap_frame`
-unsafe fn yield_to_task(trap_handler_stack: *mut u8, task: &mut caps::Capability) -> ! {
+pub unsafe fn yield_to_task(task: &mut caps::Capability) {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
     unsafe {
         crate::sched::set_active_task(task.state.borrow_mut().deref_mut() as *mut TaskState);
     }
     let mut state = unsafe { task.state.borrow_mut() };
-    state.frame.trap_handler_stack = trap_handler_stack.cast();
-
     let mut vspace = state.vspace.get_vspace_mut().unwrap();
     let vspace = vspace.as_mut();
-    log::debug!("enabling task pagetable");
+    log::trace!("enabling task pagetable");
     unsafe {
         mmu::use_pagetable(MappedMutPtr::from(vspace.root).as_direct());
     }
-    log::debug!("restoring trap frame");
-    trap_frame_restore(&mut state.frame as *mut TrapFrame);
+    log::trace!("loading trap frame");
+    trap_frame_load(&mut state.frame as *mut TrapFrame);
+    log::trace!("returned from trap handler");
 }
 
-pub fn run_init(trap_stack: *mut ()) {
-    unsafe {
-        set_return_to_user();
-        let mut guard = INIT_CAPS.try_lock().unwrap();
-        let mut task = &mut guard.init_task;
-        yield_to_task(trap_stack as *mut u8, &mut task);
-    };
-}
-
-unsafe fn set_return_to_user() {
+pub unsafe fn set_return_to_user() {
     log::debug!("clearing sstatus.SPP flag to enable returning to user code");
     cpu::SStatus::clear(cpu::SStatusFlags::SPP);
 }

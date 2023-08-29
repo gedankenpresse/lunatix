@@ -30,10 +30,6 @@ pub struct TrapFrame {
     pub trap_handler_stack: *mut usize,
     /// Program counter value which will be used when switching to this task
     pub start_pc: usize,
-
-    // ABI compatibility ends here
-    /// Context information about the last triggered trap
-    pub last_trap: Option<TrapInfo>,
 }
 
 impl TrapFrame {
@@ -48,7 +44,6 @@ impl TrapFrame {
             floating_point_regs: Default::default(),
             trap_handler_stack: 0x0 as *mut usize,
             start_pc: 0,
-            last_trap: None,
         }
     }
 
@@ -134,32 +129,7 @@ extern "C" {
     /// Restore the given trap frames cpu registers and set the program count to the given value.
     ///
     /// This is implemented by `./asm/trap.S`.
-    pub fn trap_frame_restore(trap_frame: *mut TrapFrame) -> !;
-}
-
-/// Rust side of the trap handler code.
-///
-/// This function closely interoperates with `./asm/trap.S` and **must** therefore be ABI compatible.
-///
-/// ## ABI
-/// `trap.S` passes the following function arguments:
-/// - A pointer to the [`TrapFrame`]
-/// - The program counter of the trapped frame
-/// - [`TrapInfo`] fields (see the struct field description for details)
-#[inline(never)]
-#[no_mangle]
-extern "C" fn rust_trap_handler(tf: &mut TrapFrame) -> TrapReturn {
-    // save passed arguments into the TrapFrame
-    tf.last_trap = Some(TrapInfo::from_current_regs());
-
-    // call actual trap handler (which might decide to switch the execution to a different TrapFrame)
-    extern "Rust" {
-        fn handle_trap(_: &mut TrapFrame) -> &mut TrapFrame;
-    }
-    let res = unsafe { handle_trap(tf) };
-
-    // return the new TrapFrame in the format expected by `trap.S`
-    res
+    pub fn trap_frame_load(trap_frame: *mut TrapFrame);
 }
 
 /// Instruct the CPU to call our trap handler for interrupts and enable triggering of traps.

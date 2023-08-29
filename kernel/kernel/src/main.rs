@@ -4,7 +4,8 @@
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use kernel::caps::KernelAlloc;
-use kernel::{KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
+use kernel::trap::handle_trap;
+use kernel::{INIT_CAPS, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
@@ -12,7 +13,7 @@ use libkernel::println;
 use log::Level;
 use riscv::pt::PageTable;
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -65,11 +66,19 @@ extern "C" fn kernel_main(
     create_init_caps(&allocator);
 
     log::debug!("enabling interrupts");
-    //arch::timers::set_next_timer(0).unwrap();
+    //riscv::timer::set_next_timer(0).unwrap();
     riscv::trap::enable_interrupts();
 
+    unsafe {
+        set_return_to_user();
+    };
     log::info!("🚀 launching init");
-    run_init(trap_stack);
+    loop {
+        let mut guard = INIT_CAPS.try_lock().unwrap();
+        let mut task = &mut guard.init_task;
+        unsafe { yield_to_task(task) };
+        let tf = handle_trap(&mut task.get_inner_task_mut().unwrap().state.borrow_mut().frame);
+    }
 }
 
 /// Assert that all environment conditions under which the kernel expects to be started are met

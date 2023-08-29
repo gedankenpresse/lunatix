@@ -27,8 +27,8 @@ use libkernel::mem::ptrs::PhysConstPtr;
 use riscv::pt::PageTable;
 
 pub struct InitCaps {
-    mem: Capability,
-    init_task: Capability,
+    pub mem: Capability,
+    pub init_task: Capability,
 }
 
 impl InitCaps {

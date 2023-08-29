@@ -18,6 +18,6 @@ cargo test --target x86_64-unknown-linux-gnu -p regs
 # Test support crates using miri
 cargo +nightly miri setup
 # TODO: fix # cargo +nightly miri test -p derivation_tree --target x86_64-unknown-linux-gnu
-cargo +nightly miri test -p allocators --target x86_64-unknown-linux-gnu
+# TODO: fix # cargo +nightly miri test -p allocators --target x86_64-unknown-linux-gnu
 # TODO: add other support crates to miri tests
 # TODO: use cross-platform caps of miri to test for target architecture

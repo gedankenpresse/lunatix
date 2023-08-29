@@ -9,7 +9,7 @@ pub unsafe fn use_pagetable(root: PhysMutPtr<PageTable>) {
         SStatus::set(SStatusFlags::MXR & SStatusFlags::SUM);
     }
 
-    log::debug!("enabling new pagetable {:p}", root);
+    log::trace!("enabling new pagetable {:p}", root);
 
     // Setup Root Page table in satp register
     unsafe {

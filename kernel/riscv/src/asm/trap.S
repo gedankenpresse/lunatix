@@ -66,19 +66,53 @@ asm_trap_handler:
 
 	// call rust trap handler with some arguments (a0 to a7 registers)
 	ld sp, (64*REGBYTES)(a0)    // load rust trap handler stack pointer (third field in TrapFrame)
-	// a0 (first function argument) already contains the TrapFrame pointer
-	call rust_trap_handler
 
-	// the rust trap handler returns the frap frame
-	// and program conuter that should be switched to (in a0 and a1).
-	// fallthrough to restore routine as that is ABI compatible and switches to the returned task
-	j trap_frame_restore
+	// load kernel saved registers
+	ld s0, (0*REGBYTES)(sp)     // save kernel saved registers
+	ld s1, (1*REGBYTES)(sp)     // save kernel saved registers
+	ld s2, (2*REGBYTES)(sp)     // save kernel saved registers
+	ld s3, (3*REGBYTES)(sp)     // save kernel saved registers
+	ld s4, (4*REGBYTES)(sp)     // save kernel saved registers
+	ld s5, (5*REGBYTES)(sp)     // save kernel saved registers
+	ld s6, (6*REGBYTES)(sp)     // save kernel saved registers
+	ld s7, (7*REGBYTES)(sp)     // save kernel saved registers
+	ld s8, (8*REGBYTES)(sp)     // save kernel saved registers
+	ld s9, (9*REGBYTES)(sp)     // save kernel saved registers
+	ld s10, (10*REGBYTES)(sp)    // save kernel saved registers
+	ld s11, (11*REGBYTES)(sp)    // save kernel saved registers
+	ld ra, (12*REGBYTES)(sp)     // save kernel return address
+	ld gp, (13*REGBYTES)(sp)     // save kernel global pointer
+	ld tp, (14*REGBYTES)(sp)     // save kernel thread pointer
+
+	addi sp,sp,(15*REGBYTES)   // deallocate stack space for kernel registers
+	// return to kernel
+	ret
 .option pop
 
 
 // a0 ist the trap frame pointer which holds the tasks PC in its
-.globl trap_frame_restore
-trap_frame_restore:
+.globl trap_frame_load
+trap_frame_load:
+	addi sp,sp,(-15*REGBYTES)   // allocate stack space for kernel registers
+	sd s0, (0*REGBYTES)(sp)     // save kernel saved registers
+	sd s1, (1*REGBYTES)(sp)     // save kernel saved registers
+	sd s2, (2*REGBYTES)(sp)     // save kernel saved registers
+	sd s3, (3*REGBYTES)(sp)     // save kernel saved registers
+	sd s4, (4*REGBYTES)(sp)     // save kernel saved registers
+	sd s5, (5*REGBYTES)(sp)     // save kernel saved registers
+	sd s6, (6*REGBYTES)(sp)     // save kernel saved registers
+	sd s7, (7*REGBYTES)(sp)     // save kernel saved registers
+	sd s8, (8*REGBYTES)(sp)     // save kernel saved registers
+	sd s9, (9*REGBYTES)(sp)     // save kernel saved registers
+	sd s10, (10*REGBYTES)(sp)    // save kernel saved registers
+	sd s11, (11*REGBYTES)(sp)    // save kernel saved registers
+	sd ra, (12*REGBYTES)(sp)     // save kernel return address
+	sd gp, (13*REGBYTES)(sp)     // save kernel global pointer
+	sd tp, (14*REGBYTES)(sp)     // save kernel thread pointer
+
+	sd sp, (64*REGBYTES)(a0)    // store current stack pointer (third field in TrapFrame)
+
+
     ld t6, (65*REGBYTES)(a0)    // load program counter (4th field in TrapFrame struct) into t6
 	csrw sepc, t6   	        // configure cpu to return to that program counter upon sret
 	mv t6, a0 			        // move trap frame pointer to t6
