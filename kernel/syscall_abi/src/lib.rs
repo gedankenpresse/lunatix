@@ -25,6 +25,7 @@ pub mod debug_log;
 pub mod debug_putc;
 pub mod generic_return;
 pub mod identify;
+pub mod inspect_derivation_tree;
 pub mod map_page;
 
 /// A type alias for explicitly marking a capability address in type signatures.
@@ -48,6 +49,17 @@ pub trait SyscallBinding {
     /// The syscall result is usually specific to a syscall but must be a superset of `GenericReturn` which is why
     /// conversion to and from `GenericReturn` must be possible.
     type Return: TryFrom<RawSyscallReturn> + Into<RawSyscallReturn> + Into<GenericReturn>;
+}
+
+/// A trait binding a syscall to a `repr(C)` type which is expected to be put into the tasks IPC buffer when calling it.
+pub trait IpcArgsBinding: SyscallBinding {
+    type IpcArgs;
+}
+
+/// A trait binding a syscall to a `repr(C)` type which the kernel puts into the tasks IPC buffer as a result when
+/// called.
+pub trait IpcReturnBinding: SyscallBinding {
+    type IpcReturn;
 }
 
 /// The arguments to a syscall as they are encoded in the CPUs registers.
