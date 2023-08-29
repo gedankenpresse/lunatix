@@ -23,7 +23,7 @@ pub fn handle_trap(task: &mut Capability, last_trap: TrapInfo) -> Schedule {
             syscalls::handle_syscall(tf)
         }
         TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
-            log::debug!("timer interrupt triggered. switching back to init task");
+            log::debug!("⏰ timer interrupt triggered. switching back to init task");
             set_next_timer(10_000_000).expect("Could not set new timer interrupt");
             tf.start_pc = last_trap.epc;
 
