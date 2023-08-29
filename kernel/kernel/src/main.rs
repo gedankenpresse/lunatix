@@ -84,15 +84,15 @@ extern "C" fn kernel_main(
         set_return_to_user();
     };
     log::info!("🚀 launching init");
-    let mut init_task_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
-    let mut active_task = init_task_cursor.get_exclusive().unwrap();
+    let mut active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
     loop {
+        let mut active_task = active_cursor.get_exclusive().unwrap();
         let trap_info = yield_to_task(&mut active_task);
 
         match handle_trap(&mut active_task, trap_info) {
             Schedule::RunInit => {
                 drop(active_task);
-                active_task = init_task_cursor.get_exclusive().unwrap();
+                active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
             }
             Schedule::Keep => {}
             Schedule::RunTask(_) => todo!(),

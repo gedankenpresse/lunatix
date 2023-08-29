@@ -1,10 +1,15 @@
-use crate::caps::{PageIface, Tag};
-use crate::sched;
+use crate::caps::{Capability, PageIface, Tag};
+use derivation_tree::tree::CursorRefMut;
 use syscall_abi::alloc_page::{AllocPageArgs, AllocPageReturn};
 
-pub(super) fn sys_alloc_page(args: AllocPageArgs) -> AllocPageReturn {
-    let cspace = sched::cspace().get_cspace().unwrap();
-    let cspace = cspace.as_ref();
+pub(super) fn sys_alloc_page(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    args: AllocPageArgs,
+) -> AllocPageReturn {
+    let task = task.get_inner_task().unwrap();
+    let mut cspace = task.get_cspace();
+    let cspace = cspace.get_shared().unwrap();
+    let cspace = cspace.get_inner_cspace().unwrap();
 
     let mem_cap = match unsafe { cspace.lookup_raw(args.src_mem) } {
         None => return AllocPageReturn::InvalidMemCAddr,

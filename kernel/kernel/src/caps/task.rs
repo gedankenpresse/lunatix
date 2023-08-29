@@ -3,6 +3,7 @@ use core::cell::RefCell;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
 use derivation_tree::caps::CapabilityIface;
+use derivation_tree::tree::CursorHandle;
 use derivation_tree::tree::TreeNodeOps;
 use derivation_tree::Correspondence;
 use riscv::pt::MemoryPage;
@@ -21,7 +22,20 @@ pub struct TaskState {
 }
 
 pub struct Task {
+    // TODO: check if this refcell is needed
     pub state: CapCounted<RefCell<TaskState>>,
+}
+
+impl Task {
+    pub fn get_cspace(&self) -> CursorHandle<'static, Capability> {
+        let state = unsafe { self.state.as_ptr().as_ref().unwrap() };
+        state.cspace.cursor_handle()
+    }
+
+    pub fn get_vspace(&self) -> CursorHandle<'static, Capability> {
+        let state = unsafe { self.state.as_ptr().as_ref().unwrap() };
+        state.vspace.cursor_handle()
+    }
 }
 
 impl Correspondence for Task {

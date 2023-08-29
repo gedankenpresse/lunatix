@@ -1,14 +1,18 @@
-use crate::caps::Tag;
-use crate::sched;
-use bitflags::Flags;
+use crate::caps::{Capability, Tag};
 use core::arch::asm;
 use core::mem;
+use derivation_tree::tree::CursorRefMut;
 use riscv::pt::{EntryFlags, MemoryPage};
 use syscall_abi::map_page::{MapPageArgs, MapPageReturn};
 
-pub(super) fn sys_map_page(args: MapPageArgs) -> MapPageReturn {
-    let cspace = sched::cspace().get_cspace().unwrap();
-    let cspace = cspace.as_ref();
+pub(super) fn sys_map_page(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    args: MapPageArgs,
+) -> MapPageReturn {
+    let task = task.get_inner_task().unwrap();
+    let mut cspace = task.get_cspace();
+    let cspace = cspace.get_shared().unwrap();
+    let cspace = cspace.get_inner_cspace().unwrap();
 
     let page_cap = match unsafe { cspace.lookup_raw(args.page) } {
         None => return MapPageReturn::InvalidPageCAddr,

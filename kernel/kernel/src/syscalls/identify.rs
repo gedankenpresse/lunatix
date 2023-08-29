@@ -1,10 +1,15 @@
-use crate::caps::Tag;
-use crate::sched;
+use crate::caps::{Capability, Tag};
+use derivation_tree::tree::CursorRefMut;
 use syscall_abi::identify::{CapabilityVariant, IdentifyArgs, IdentifyReturn};
 
-pub(super) fn sys_identify(args: IdentifyArgs) -> IdentifyReturn {
-    let cspace = sched::cspace().get_cspace().unwrap();
-    let cspace = cspace.as_ref();
+pub(super) fn sys_identify(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    args: IdentifyArgs,
+) -> IdentifyReturn {
+    let task = task.get_inner_task().unwrap();
+    let mut cspace = task.get_cspace();
+    let cspace = cspace.get_shared().unwrap();
+    let cspace = cspace.get_inner_cspace().unwrap();
 
     match unsafe { cspace.lookup_raw(args.caddr) } {
         None => IdentifyReturn::InvalidCAddr,

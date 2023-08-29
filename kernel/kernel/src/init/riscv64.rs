@@ -35,9 +35,6 @@ pub fn init_kernel_pagetable() -> &'static mut PageTable {
 pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
-    unsafe {
-        crate::sched::set_active_task(task.state.borrow_mut().deref_mut() as *mut TaskState);
-    }
     let mut state = task.state.borrow_mut();
     let mut vspace = state.vspace.get_vspace_mut().unwrap();
     let vspace = vspace.as_mut();

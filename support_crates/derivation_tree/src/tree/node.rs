@@ -3,6 +3,8 @@ use crate::Correspondence;
 use core::cell::Cell;
 use core::ptr;
 
+use super::CursorHandle;
+
 /// A TreeNode is an element of a [`DerivationTree`](crate::DerivationTree) and this trait must be implemented by all
 /// types that should be stored in one.
 ///
@@ -74,6 +76,14 @@ use core::ptr;
 pub trait TreeNodeOps: Sized + Correspondence {
     /// Return the data structure which holds all tree-related information
     fn get_tree_data(&self) -> &TreeNodeData<Self>;
+
+    fn cursor_handle(&self) -> CursorHandle<'_, Self> {
+        let tree_data = self.get_tree_data();
+        let cursor_set = tree_data.get_cursors();
+        let mut cursor = cursor_set.get_free_cursor().unwrap();
+        cursor.select_node(self as *const Self as *mut Self);
+        cursor
+    }
 
     /// Get a cursor to the last copy of `self`
     ///

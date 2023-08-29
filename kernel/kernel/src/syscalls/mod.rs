@@ -5,6 +5,7 @@ mod debug_putc;
 mod identify;
 mod map_page;
 
+use crate::caps::Capability;
 use crate::sched::Schedule;
 use crate::syscalls::alloc_page::sys_alloc_page;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
@@ -12,7 +13,7 @@ use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::map_page::sys_map_page;
-use riscv::trap::TrapFrame;
+use derivation_tree::tree::CursorRefMut;
 use syscall_abi::alloc_page::{AllocPage, AllocPageArgs};
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
@@ -49,9 +50,14 @@ pub enum SyscallError {
 /// executed on the CPU.
 /// It might be the same as `tf` but might also not be.
 #[inline(always)]
-pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
-    let syscall_no = tf.get_syscall_number();
-    let args: RawSyscallArgs = tf.get_syscall_args().try_into().unwrap();
+pub(crate) fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
+    let (syscall_no, args) = {
+        let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
+        let tf = &mut task_state.frame;
+        let syscall_no = tf.get_syscall_number();
+        let args: RawSyscallArgs = tf.get_syscall_args().try_into().unwrap();
+        (syscall_no, args)
+    };
 
     // actually handle the specific syscall
     let res: RawSyscallReturn = match syscall_no {
@@ -68,7 +74,7 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
                 "handling identify syscall with args {:x?}",
                 IdentifyArgs::try_from(args).unwrap()
             );
-            let result = sys_identify(IdentifyArgs::try_from(args).unwrap());
+            let result = sys_identify(task, IdentifyArgs::try_from(args).unwrap());
             log::debug!("identify syscall result is {:x?}", result);
             result.into()
         }
@@ -78,7 +84,7 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
                 "handling alloc_page syscall with args {:?}",
                 AllocPageArgs::try_from(args).unwrap()
             );
-            let result = sys_alloc_page(AllocPageArgs::try_from(args).unwrap());
+            let result = sys_alloc_page(task, AllocPageArgs::try_from(args).unwrap());
             log::debug!("alloc_page syscall result is {:?}", result);
             result.into()
         }
@@ -88,7 +94,7 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
                 "handling map_page syscall with args {:?}",
                 MapPageArgs::try_from(args).unwrap()
             );
-            let result = sys_map_page(MapPageArgs::try_from(args).unwrap());
+            let result = sys_map_page(task, MapPageArgs::try_from(args).unwrap());
             log::debug!("map_page syscall result is {:?}", result);
             result.into()
         }
@@ -98,7 +104,7 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
                 "handling assign_ipc_buffer syscall with args {:?}",
                 AssignIpcBufferArgs::try_from(args).unwrap()
             );
-            let result = sys_assign_ipc_buffer(AssignIpcBufferArgs::try_from(args).unwrap());
+            let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
             log::debug!("assign_ipc_buffer syscall result is {:?}", result);
             result.into()
         }
@@ -115,6 +121,8 @@ pub(crate) fn handle_syscall(tf: &mut TrapFrame) -> Schedule {
 
     // write the result back to userspace
     let [a0, a1]: RawSyscallReturn = res.into();
+    let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
+    let tf = &mut task_state.frame;
     tf.write_syscall_result(a0, a1);
     Schedule::Keep
 }
