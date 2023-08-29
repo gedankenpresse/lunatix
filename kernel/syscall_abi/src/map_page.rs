@@ -15,12 +15,14 @@ pub struct MapPageArgs {
     pub vspace: CAddr,
     /// The memory capability from which intermediate page tables can be allocated
     pub mem: CAddr,
+    /// The memory address at which the page should be mapped
+    pub addr: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 #[repr(usize)]
 pub enum MapPageReturn {
-    Success(*mut u8) = 0,
+    Success = 0,
     InvalidPageCAddr = 1,
     InvalidVSpaceCAddr = 2,
     InvalidMemCAddr = 3,
@@ -36,7 +38,7 @@ impl SyscallBinding for MapPage {
 
 impl From<MapPageArgs> for RawSyscallArgs {
     fn from(args: MapPageArgs) -> Self {
-        [args.page, args.vspace, args.mem, 0, 0, 0, 0]
+        [args.page, args.vspace, args.mem, args.addr, 0, 0, 0]
     }
 }
 
@@ -48,6 +50,7 @@ impl TryFrom<RawSyscallArgs> for MapPageArgs {
             page: args[0],
             vspace: args[1],
             mem: args[2],
+            addr: args[3],
         })
     }
 }
@@ -55,7 +58,7 @@ impl TryFrom<RawSyscallArgs> for MapPageArgs {
 impl Into<GenericReturn> for MapPageReturn {
     fn into(self) -> GenericReturn {
         match self {
-            MapPageReturn::Success(_) => GenericReturn::Success,
+            MapPageReturn::Success => GenericReturn::Success,
             MapPageReturn::InvalidPageCAddr
             | MapPageReturn::InvalidVSpaceCAddr
             | MapPageReturn::InvalidMemCAddr
@@ -68,7 +71,7 @@ impl Into<GenericReturn> for MapPageReturn {
 impl Into<RawSyscallReturn> for MapPageReturn {
     fn into(self) -> RawSyscallReturn {
         match self {
-            MapPageReturn::Success(page_ptr) => [0, page_ptr as usize],
+            MapPageReturn::Success => [0, 0],
             MapPageReturn::InvalidPageCAddr => [1, 0],
             MapPageReturn::InvalidVSpaceCAddr => [2, 0],
             MapPageReturn::InvalidMemCAddr => [3, 0],
@@ -84,7 +87,7 @@ impl TryFrom<RawSyscallReturn> for MapPageReturn {
     fn try_from(value: RawSyscallReturn) -> Result<Self, Self::Error> {
         let discriminant = value[0];
         match discriminant {
-            0 => Ok(MapPageReturn::Success(value[1] as *mut u8)),
+            0 => Ok(MapPageReturn::Success),
             1 => Ok(MapPageReturn::InvalidPageCAddr),
             2 => Ok(MapPageReturn::InvalidVSpaceCAddr),
             3 => Ok(MapPageReturn::InvalidMemCAddr),

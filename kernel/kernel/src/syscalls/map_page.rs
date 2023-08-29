@@ -1,6 +1,7 @@
 use crate::caps::Tag;
 use crate::sched;
 use bitflags::Flags;
+use core::arch::asm;
 use core::mem;
 use riscv::pt::{EntryFlags, MemoryPage};
 use syscall_abi::map_page::{MapPageArgs, MapPageReturn};
@@ -43,17 +44,17 @@ pub(super) fn sys_map_page(args: MapPageArgs) -> MapPageReturn {
         }
     };
 
-    // TODO Replace constant pointer with something else.
     // either use some sort of allocator to automatically assign new VAddrs or have the user pass it in the syscall
-    const VADDR: usize = 0x42_000;
-    if let Err(NoMem) = vspace_cap.get_inner_vspace().unwrap().map_range(
+    match vspace_cap.get_inner_vspace().unwrap().map_range(
         mem_cap,
-        VADDR,
+        args.addr,
         mem::size_of::<MemoryPage>(),
         (EntryFlags::UserReadable | EntryFlags::Read | EntryFlags::Write).bits() as usize,
     ) {
-        return MapPageReturn::NoMem;
+        Err(_) => MapPageReturn::NoMem,
+        Ok(_) => {
+            unsafe { asm!("sfence.vma") };
+            MapPageReturn::Success
+        }
     }
-
-    MapPageReturn::Success(VADDR as *mut u8)
 }

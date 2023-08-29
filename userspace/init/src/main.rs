@@ -42,10 +42,10 @@ fn main() {
         librust::alloc_page(CADDR_MEM, CADDR_ALLOCATED_PAGE),
         AllocPageReturn::Success
     );
-    assert!(matches!(
-        librust::map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM),
-        MapPageReturn::Success(_)
-    ));
+    assert_eq!(
+        librust::map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM, 0x4200_0000),
+        MapPageReturn::Success
+    );
 
     assert_eq!(
         librust::assign_ipc_buffer(CADDR_ALLOCATED_PAGE),
