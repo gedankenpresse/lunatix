@@ -132,7 +132,8 @@ extern "C" fn kernel_main(
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::debug!("⏰");
-                set_next_timer(10_000_000).expect("Could not set new timer interrupt");
+                const MILLI: u64 = 10_000; // 10_000 * time_base (100 nanos) ;
+                set_next_timer(100 * MILLI).expect("Could not set new timer interrupt");
                 {
                     let mut task_state =
                         active_task.get_inner_task_mut().unwrap().state.borrow_mut();
