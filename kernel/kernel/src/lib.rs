@@ -11,12 +11,12 @@ pub mod virtmem;
 
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv64imac/mod.rs"]
-mod arch_specific;
+pub mod arch_specific;
 
 #[cfg(target_arch = "x86_64")]
 #[path = "arch/x86_64/mod.rs"]
 mod arch_specific;
-mod syscalls;
+pub mod syscalls;
 
 use crate::caps::KernelAlloc;
 use allocators::Box;

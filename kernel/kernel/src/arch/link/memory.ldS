@@ -9,5 +9,5 @@ MEMORY {
 
     /* Contains all static variables (bss + data) */
     /* Minimum required size for debug bilds, as of now 57K, without init included */
-    REGION_STATIC : ORIGIN = 0xffffffff10000000, LENGTH = 80K
+    REGION_STATIC : ORIGIN = 0xffffffff10000000, LENGTH = 84K
 }

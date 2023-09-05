@@ -28,9 +28,7 @@ pub fn init_kernel_pagetable() -> &'static mut PageTable {
     root_pt
 }
 
-/// Yield to the task that owns the given `trap_frame`
-#[must_use]
-pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
+pub fn prepare_task(task: &mut caps::Capability) {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
     let mut state = task.state.borrow_mut();
@@ -40,6 +38,14 @@ pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
     unsafe {
         mmu::use_pagetable(MappedMutPtr::from(vspace.root).as_direct());
     }
+}
+
+/// Yield to the task that owns the given `trap_frame`
+#[must_use]
+pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
+    let mut task = task.get_task_mut().unwrap();
+    let task = task.as_mut();
+    let mut state = task.state.borrow_mut();
     log::trace!("loading trap frame");
     unsafe { trap_frame_load(&mut state.frame as *mut TrapFrame) };
     log::trace!("returned from trap handler");

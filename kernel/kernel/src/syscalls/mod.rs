@@ -50,7 +50,7 @@ pub enum SyscallError {
 /// executed on the CPU.
 /// It might be the same as `tf` but might also not be.
 #[inline(always)]
-pub(crate) fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
+pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
     let (syscall_no, args) = {
         let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
         let tf = &mut task_state.frame;

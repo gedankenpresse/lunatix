@@ -36,6 +36,7 @@ pub fn handle_trap(task: &mut CursorRefMut<'_, '_, Capability>, last_trap: TrapI
 
             Schedule::RunInit
         }
+        TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => Schedule::Keep,
         _ => {
             println!("Interrupt!: Cause: {:#x?}", last_trap);
             panic!("interrupt type is not handled yet");

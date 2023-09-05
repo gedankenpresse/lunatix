@@ -119,6 +119,7 @@ dependencies = [
  "sifive_shutdown_driver",
  "syscall_abi",
  "thiserror-no-std",
+ "uart_driver",
 ]
 
 [[package]]

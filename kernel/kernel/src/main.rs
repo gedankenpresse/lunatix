@@ -7,13 +7,15 @@ use derivation_tree::tree::DerivationTree;
 use kernel::caps::{Capability, KernelAlloc};
 use kernel::sched::Schedule;
 use kernel::trap::handle_trap;
-use kernel::{KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
+use kernel::{syscalls, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::println;
 use log::Level;
+use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
+use riscv::timer::set_next_timer;
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
@@ -61,6 +63,24 @@ extern "C" fn kernel_main(
     let kernel_root_pt = init_kernel_pagetable();
     unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
 
+    let plic = unsafe {
+        use kernel::arch_specific::plic::*;
+        let plic = init_plic(PhysMutPtr::from(0xc000000 as *mut PLIC).as_mapped().raw());
+        plic
+    };
+
+    let mut uart = unsafe {
+        uart_driver::Uart::from_ptr(
+            PhysMutPtr::from(0x10000000 as *mut uart_driver::MmUart)
+                .as_mapped()
+                .raw(),
+        )
+    };
+    plic.enable_interrupt(0xa, 1);
+    plic.set_priority(0xa, 2);
+    plic.set_threshold(1, 1);
+    uart.enable_rx_interrupts();
+
     // fill the derivation tree with initially required capabilities
     let mut derivation_tree = Box::new_uninit(allocator).unwrap();
     let derivation_tree = unsafe {
@@ -85,21 +105,61 @@ extern "C" fn kernel_main(
     };
     log::info!("🚀 launching init");
     let mut active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
+    let mut schedule = Schedule::RunInit;
     loop {
-        // TODO: move match on Schedule decision to top, so that we can unify logic
-        // for enabling the new page table, instead of doing it on every loop iteration
-        // in yield_to_task
-        let mut active_task = active_cursor.get_exclusive().unwrap();
-        let trap_info = yield_to_task(&mut active_task);
-
-        match handle_trap(&mut active_task, trap_info) {
+        match schedule {
             Schedule::RunInit => {
-                drop(active_task);
                 active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
+                prepare_task(&mut active_cursor.get_exclusive().unwrap());
             }
             Schedule::Keep => {}
             Schedule::RunTask(_) => todo!(),
             Schedule::Stop => break,
+        };
+
+        let mut active_task = active_cursor.get_exclusive().unwrap();
+        let trap_info = yield_to_task(&mut active_task);
+
+        match trap_info.cause {
+            TrapEvent::Exception(Exception::EnvCallFromUMode) => {
+                {
+                    let mut task_state =
+                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
+                    let tf = &mut task_state.frame;
+                    tf.start_pc = trap_info.epc + 4;
+                };
+                schedule = syscalls::handle_syscall(&mut active_task);
+            }
+            TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
+                log::debug!("⏰ timer interrupt triggered. switching back to init task");
+                set_next_timer(10_000_000).expect("Could not set new timer interrupt");
+                {
+                    let mut task_state =
+                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
+                    let tf = &mut task_state.frame;
+                    tf.start_pc = trap_info.epc;
+                };
+
+                schedule = Schedule::RunInit;
+            }
+            TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => {
+                let claim = plic.claim_next(1).expect("no claim available");
+                assert!(uart.has_rx());
+                log::debug!("✍️ {}", unsafe { uart.read_data() } as char);
+                plic.complete(1, claim);
+
+                {
+                    let mut task_state =
+                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
+                    let tf = &mut task_state.frame;
+                    tf.start_pc = trap_info.epc;
+                };
+                schedule = Schedule::Keep;
+            }
+            _ => {
+                println!("Interrupt!: Cause: {:#x?}", trap_info);
+                panic!("interrupt type is not handled yet");
+            }
         }
     }
 }

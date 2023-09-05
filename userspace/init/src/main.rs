@@ -24,6 +24,7 @@ fn main() {
     println!("{}", MESSAGE);
     println!("{}", MESSAGE);
 
+    loop {}
     assert_eq!(
         librust::identify(CADDR_MEM),
         IdentifyReturn::Success(CapabilityVariant::Memory)

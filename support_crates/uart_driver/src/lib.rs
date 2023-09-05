@@ -23,10 +23,10 @@ pub struct Uart<'a> {
 #[allow(non_snake_case)]
 pub struct MmUart {
     transceiver: RW<u8>,
-    _interrupt_enable: RW<u8>,
+    interrupt_enable: RW<u8>,
     _interrupt_status___fifo_control: RW<u8>,
     _line_control: RW<u8>,
-    _modem_control: RW<u8>,
+    modem_control: RW<u8>,
     line_status: RO<u8>,
     _modem_status: RO<u8>,
     _scratch_pad: RW<u8>,
@@ -98,6 +98,15 @@ impl<'a> Uart<'a> {
     /// Use [`has_rx()`](Uart::has_rx) to check if there is data to read before actually reading it.
     pub unsafe fn read_data(&self) -> u8 {
         self.regs.transceiver.read()
+    }
+
+    pub fn enable_rx_interrupts(&mut self) {
+        unsafe {
+            let ie = self.regs.interrupt_enable.read();
+            self.regs.interrupt_enable.write(ie | 0b101);
+            let mc = self.regs.modem_control.read();
+            self.regs.modem_control.write(mc | 0b1000);
+        }
     }
 }
 
