@@ -22,7 +22,7 @@ static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     // print panic message
-    println!("🚨🚨🚨 Kernel Panic 🚨🚨🚨\n  {}", info);
+    println!("🚨 Kernel Panic! 😱  {}", info);
 
     // shutdown the device
     arch::shutdown()
@@ -131,7 +131,7 @@ extern "C" fn kernel_main(
                 schedule = syscalls::handle_syscall(&mut active_task);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
-                log::debug!("⏰ timer interrupt triggered. switching back to init task");
+                log::debug!("⏰");
                 set_next_timer(10_000_000).expect("Could not set new timer interrupt");
                 {
                     let mut task_state =
@@ -145,7 +145,11 @@ extern "C" fn kernel_main(
             TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => {
                 let claim = plic.claim_next(1).expect("no claim available");
                 assert!(uart.has_rx());
-                log::debug!("✍️ {}", unsafe { uart.read_data() } as char);
+                let c = unsafe { uart.read_data() } as char;
+                if c == ':' {
+                    panic!("panic test")
+                }
+                log::debug!("✍️  {c}");
                 plic.complete(1, claim);
 
                 {

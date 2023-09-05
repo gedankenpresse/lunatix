@@ -19,7 +19,7 @@ allocators = { path = "../../support_crates/allocators" }
 regs = { path = "../../support_crates/regs" }
 elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
 bitflags = "2.3.2"
-log = { version = "0.4.19", default-features = false, features = ["release_max_level_debug"] }
+log = { version = "0.4.19", default-features = false, features = ["release_max_level_trace"] }
 align-data = "0.1.0"
 derivation_tree = { version = "0.1.0", path = "../../support_crates/derivation_tree" }
 riscv = { version = "0.1.0", path = "../riscv" }

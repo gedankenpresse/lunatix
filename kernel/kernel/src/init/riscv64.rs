@@ -46,9 +46,9 @@ pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
     let mut state = task.state.borrow_mut();
-    log::trace!("loading trap frame");
+    log::trace!("restoring trap frame, entering user space: ➡️ 👤🌍");
     unsafe { trap_frame_load(&mut state.frame as *mut TrapFrame) };
-    log::trace!("returned from trap handler");
+    log::trace!("returning to kernel, handling trap: ↩️ 🌱");
     TrapInfo::from_current_regs()
 }
 

@@ -25,10 +25,17 @@ impl Log for KernelLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
+            let level_moji = match record.level() {
+                Level::Error => "❌",
+                Level::Warn => "⚠️",
+                Level::Info => "ℹ️",
+                Level::Debug => "🛠️",
+                Level::Trace => "👣",
+            };
             KernelWriter {}
                 .write_fmt(format_args!(
-                    "{} - {}: {}\n",
-                    record.level(),
+                    "{}  {}: {}\n",
+                    level_moji,
                     record.target(),
                     record.args(),
                 ))
