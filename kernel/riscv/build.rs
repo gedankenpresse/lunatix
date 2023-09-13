@@ -8,6 +8,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
 
+    println!("cargo:rerun-if-changed=src/asm/");
     let asm_dir = PathBuf::from("src/asm/");
 
     for file in fs::read_dir(asm_dir).unwrap() {

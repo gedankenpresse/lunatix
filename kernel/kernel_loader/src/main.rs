@@ -124,7 +124,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         .expect("Could not load the kernel elf binary into memory");
 
     let stack_start: usize = 0xfffffffffff7a000;
-    kernel_loader.load_stack(stack_start - 0x5000, stack_start);
+    kernel_loader.load_stack(stack_start - 0xa000, stack_start);
     let entry_point = binary.entry_point();
     let KernelLoader {
         allocator,

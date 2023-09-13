@@ -6,7 +6,6 @@ use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
 use kernel::caps::{Capability, KernelAlloc};
 use kernel::sched::Schedule;
-use kernel::trap::handle_trap;
 use kernel::{syscalls, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
@@ -54,7 +53,7 @@ extern "C" fn kernel_main(
 ) {
     use kernel::init::*;
 
-    unsafe { KERNEL_ALLOCATOR = Some(init_alloc(phys_mem_start, phys_mem_end)) }
+    unsafe { KERNEL_ALLOCATOR = Some(init_alloc(phys_mem_start, phys_mem_end)) };
     let allocator: &'static KernelAlloc = unsafe { (&mut KERNEL_ALLOCATOR).as_mut().unwrap() };
 
     // parse device tree from bootloader
