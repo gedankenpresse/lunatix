@@ -19,7 +19,7 @@
 	};
 
 	chosen {
-		rng-seed = <0xffe9b355 0x2d2acb0c 0x90829b38 0x9ecfaa20 0xd1876ad 0xe8560eae 0x9c26761 0xa5e31164>;
+		rng-seed = <0xa1ef48ff 0x2143f8db 0xa7db3150 0xd98339ca 0x7b0e7207 0xb7a7b7db 0xfc2323af 0x50349097>;
 		stdout-path = "/soc/serial@10000000";
 	};
 
@@ -63,7 +63,7 @@
 			compatible = "riscv";
 			riscv,cboz-block-size = <0x40>;
 			riscv,cbom-block-size = <0x40>;
-			riscv,isa = "rv64imafdch_zicbom_zicboz_zicsr_zifencei_zihintpause_zawrs_zba_zbb_zbc_zbs_sstc_svadu";
+			riscv,isa = "rv64imafdch_zicbom_zicboz_zicsr_zifencei_zihintpause_zawrs_zfa_zca_zcd_zba_zbb_zbc_zbs_sstc_svadu";
 			mmu-type = "riscv,sv57";
 
 			interrupt-controller {
@@ -92,7 +92,7 @@
 		ranges;
 
 		pmu {
-			riscv,event-to-mhpmcounters = <0x01 0x01 0x7fff9 0x02 0x02 0x7fffc 0x10019 0x10019 0x7fff8 0x1001b 0x1001b 0x7fff8 0x10021 0x10021 0x7fff8 0x00 0x00 0x00 0x00 0x00>;
+			riscv,event-to-mhpmcounters = <0x01 0x01 0x7fff9 0x02 0x02 0x7fffc 0x10019 0x10019 0x7fff8 0x1001b 0x1001b 0x7fff8 0x10021 0x10021 0x7fff8>;
 			compatible = "riscv,pmu";
 		};
 
