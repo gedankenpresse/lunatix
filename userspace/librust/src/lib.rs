@@ -4,17 +4,17 @@ pub mod identify;
 pub(crate) mod syscalls;
 // pub(crate) mod ipc;
 // pub mod memory;
-mod alloc_page;
 mod assign_ipc_buffer;
 mod map_page;
 pub mod print;
+mod derive_from_mem;
 
-pub use alloc_page::alloc_page;
 pub use assign_ipc_buffer::assign_ipc_buffer;
 pub use identify::identify;
 pub use map_page::map_page;
 pub use print::print;
 pub use print::put_c;
+pub use derive_from_mem::derive_from_mem;
 // pub use ipc::IpcResult;
 // pub use memory::allocate;
 

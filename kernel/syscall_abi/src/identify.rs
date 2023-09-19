@@ -106,3 +106,19 @@ impl Into<GenericReturn> for IdentifyReturn {
         }
     }
 }
+
+impl TryFrom<usize> for CapabilityVariant {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Uninit),
+            1 => Ok(Self::Memory),
+            2 => Ok(Self::CSpace),
+            3 => Ok(Self::VSpace),
+            4 => Ok(Self::Task),
+            5 => Ok(Self::Page),
+            _ => Err(())
+        }
+    }
+}

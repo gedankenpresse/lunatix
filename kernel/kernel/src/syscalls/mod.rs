@@ -1,20 +1,18 @@
-mod alloc_page;
 mod assign_ipc_buffer;
 mod debug_log;
 mod debug_putc;
 mod identify;
 mod map_page;
+mod derive_from_mem;
 
 use crate::caps::Capability;
 use crate::sched::Schedule;
-use crate::syscalls::alloc_page::sys_alloc_page;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::map_page::sys_map_page;
 use derivation_tree::tree::CursorRefMut;
-use syscall_abi::alloc_page::{AllocPage, AllocPageArgs};
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
 use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
@@ -22,6 +20,8 @@ use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::*;
+use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
+use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 
 const SYS_DEBUG_LOG: usize = 0;
 const SYS_DEBUG_PUTC: usize = 1;
@@ -79,15 +79,12 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             result.into()
         }
 
-        AllocPage::SYSCALL_NO => {
-            log::debug!(
-                "handling alloc_page syscall with args {:?}",
-                AllocPageArgs::try_from(args).unwrap()
-            );
-            let result = sys_alloc_page(task, AllocPageArgs::try_from(args).unwrap());
-            log::debug!("alloc_page syscall result is {:?}", result);
+        DeriveFromMem::SYSCALL_NO => {
+            log::debug!("handling derive_from_mem syscall with args {:?}", DeriveFromMemArgs::from(args));
+            let result = sys_derive_from_mem(task, DeriveFromMemArgs::from(args));
+            log::debug!("derive_from_mem result is {:?}", result);
             result.into()
-        }
+        },
 
         MapPage::SYSCALL_NO => {
             log::debug!(

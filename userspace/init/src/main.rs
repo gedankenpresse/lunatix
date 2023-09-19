@@ -3,11 +3,9 @@
 
 use core::panic::PanicInfo;
 use librust::println;
-use librust::syscall_abi::alloc_page::AllocPageReturn;
-use librust::syscall_abi::assign_ipc_buffer::AssignIpcBufferReturn;
 use librust::syscall_abi::identify::{CapabilityVariant, IdentifyReturn};
-use librust::syscall_abi::map_page::MapPageReturn;
 use librust::syscall_abi::CAddr;
+use librust::syscall_abi::derive_from_mem::DeriveFromMemReturn;
 
 #[no_mangle]
 fn _start() {
@@ -24,33 +22,10 @@ fn main() {
     println!("{}", MESSAGE);
     println!("{}", MESSAGE);
 
-    loop {}
-    assert_eq!(
-        librust::identify(CADDR_MEM),
-        IdentifyReturn::Success(CapabilityVariant::Memory)
-    );
-    assert_eq!(
-        librust::identify(CADDR_CSPACE),
-        IdentifyReturn::Success(CapabilityVariant::CSpace)
-    );
-    assert_eq!(
-        librust::identify(CADDR_VSPACE),
-        IdentifyReturn::Success(CapabilityVariant::VSpace)
-    );
-
     const CADDR_ALLOCATED_PAGE: CAddr = 4;
     assert_eq!(
-        librust::alloc_page(CADDR_MEM, CADDR_ALLOCATED_PAGE),
-        AllocPageReturn::Success
-    );
-    assert_eq!(
-        librust::map_page(CADDR_ALLOCATED_PAGE, CADDR_VSPACE, CADDR_MEM, 0x4200_0000),
-        MapPageReturn::Success
-    );
-
-    assert_eq!(
-        librust::assign_ipc_buffer(CADDR_ALLOCATED_PAGE),
-        AssignIpcBufferReturn::Success
+        librust::derive_from_mem(CADDR_MEM, CADDR_ALLOCATED_PAGE, CapabilityVariant::Page, None),
+        DeriveFromMemReturn::Success,
     );
 
     println!("Init task says good bye 👋");

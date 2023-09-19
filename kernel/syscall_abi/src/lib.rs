@@ -12,6 +12,7 @@
 //! | [alloc_page](alloc_page::AllocPage) | *4* | [AllocPageArgs](alloc_page::AllocPageArgs) | [AllocPageReturn](alloc_page::AllocPageReturn) | Allocate a single page from a memory capability |
 //! | [map_page](map_page::MapPage) | *5* | [MapPageArgs](map_page::MapPageArgs) | [MapPageReturn](map_page::MapPageReturn) | Map a page into a tasks vspace |
 //! | [assign_ipc_buffer](assign_ipc_buffer::AssignIpcBuffer) | *6* | [AssignIpcBufferArgs](assign_ipc_buffer::AssignIpcBufferArgs) | [AssignIpcBufferReturn](assign_ipc_buffer::AssignIpcBufferReturn) | Assign an already allocated page to be used as IPC buffer |
+//! | [derive_from_mem](derive_from_mem::DeriveFromMem) | *7* | [DeriveFromMemArgs](derive_from_mem::DeriveFromMemArgs) | [DeriveFromMemReturn](derive_from_mem::DeriveFromMemReturn) | Derive a new capability from a memory capability |
 //!
 
 #![no_std]
@@ -19,7 +20,6 @@
 
 use crate::generic_return::GenericReturn;
 
-pub mod alloc_page;
 pub mod assign_ipc_buffer;
 pub mod debug_log;
 pub mod debug_putc;
@@ -27,6 +27,7 @@ pub mod generic_return;
 pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod map_page;
+pub mod derive_from_mem;
 
 /// A type alias for explicitly marking a capability address in type signatures.
 pub type CAddr = usize;
