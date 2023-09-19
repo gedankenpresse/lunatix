@@ -123,8 +123,10 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
 
-    let stack_start: usize = 0xfffffffffff7a000;
-    kernel_loader.load_stack(stack_start - 0xa000, stack_start);
+    const STACK_LOW: usize = 0xfffffffffff70000;
+    const STACK_SIZE: usize = 0xf000;
+    const STACK_HIGH: usize = STACK_LOW + STACK_SIZE;
+    kernel_loader.load_stack(STACK_LOW, STACK_HIGH);
     let entry_point = binary.entry_point();
     let KernelLoader {
         allocator,
@@ -179,7 +181,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
             "mv gp, x0",
             "mv sp, {stack}",
             "jr {entry}",
-            stack = in(reg) stack_start - 16,
+            stack = in(reg) STACK_HIGH - 16,
             entry = in(reg) entry_point,
             in("a0") argc,
             in("a1") argv,

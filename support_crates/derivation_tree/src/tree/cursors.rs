@@ -7,7 +7,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::addr_of_mut;
 use core::{mem, ptr};
 
-const SET_SIZE: usize = 4;
+const SET_SIZE: usize = 8;
 
 pub struct CursorSet<T: TreeNodeOps> {
     cursors: [Cursor<T>; SET_SIZE],
@@ -79,7 +79,7 @@ impl<T: TreeNodeOps> CursorSet<T> {
     }
 
     /// Get an iterator over the cursors contained in this set
-    pub(crate) fn cursor_iter(&self) -> impl Iterator<Item = &Cursor<T>> {
+    pub(crate) fn cursor_iter(&self) -> impl Iterator<Item=&Cursor<T>> {
         self.cursors.iter()
     }
 }

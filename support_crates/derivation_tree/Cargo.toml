@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 allocators = { path = "../allocators" }
+log = "0.4.20"

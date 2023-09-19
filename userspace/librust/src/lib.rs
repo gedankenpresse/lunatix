@@ -8,6 +8,8 @@ mod assign_ipc_buffer;
 mod map_page;
 pub mod print;
 mod derive_from_mem;
+mod task_assign_cspace;
+mod task_assign_vspace;
 
 pub use assign_ipc_buffer::assign_ipc_buffer;
 pub use identify::identify;
@@ -15,6 +17,8 @@ pub use map_page::map_page;
 pub use print::print;
 pub use print::put_c;
 pub use derive_from_mem::derive_from_mem;
+pub use task_assign_cspace::task_assign_cspace;
+pub use task_assign_vspace::task_assign_vspace;
 // pub use ipc::IpcResult;
 // pub use memory::allocate;
 

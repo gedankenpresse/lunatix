@@ -4,6 +4,8 @@ mod debug_putc;
 mod identify;
 mod map_page;
 mod derive_from_mem;
+mod task_assign_cspace;
+mod task_assign_vspace;
 
 use crate::caps::Capability;
 use crate::sched::Schedule;
@@ -21,13 +23,11 @@ use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::*;
 use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
+use syscall_abi::task_assign_cspace::{TaskAssignCSpace, TaskAssignCSpaceArgs};
+use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
 use crate::syscalls::derive_from_mem::sys_derive_from_mem;
-
-const SYS_DEBUG_LOG: usize = 0;
-const SYS_DEBUG_PUTC: usize = 1;
-const SYS_SEND: usize = 2;
-const SYS_IDENTIFY: usize = 3;
-const SYS_DESTROY: usize = 4;
+use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
+use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
 
 #[derive(Debug)]
 #[repr(usize)]
@@ -105,6 +105,26 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             log::debug!("assign_ipc_buffer syscall result is {:?}", result);
             result.into()
         }
+
+        TaskAssignCSpace::SYSCALL_NO => {
+            log::debug!(
+                "handling task_assign_cspace syscall with args {:?}",
+                TaskAssignCSpaceArgs::try_from(args).unwrap()
+            );
+            let result = sys_task_assign_cspace(task, TaskAssignCSpaceArgs::try_from(args).unwrap());
+            log::debug!("task_assign_cspace syscall result is {:?}", result);
+            result.into()
+        },
+
+        TaskAssignVSpace::SYSCALL_NO => {
+            log::debug!(
+                "handling task_assign_vspace syscall with args {:?}",
+                TaskAssignVSpaceArgs::try_from(args).unwrap()
+            );
+            let result = sys_task_assign_vspace(task, TaskAssignVSpaceArgs::try_from(args).unwrap());
+            log::debug!("task_assign_vspace syscall result is {:?}", result);
+            result.into()
+        },
 
         no => {
             log::warn!(
