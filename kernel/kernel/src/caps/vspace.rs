@@ -1,10 +1,11 @@
 use core::mem::{ManuallyDrop, MaybeUninit};
 
-use crate::caps::{self, Tag, Variant};
+use crate::caps::{self, Memory, Tag, Variant};
 use crate::virtmem;
 use allocators::Box;
 use caps::errors::NoMem;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
+use libkernel::mem::ptrs::VirtConstPtr;
 use riscv::pt::{EntryFlags, PageTable};
 
 // use crate::virtmem;
@@ -39,6 +40,26 @@ impl VSpace {
             vaddr_base,
             size,
             EntryFlags::from_bits_truncate(flags as u64),
+        );
+        Ok(())
+    }
+
+    /// Map the given physical address in this VSpace at the given virtual address.
+    ///
+    /// Missing intermediate page tables are automatically allocated from `mem`.
+    pub(crate) fn map_address(
+        &self,
+        mem: &Memory,
+        vaddr: usize,
+        paddr: usize,
+        flags: EntryFlags,
+    ) -> Result<(), NoMem> {
+        virtmem::map(
+            &mem.allocator,
+            unsafe { &mut *self.root },
+            vaddr,
+            paddr,
+            flags,
         );
         Ok(())
     }

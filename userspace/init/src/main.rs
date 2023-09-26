@@ -72,6 +72,7 @@ fn main() {
     println!("loading HelloWorld binary");
     // load a stack for the child task
     const CADDR_CHILD_STACK_PAGE: CAddr = 7;
+    const CHILD_STACK_LOW: usize = 0x5_0000_0000;
     assert_eq!(
         librust::derive_from_mem(
             CADDR_MEM,
@@ -86,7 +87,7 @@ fn main() {
             CADDR_CHILD_STACK_PAGE,
             CADDR_CHILD_VSPACE,
             CADDR_MEM,
-            0x5_0000_0000,
+            CHILD_STACK_LOW,
             MapPageFlag::READ | MapPageFlag::WRITE
         ),
         MapPageReturn::Success
@@ -107,17 +108,15 @@ fn main() {
         librust::task_assign_control_registers(
             CADDR_CHILD_TASK,
             elf_binary.entry_point() as usize,
-            0x0,
+            CHILD_STACK_LOW + 4096,
             0x0,
             0x0
         ),
         TaskAssignControlRegistersReturn::Success
     );
 
-    loop {
-        println!("Yielding to Hello World Task");
-        assert_eq!(librust::yield_to(CADDR_CHILD_TASK), YieldToReturn::Success);
-    }
+    println!("Yielding to Hello World Task");
+    assert_eq!(librust::yield_to(CADDR_CHILD_TASK), YieldToReturn::Success);
 
     println!("Init task says good bye 👋");
 }

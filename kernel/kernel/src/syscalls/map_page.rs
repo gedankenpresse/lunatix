@@ -1,10 +1,13 @@
 use crate::caps::{Capability, Tag};
+use crate::virtmem::KernelMapper;
 use bitflags::Flags;
 use core::arch::asm;
 use core::mem;
 use derivation_tree::tree::CursorRefMut;
+use libkernel::mem::ptrs::MappedConstPtr;
 use libkernel::mem::PAGESIZE;
 use riscv::pt::{EntryFlags, MemoryPage};
+use riscv::PhysMapper;
 use syscall_abi::map_page::{MapPageArgs, MapPageFlag, MapPageReturn};
 
 pub(super) fn sys_map_page(
@@ -68,11 +71,12 @@ pub(super) fn sys_map_page(
         args.addr,
         "page address is not page-aligned"
     );
-    match vspace_cap.get_inner_vspace().unwrap().map_range(
-        mem_cap,
+    match vspace_cap.get_inner_vspace().unwrap().map_address(
+        mem_cap.get_inner_memory().unwrap(),
         args.addr,
-        mem::size_of::<MemoryPage>(),
-        flags.bits() as usize,
+        unsafe { KernelMapper.mapped_to_phys(page_cap.get_inner_page().unwrap().kernel_addr) }
+            as usize,
+        flags,
     ) {
         Err(_) => MapPageReturn::NoMem,
         Ok(_) => {
