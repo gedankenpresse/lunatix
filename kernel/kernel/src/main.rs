@@ -16,7 +16,7 @@ use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -112,7 +112,10 @@ extern "C" fn kernel_main(
                 prepare_task(&mut active_cursor.get_exclusive().unwrap());
             }
             Schedule::Keep => {}
-            Schedule::RunTask(_) => todo!(),
+            Schedule::RunTask(task_cap) => {
+                active_cursor = derivation_tree.get_node(task_cap).unwrap();
+                prepare_task(&mut active_cursor.get_exclusive().unwrap());
+            }
             Schedule::Stop => break,
         };
 
@@ -130,7 +133,7 @@ extern "C" fn kernel_main(
                 schedule = syscalls::handle_syscall(&mut active_task);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
-                log::debug!("⏰");
+                log::trace!("⏰");
                 const MILLI: u64 = 10_000; // 10_000 * time_base (100 nanos) ;
                 set_next_timer(100 * MILLI).expect("Could not set new timer interrupt");
                 {

@@ -1,9 +1,11 @@
 use crate::caps::{Capability, Tag};
+use bitflags::Flags;
 use core::arch::asm;
 use core::mem;
 use derivation_tree::tree::CursorRefMut;
+use libkernel::mem::PAGESIZE;
 use riscv::pt::{EntryFlags, MemoryPage};
-use syscall_abi::map_page::{MapPageArgs, MapPageReturn};
+use syscall_abi::map_page::{MapPageArgs, MapPageFlag, MapPageReturn};
 
 pub(super) fn sys_map_page(
     task: &mut CursorRefMut<'_, '_, Capability>,
@@ -48,12 +50,29 @@ pub(super) fn sys_map_page(
         }
     };
 
-    // either use some sort of allocator to automatically assign new VAddrs or have the user pass it in the syscall
+    // compute flags with which to map from arguments
+    let mut flags = EntryFlags::UserReadable;
+    if args.flags.contains(MapPageFlag::READ) {
+        flags |= EntryFlags::Read;
+    }
+    if args.flags.contains(MapPageFlag::WRITE) {
+        flags |= EntryFlags::Write;
+    }
+    if args.flags.contains(MapPageFlag::EXEC) {
+        flags |= EntryFlags::Execute
+    }
+
+    // map the page
+    assert_eq!(
+        args.addr & !(PAGESIZE - 1),
+        args.addr,
+        "page address is not page-aligned"
+    );
     match vspace_cap.get_inner_vspace().unwrap().map_range(
         mem_cap,
         args.addr,
         mem::size_of::<MemoryPage>(),
-        (EntryFlags::UserReadable | EntryFlags::Read | EntryFlags::Write).bits() as usize,
+        flags.bits() as usize,
     ) {
         Err(_) => MapPageReturn::NoMem,
         Ok(_) => {

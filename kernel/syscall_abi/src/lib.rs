@@ -15,6 +15,8 @@
 //! | [derive_from_mem](derive_from_mem::DeriveFromMem) | *7* | [DeriveFromMemArgs](derive_from_mem::DeriveFromMemArgs) | [DeriveFromMemReturn](derive_from_mem::DeriveFromMemReturn) | Derive a new capability from a memory capability |
 //! | [task_assign_cspace](task_assign_cspace::TaskAssignCSpace) | *8* | [AssignCSpaceArgs](task_assign_cspace::TaskAssignCSpaceArgs) | [AssignCSpaceReturn](task_assign_cspace::TaskAssignCSpaceReturn) | Assign a cspace to a task |
 //! | [task_assign_vspace](task_assign_vspace::TaskAssignVSpace) | *9* | [AssignVSpaceArgs](task_assign_vspace::TaskAssignVSpaceArgs) | [AssignVSpaceReturn](task_assign_cspace::AssignVSpaceReturn) | Assign a vspace to a task |
+//! | [task_assign_control_registers](task_assign_control_registers::TaskAssignControlRegisters) | *10* | [TaskAssignControlRegistersArgs](task_assign_control_registers::TaskAssignControlRegistersArgs) | [TaskAssignControlRegistersReturn](task_assign_control_registers::TaskAssignControlRegistersReturn) | Assign control reigsters like `pc` and `sp` to the task |
+//! | [yield_to](yield_to::YieldTo) | *11* | [YieldToArgs](yield_to::YieldToArgs) | [YieldToReturn](yield_to::YieldToReturn) | Yield execution to another task |
 //!
 
 #![no_std]
@@ -30,8 +32,10 @@ pub mod generic_return;
 pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod map_page;
+pub mod task_assign_control_registers;
 pub mod task_assign_cspace;
 pub mod task_assign_vspace;
+pub mod yield_to;
 
 /// A type alias for explicitly marking a capability address in type signatures.
 pub type CAddr = usize;

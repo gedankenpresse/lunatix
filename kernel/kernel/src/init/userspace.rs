@@ -201,7 +201,7 @@ pub fn create_init_caps(
     VSpaceIface.derive(&mem_cap, &mut task_state.vspace);
 
     log::debug!("initializing cspace for the init task");
-    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 8);
+    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 32);
 
     log::debug!("copying memory, vspace and cspace of the init task into its cspace");
     {

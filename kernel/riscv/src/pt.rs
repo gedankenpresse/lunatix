@@ -265,6 +265,8 @@ pub fn map(
     // physical address should be at least page aligned and in PPN range
     assert!(paddr & PBIT_MASK == 0);
     assert!(paddr & !PADDR_MASK == 0);
+    // virtual addresses must also be page aligned
+    assert!(vaddr & PBIT_MASK == 0, "vaddr is not page-aligned");
 
     let vpn = vpn_segments(vaddr);
 
@@ -282,7 +284,10 @@ pub fn map(
     }
 
     // Now we are ready to point v to our physical address
-    assert!(!v.is_valid());
+    assert!(
+        !v.is_valid(),
+        "the pagetable entry is already mapped. maybe you're trying to map overlapping pages"
+    );
     unsafe {
         v.set(paddr as u64, flags | EntryFlags::Valid);
     }

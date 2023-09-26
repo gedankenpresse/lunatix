@@ -20,7 +20,7 @@ use libkernel::mem::{PageTable, PAGESIZE};
 use log::Level;
 use sbi::system_reset::{ResetReason, ResetType};
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Trace);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
