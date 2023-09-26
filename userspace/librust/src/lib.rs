@@ -11,6 +11,7 @@ pub mod print;
 mod task_assign_control_registers;
 mod task_assign_cspace;
 mod task_assign_vspace;
+mod r#yield;
 mod yield_to;
 
 pub use assign_ipc_buffer::assign_ipc_buffer;
@@ -19,6 +20,7 @@ pub use identify::identify;
 pub use map_page::map_page;
 pub use print::print;
 pub use print::put_c;
+pub use r#yield::r#yield;
 pub use task_assign_control_registers::task_assign_control_registers;
 pub use task_assign_cspace::task_assign_cspace;
 pub use task_assign_vspace::task_assign_vspace;

@@ -7,6 +7,7 @@ mod map_page;
 mod task_assign_control_registers;
 mod task_assign_cspace;
 mod task_assign_vspace;
+mod r#yield;
 mod yield_to;
 
 use crate::caps::Capability;
@@ -17,6 +18,7 @@ use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::map_page::sys_map_page;
+use crate::syscalls::r#yield::sys_yield;
 use crate::syscalls::task_assign_control_registers::sys_task_assign_control_registers;
 use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
 use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
@@ -29,6 +31,7 @@ use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
 use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
+use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::task_assign_control_registers::{
     TaskAssignControlRegisters, TaskAssignControlRegistersArgs,
 };
@@ -166,6 +169,16 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let (result, schedule) = sys_yield_to(task, YieldToArgs::from(args));
             log::debug!("yield_to result is {:?}", result);
+            (result.into(), schedule)
+        }
+
+        Yield::SYSCALL_NO => {
+            log::debug!(
+                "handling yield syscall with args {:?}",
+                YieldArgs::from(args)
+            );
+            let (result, schedule) = sys_yield(YieldArgs::from(args));
+            log::debug!("yield result is {:?}", result);
             (result.into(), schedule)
         }
 
