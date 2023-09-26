@@ -9,6 +9,7 @@ use elfloader::{
     ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr,
 };
 use libkernel::mem::{EntryFlags, PageTable};
+use riscv::pt::PAGESIZE;
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {
@@ -79,16 +80,22 @@ impl<'alloc, A: BumpAllocator<'static>> ElfLoader for KernelLoader<'alloc, A> {
             flags
         );
 
-        // copy the memory region byte for byte
-        let mut offset = 0;
-        while offset < region.len() {
-            let vaddr = base + offset as u64;
-            let paddr = virt_to_phys(self.root_pagetable, vaddr as usize)
-                .expect("Memory mapping was not allocated before being loaded");
+        for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             unsafe {
-                *(paddr as *mut u8) = region[offset];
+                let dst = virt_to_phys(self.root_pagetable, (base as usize) + i * PAGESIZE)
+                    .expect("Memory mapping was not allocated before being loaded");
+                log::trace!(
+                    "copying {} bytes from {:p} to {:x}",
+                    chunk.len(),
+                    chunk.as_ptr(),
+                    dst
+                );
+                core::intrinsics::copy_nonoverlapping::<u8>(
+                    chunk.as_ptr(),
+                    dst as *mut u8,
+                    chunk.len(),
+                );
             }
-            offset += 1;
         }
 
         Ok(())

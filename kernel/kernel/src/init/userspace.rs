@@ -14,7 +14,7 @@ use elfloader::{
     VAddr,
 };
 use libkernel::mem::ptrs::PhysMutPtr;
-use libkernel::mem::EntryFlags;
+use libkernel::mem::{EntryFlags, PAGESIZE};
 
 static INIT_BIN: &[u8] = include_aligned!(
     Align16,
@@ -107,18 +107,17 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
             end,
             flags
         );
-        for (offset, byte) in region.iter().enumerate() {
-            let addr = start + offset as u64;
-            let phys =
-                virtmem::virt_to_phys(unsafe { vspaceref.root.as_ref().unwrap() }, addr as usize)
-                    .expect("should have been mapped");
+
+        for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             unsafe {
-                PhysMutPtr::from(phys as *mut u8)
-                    .as_mapped()
-                    .raw()
-                    .write(*byte)
+                let vaddr = start as usize + i * PAGESIZE;
+                let paddr = virtmem::virt_to_phys(vspaceref.root.as_ref().unwrap(), vaddr as usize)
+                    .expect("should have been mapped");
+                let target_addr = PhysMutPtr::from(paddr as *mut u8).as_mapped().raw();
+                core::intrinsics::copy_nonoverlapping(chunk.as_ptr(), target_addr, chunk.len());
             }
         }
+
         Ok(())
     }
 
