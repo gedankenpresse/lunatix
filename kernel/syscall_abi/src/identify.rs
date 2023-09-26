@@ -118,7 +118,7 @@ impl TryFrom<usize> for CapabilityVariant {
             3 => Ok(Self::VSpace),
             4 => Ok(Self::Task),
             5 => Ok(Self::Page),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

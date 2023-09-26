@@ -1,8 +1,11 @@
-use derivation_tree::tree::CursorRefMut;
+use crate::caps::{CSpaceIface, Capability, Tag};
+use derivation_tree::{caps::CapabilityIface, tree::CursorRefMut};
 use syscall_abi::task_assign_cspace::{TaskAssignCSpaceArgs, TaskAssignCSpaceReturn};
-use crate::caps::{Capability, Tag};
 
-pub(super) fn sys_task_assign_cspace(task: &mut CursorRefMut<'_, '_, Capability>, args: TaskAssignCSpaceArgs) -> TaskAssignCSpaceReturn {
+pub(super) fn sys_task_assign_cspace(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    args: TaskAssignCSpaceArgs,
+) -> TaskAssignCSpaceReturn {
     // get basic caps from task
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
@@ -10,7 +13,7 @@ pub(super) fn sys_task_assign_cspace(task: &mut CursorRefMut<'_, '_, Capability>
     let cspace = cspace.get_inner_cspace().unwrap();
 
     // get valid cspace cap from current tasks cspace
-    let target_cspace_cap = match unsafe { cspace.lookup_raw(args.cspace_addr) } {
+    let source_cspace_cap = match unsafe { cspace.lookup_raw(args.cspace_addr) } {
         None => return TaskAssignCSpaceReturn::InvalidCSpaceAddr,
         Some(cap_ptr) => {
             // TODO Use a cursor to safely access the capability
@@ -36,11 +39,10 @@ pub(super) fn sys_task_assign_cspace(task: &mut CursorRefMut<'_, '_, Capability>
     };
 
     // assign cspace to target task
-    log::trace!("\n\n\n");
-    log::trace!("getting cursor to tasks cspace");
-    let mut task_cspace = target_task_cap.get_inner_task_mut().unwrap().get_cspace();
-    log::trace!("cursor acquired");
-    task_cspace.get_exclusive().unwrap();
-
-    todo!()
+    log::trace!("copy cspace:");
+    let task = target_task_cap.get_inner_task_mut().unwrap();
+    let mut task = task.state.borrow_mut();
+    CSpaceIface.copy(&source_cspace_cap, &mut task.cspace);
+    log::trace!("cspace copied");
+    TaskAssignCSpaceReturn::Success
 }

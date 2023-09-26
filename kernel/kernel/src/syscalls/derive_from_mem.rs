@@ -1,9 +1,12 @@
+use crate::caps::{CSpaceIface, Capability, MemoryIface, PageIface, Tag, TaskIface, VSpaceIface};
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::derive_from_mem::{DeriveFromMemArgs, DeriveFromMemReturn};
 use syscall_abi::identify::CapabilityVariant;
-use crate::caps::{Capability, CSpaceIface, MemoryIface, PageIface, Tag, TaskIface, VSpaceIface};
 
-pub(super) fn sys_derive_from_mem(task: &mut CursorRefMut<'_, '_, Capability>, args: DeriveFromMemArgs) -> DeriveFromMemReturn {
+pub(super) fn sys_derive_from_mem(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    args: DeriveFromMemArgs,
+) -> DeriveFromMemReturn {
     // get basic caps from task
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
@@ -42,7 +45,7 @@ pub(super) fn sys_derive_from_mem(task: &mut CursorRefMut<'_, '_, Capability>, a
         CapabilityVariant::CSpace => {
             CSpaceIface.derive(mem_cap, target_cap, args.size.unwrap());
             DeriveFromMemReturn::Success
-        },
+        }
         CapabilityVariant::VSpace => {
             VSpaceIface.derive(mem_cap, target_cap);
             DeriveFromMemReturn::Success

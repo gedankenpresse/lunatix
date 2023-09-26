@@ -25,11 +25,11 @@ use crate::generic_return::GenericReturn;
 pub mod assign_ipc_buffer;
 pub mod debug_log;
 pub mod debug_putc;
+pub mod derive_from_mem;
 pub mod generic_return;
 pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod map_page;
-pub mod derive_from_mem;
 pub mod task_assign_cspace;
 pub mod task_assign_vspace;
 

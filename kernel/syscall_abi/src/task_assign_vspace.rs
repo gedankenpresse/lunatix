@@ -1,7 +1,7 @@
 //! Definitions for the `task_assign_vspace` syscall.
 
-use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 use crate::generic_return::GenericReturn;
+use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 
 pub struct TaskAssignVSpace;
 
@@ -61,7 +61,7 @@ impl From<RawSyscallReturn> for TaskAssignVSpaceReturn {
             1 => Self::InvalidVSpaceAddr,
             2 => Self::InvalidTaskAddr,
             usize::MAX => Self::UnsupportedSyscall,
-            _ => panic!("unknown return; handle this better")
+            _ => panic!("unknown return; handle this better"),
         }
     }
 }

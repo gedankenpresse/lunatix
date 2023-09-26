@@ -1,8 +1,8 @@
 //! Definitions for the `derive_from_mem` syscall.
 
-use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 use crate::generic_return::GenericReturn;
 use crate::identify::CapabilityVariant;
+use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
 
 pub struct DeriveFromMem;
 
@@ -37,7 +37,15 @@ impl SyscallBinding for DeriveFromMem {
 
 impl From<DeriveFromMemArgs> for RawSyscallArgs {
     fn from(value: DeriveFromMemArgs) -> Self {
-        [value.src_mem, value.target_slot, value.target_cap as usize, value.size.unwrap_or(0), 0, 0, 0]
+        [
+            value.src_mem,
+            value.target_slot,
+            value.target_cap as usize,
+            value.size.unwrap_or(0),
+            0,
+            0,
+            0,
+        ]
     }
 }
 
@@ -50,7 +58,7 @@ impl From<RawSyscallArgs> for DeriveFromMemArgs {
             size: match value[3] {
                 0 => None,
                 v => Some(v),
-            }
+            },
         }
     }
 }
@@ -77,7 +85,7 @@ impl From<RawSyscallReturn> for DeriveFromMemReturn {
             3 => Self::OutOfMemory,
             4 => Self::CannotBeDerived,
             usize::MAX => Self::UnsupportedSyscall,
-            _ => panic!("unknown syscall return (this should be handled better)")
+            _ => panic!("unknown syscall return (this should be handled better)"),
         }
     }
 }
@@ -91,5 +99,3 @@ impl From<DeriveFromMemReturn> for GenericReturn {
         }
     }
 }
-
-

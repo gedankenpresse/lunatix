@@ -28,7 +28,6 @@ pub struct Task {
 
 impl Task {
     pub fn get_cspace(&self) -> CursorHandle<'static, Capability> {
-        todo!("Check that the cspace is initialized");
         let state = unsafe { self.state.as_ptr().as_ref().unwrap() };
         state.cspace.cursor_handle()
     }

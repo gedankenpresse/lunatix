@@ -3,11 +3,11 @@
 
 use core::panic::PanicInfo;
 use librust::println;
-use librust::syscall_abi::identify::{CapabilityVariant};
-use librust::syscall_abi::CAddr;
 use librust::syscall_abi::derive_from_mem::DeriveFromMemReturn;
+use librust::syscall_abi::identify::{CapabilityVariant, IdentifyReturn};
 use librust::syscall_abi::task_assign_cspace::TaskAssignCSpaceReturn;
 use librust::syscall_abi::task_assign_vspace::TaskAssignVSpaceReturn;
+use librust::syscall_abi::CAddr;
 
 #[no_mangle]
 fn _start() {
@@ -32,7 +32,12 @@ fn main() {
 
     const CADDR_NEW_CSPACE: CAddr = 5;
     assert_eq!(
-        librust::derive_from_mem(CADDR_MEM, CADDR_NEW_CSPACE, CapabilityVariant::CSpace, Some(8)),
+        librust::derive_from_mem(
+            CADDR_MEM,
+            CADDR_NEW_CSPACE,
+            CapabilityVariant::CSpace,
+            Some(8)
+        ),
         DeriveFromMemReturn::Success,
     );
     assert_eq!(
@@ -44,6 +49,10 @@ fn main() {
     assert_eq!(
         librust::derive_from_mem(CADDR_MEM, CADDR_NEW_VSPACE, CapabilityVariant::VSpace, None),
         DeriveFromMemReturn::Success,
+    );
+    assert_eq!(
+        librust::identify(CADDR_NEW_VSPACE),
+        IdentifyReturn::Success(CapabilityVariant::VSpace)
     );
     assert_eq!(
         librust::task_assign_vspace(CADDR_NEW_VSPACE, CADDR_NEW_TASK),

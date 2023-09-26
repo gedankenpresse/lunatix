@@ -1,9 +1,9 @@
 mod assign_ipc_buffer;
 mod debug_log;
 mod debug_putc;
+mod derive_from_mem;
 mod identify;
 mod map_page;
-mod derive_from_mem;
 mod task_assign_cspace;
 mod task_assign_vspace;
 
@@ -12,22 +12,22 @@ use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
+use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::map_page::sys_map_page;
+use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
+use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
 use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
+use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
 use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
-use syscall_abi::*;
-use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
 use syscall_abi::task_assign_cspace::{TaskAssignCSpace, TaskAssignCSpaceArgs};
 use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
-use crate::syscalls::derive_from_mem::sys_derive_from_mem;
-use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
-use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
+use syscall_abi::*;
 
 #[derive(Debug)]
 #[repr(usize)]
@@ -80,11 +80,14 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
         }
 
         DeriveFromMem::SYSCALL_NO => {
-            log::debug!("handling derive_from_mem syscall with args {:?}", DeriveFromMemArgs::from(args));
+            log::debug!(
+                "handling derive_from_mem syscall with args {:?}",
+                DeriveFromMemArgs::from(args)
+            );
             let result = sys_derive_from_mem(task, DeriveFromMemArgs::from(args));
             log::debug!("derive_from_mem result is {:?}", result);
             result.into()
-        },
+        }
 
         MapPage::SYSCALL_NO => {
             log::debug!(
@@ -111,20 +114,22 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
                 "handling task_assign_cspace syscall with args {:?}",
                 TaskAssignCSpaceArgs::try_from(args).unwrap()
             );
-            let result = sys_task_assign_cspace(task, TaskAssignCSpaceArgs::try_from(args).unwrap());
+            let result =
+                sys_task_assign_cspace(task, TaskAssignCSpaceArgs::try_from(args).unwrap());
             log::debug!("task_assign_cspace syscall result is {:?}", result);
             result.into()
-        },
+        }
 
         TaskAssignVSpace::SYSCALL_NO => {
             log::debug!(
                 "handling task_assign_vspace syscall with args {:?}",
                 TaskAssignVSpaceArgs::try_from(args).unwrap()
             );
-            let result = sys_task_assign_vspace(task, TaskAssignVSpaceArgs::try_from(args).unwrap());
+            let result =
+                sys_task_assign_vspace(task, TaskAssignVSpaceArgs::try_from(args).unwrap());
             log::debug!("task_assign_vspace syscall result is {:?}", result);
             result.into()
-        },
+        }
 
         no => {
             log::warn!(

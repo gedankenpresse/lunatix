@@ -79,7 +79,7 @@ impl<T: TreeNodeOps> CursorSet<T> {
     }
 
     /// Get an iterator over the cursors contained in this set
-    pub(crate) fn cursor_iter(&self) -> impl Iterator<Item=&Cursor<T>> {
+    pub(crate) fn cursor_iter(&self) -> impl Iterator<Item = &Cursor<T>> {
         self.cursors.iter()
     }
 }
