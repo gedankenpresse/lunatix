@@ -1,8 +1,8 @@
 use crate::syscalls::syscall;
 use syscall_abi::task_assign_control_registers::{
-    TaskAssignControlRegisters, TaskAssignControlRegistersArgs, TaskAssignControlRegistersReturn,
+    TaskAssignControlRegisters, TaskAssignControlRegistersArgs,
 };
-use syscall_abi::CAddr;
+use syscall_abi::{CAddr, NoValue, SyscallResult};
 
 pub fn task_assign_control_registers(
     task_addr: CAddr,
@@ -10,7 +10,7 @@ pub fn task_assign_control_registers(
     sp: usize,
     fp: usize,
     gp: usize,
-) -> TaskAssignControlRegistersReturn {
+) -> SyscallResult<NoValue> {
     syscall::<TaskAssignControlRegisters>(TaskAssignControlRegistersArgs {
         task_addr,
         pc,
@@ -18,5 +18,4 @@ pub fn task_assign_control_registers(
         fp,
         gp,
     })
-    .unwrap()
 }

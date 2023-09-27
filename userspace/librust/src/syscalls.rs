@@ -1,4 +1,5 @@
 use core::arch::asm;
+use syscall_abi::FromRawSysResponse;
 use syscall_abi::{RawSyscallReturn, SyscallBinding};
 
 #[inline(always)]
@@ -31,13 +32,11 @@ fn raw_syscall(
 }
 
 #[inline(always)]
-pub(crate) fn syscall<T>(
-    args: T::CallArgs,
-) -> Result<T::Return, <<T as SyscallBinding>::Return as TryFrom<RawSyscallReturn>>::Error>
+pub(crate) fn syscall<T>(args: T::CallArgs) -> T::Return
 where
     T: SyscallBinding,
 {
     let [a1, a2, a3, a4, a5, a6, a7] = args.into();
     let result = raw_syscall(T::SYSCALL_NO, a1, a2, a3, a4, a5, a6, a7);
-    result.try_into()
+    T::Return::from_response(result)
 }

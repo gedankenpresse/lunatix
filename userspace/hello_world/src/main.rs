@@ -3,7 +3,6 @@
 
 use core::panic::PanicInfo;
 use librust::println;
-use librust::syscall_abi::r#yield::YieldReturn;
 
 #[no_mangle]
 fn _start() {
@@ -19,6 +18,6 @@ fn panic_handler(info: &PanicInfo) -> ! {
 fn main() {
     println!("Hello World");
     loop {
-        assert_eq!(librust::r#yield(), YieldReturn::Success);
+        librust::r#yield().unwrap();
     }
 }

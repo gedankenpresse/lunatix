@@ -1,8 +1,7 @@
 //! Definitions for the `derive_from_mem` syscall.
 
-use crate::generic_return::GenericReturn;
 use crate::identify::CapabilityVariant;
-use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
+use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct DeriveFromMem;
 
@@ -18,21 +17,10 @@ pub struct DeriveFromMemArgs {
     pub size: Option<usize>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[repr(usize)]
-pub enum DeriveFromMemReturn {
-    Success = 0,
-    InvalidMemCAddr = 1,
-    InvalidTargetCAddr = 2,
-    OutOfMemory = 3,
-    CannotBeDerived = 4,
-    UnsupportedSyscall = usize::MAX,
-}
-
 impl SyscallBinding for DeriveFromMem {
     const SYSCALL_NO: usize = 7;
     type CallArgs = DeriveFromMemArgs;
-    type Return = DeriveFromMemReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl From<DeriveFromMemArgs> for RawSyscallArgs {
@@ -59,43 +47,6 @@ impl From<RawSyscallArgs> for DeriveFromMemArgs {
                 0 => None,
                 v => Some(v),
             },
-        }
-    }
-}
-
-impl From<DeriveFromMemReturn> for RawSyscallReturn {
-    fn from(value: DeriveFromMemReturn) -> Self {
-        match value {
-            DeriveFromMemReturn::Success => [0, 0],
-            DeriveFromMemReturn::InvalidMemCAddr => [1, 0],
-            DeriveFromMemReturn::InvalidTargetCAddr => [2, 0],
-            DeriveFromMemReturn::OutOfMemory => [3, 0],
-            DeriveFromMemReturn::CannotBeDerived => [4, 0],
-            DeriveFromMemReturn::UnsupportedSyscall => [usize::MAX, 0],
-        }
-    }
-}
-
-impl From<RawSyscallReturn> for DeriveFromMemReturn {
-    fn from(value: RawSyscallReturn) -> Self {
-        match value[0] {
-            0 => Self::Success,
-            1 => Self::InvalidMemCAddr,
-            2 => Self::InvalidTargetCAddr,
-            3 => Self::OutOfMemory,
-            4 => Self::CannotBeDerived,
-            usize::MAX => Self::UnsupportedSyscall,
-            _ => panic!("unknown syscall return (this should be handled better)"),
-        }
-    }
-}
-
-impl From<DeriveFromMemReturn> for GenericReturn {
-    fn from(value: DeriveFromMemReturn) -> Self {
-        match value {
-            DeriveFromMemReturn::Success => Self::Success,
-            DeriveFromMemReturn::UnsupportedSyscall => Self::UnsupportedSyscall,
-            _ => Self::Error,
         }
     }
 }

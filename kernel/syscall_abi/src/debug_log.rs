@@ -1,7 +1,6 @@
 //! Definitions for the `debug_log` syscall.
 
-use crate::generic_return::GenericReturn;
-use crate::{RawSyscallArgs, SyscallBinding};
+use crate::{NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::convert::Infallible;
 use core::{mem, slice};
 
@@ -22,12 +21,10 @@ pub struct DebugLogArgs {
         [u8; (mem::size_of::<RawSyscallArgs>() / mem::size_of::<usize>() - 1) * USIZE2U8],
 }
 
-pub type DebugLogReturn = GenericReturn;
-
 impl SyscallBinding for DebugLog {
     const SYSCALL_NO: usize = 0;
     type CallArgs = DebugLogArgs;
-    type Return = DebugLogReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl TryFrom<RawSyscallArgs> for DebugLogArgs {
