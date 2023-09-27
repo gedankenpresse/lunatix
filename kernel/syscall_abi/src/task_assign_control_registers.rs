@@ -1,7 +1,6 @@
 //! Definitions for the `task_assign_control_registers` syscall.
 
-use crate::generic_return::GenericReturn;
-use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
+use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct TaskAssignControlRegisters;
 
@@ -19,18 +18,10 @@ pub struct TaskAssignControlRegistersArgs {
     pub gp: usize,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[repr(usize)]
-pub enum TaskAssignControlRegistersReturn {
-    Success = 0,
-    InvalidTaskAddr = 1,
-    UnsupportedSyscall = usize::MAX,
-}
-
 impl SyscallBinding for TaskAssignControlRegisters {
     const SYSCALL_NO: usize = 10;
     type CallArgs = TaskAssignControlRegistersArgs;
-    type Return = TaskAssignControlRegistersReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl From<TaskAssignControlRegistersArgs> for RawSyscallArgs {
@@ -55,37 +46,6 @@ impl From<RawSyscallArgs> for TaskAssignControlRegistersArgs {
             sp: value[2],
             fp: value[3],
             gp: value[4],
-        }
-    }
-}
-
-impl From<TaskAssignControlRegistersReturn> for RawSyscallReturn {
-    fn from(value: TaskAssignControlRegistersReturn) -> Self {
-        match value {
-            TaskAssignControlRegistersReturn::Success => [0, 0],
-            TaskAssignControlRegistersReturn::InvalidTaskAddr => [1, 0],
-            TaskAssignControlRegistersReturn::UnsupportedSyscall => [usize::MAX, 0],
-        }
-    }
-}
-
-impl From<RawSyscallReturn> for TaskAssignControlRegistersReturn {
-    fn from(value: RawSyscallReturn) -> Self {
-        match value[0] {
-            0 => Self::Success,
-            1 => Self::InvalidTaskAddr,
-            usize::MAX => Self::UnsupportedSyscall,
-            _ => panic!("unknown return; handle this better"),
-        }
-    }
-}
-
-impl From<TaskAssignControlRegistersReturn> for GenericReturn {
-    fn from(value: TaskAssignControlRegistersReturn) -> Self {
-        match value {
-            TaskAssignControlRegistersReturn::Success => Self::Success,
-            TaskAssignControlRegistersReturn::UnsupportedSyscall => Self::UnsupportedSyscall,
-            _ => Self::Error,
         }
     }
 }

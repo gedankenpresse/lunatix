@@ -23,7 +23,7 @@
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
 
-use crate::generic_return::GenericReturn;
+use core::usize;
 
 pub mod assign_ipc_buffer;
 pub mod debug_log;
@@ -59,7 +59,7 @@ pub trait SyscallBinding {
     ///
     /// The syscall result is usually specific to a syscall but must be a superset of `GenericReturn` which is why
     /// conversion to and from `GenericReturn` must be possible.
-    type Return: TryFrom<RawSyscallReturn> + Into<RawSyscallReturn> + Into<GenericReturn>;
+    type Return: FromRawSysResponse + IntoRawSysRepsonse;
 }
 
 /// A trait binding a syscall to a `repr(C)` type which is expected to be put into the tasks IPC buffer when calling it.
@@ -78,3 +78,94 @@ pub type RawSyscallArgs = [usize; 7];
 
 /// The return value of a syscall as they are encoded in the CPUs registers.
 pub type RawSyscallReturn = [usize; 2];
+
+#[derive(Debug, Copy, Clone)]
+pub struct NoValue;
+
+impl TryFrom<usize> for NoValue {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Ok(NoValue)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl Into<usize> for NoValue {
+    fn into(self) -> usize {
+        0
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(usize)]
+pub enum SysError {
+    InvalidCaddr = 1,
+    UnexpectedCap = 2,
+    NoMem = 3,
+    ValueInvalid = usize::MAX - 2,
+    UnknownError = usize::MAX - 1,
+    UnknownSyscall = usize::MAX,
+}
+
+impl TryFrom<usize> for SysError {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        const INVALID_CADDR: usize = SysError::InvalidCaddr as usize;
+        const UNEXPECTED_CAP: usize = SysError::UnexpectedCap as usize;
+        const UNKNOWN_ERROR: usize = SysError::UnknownError as usize;
+        const UNKNOWN_SYSCALL: usize = SysError::UnknownSyscall as usize;
+        const NO_MEM: usize = SysError::NoMem as usize;
+        match value {
+            INVALID_CADDR => Ok(SysError::InvalidCaddr),
+            UNEXPECTED_CAP => Ok(SysError::UnexpectedCap),
+            NO_MEM => Ok(SysError::NoMem),
+            UNKNOWN_ERROR => Ok(SysError::UnknownError),
+            UNKNOWN_SYSCALL => Ok(SysError::UnknownSyscall),
+            _ => Err(()),
+        }
+    }
+}
+
+pub trait FromRawSysResponse {
+    fn from_response(raw: RawSyscallReturn) -> Self;
+}
+
+pub trait IntoRawSysRepsonse {
+    fn into_response(self) -> RawSyscallReturn;
+}
+
+pub type SyscallResult<T> = Result<T, SysError>;
+impl<T> IntoRawSysRepsonse for SyscallResult<T>
+where
+    T: Into<usize>,
+{
+    fn into_response(self) -> RawSyscallReturn {
+        match self {
+            Ok(v) => [0, v.into()],
+            Err(e) => [e as usize, 0],
+        }
+    }
+}
+
+impl<T> FromRawSysResponse for Result<T, SysError>
+where
+    T: TryFrom<usize>,
+{
+    fn from_response(raw: RawSyscallReturn) -> Self {
+        match raw {
+            [0, v] => match T::try_from(v) {
+                Ok(v) => Ok(v),
+                Err(_) => Err(SysError::ValueInvalid),
+            },
+            [e, _] => match SysError::try_from(e) {
+                Ok(e) => Err(e),
+                Err(_) => Err(SysError::UnknownError),
+            },
+        }
+    }
+}

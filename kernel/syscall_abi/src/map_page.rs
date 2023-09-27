@@ -1,7 +1,7 @@
 //! Definitions for the `map_page` syscall.
 
 use crate::generic_return::{GenericReturn, UnidentifiableReturnCode};
-use crate::{CAddr, RawSyscallArgs, RawSyscallReturn, SyscallBinding};
+use crate::{CAddr, NoValue, RawSyscallArgs, RawSyscallReturn, SyscallBinding, SyscallResult};
 use bitflags::bitflags;
 use core::convert::Infallible;
 
@@ -34,21 +34,10 @@ pub struct MapPageArgs {
     pub flags: MapPageFlag,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[repr(usize)]
-pub enum MapPageReturn {
-    Success = 0,
-    InvalidPageCAddr = 1,
-    InvalidVSpaceCAddr = 2,
-    InvalidMemCAddr = 3,
-    NoMem = 4,
-    UnsupportedSyscall = usize::MAX,
-}
-
 impl SyscallBinding for MapPage {
     const SYSCALL_NO: usize = 5;
     type CallArgs = MapPageArgs;
-    type Return = MapPageReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl From<MapPageArgs> for RawSyscallArgs {
@@ -76,48 +65,5 @@ impl TryFrom<RawSyscallArgs> for MapPageArgs {
             addr: args[3],
             flags: MapPageFlag::from_bits_truncate(args[4]),
         })
-    }
-}
-
-impl Into<GenericReturn> for MapPageReturn {
-    fn into(self) -> GenericReturn {
-        match self {
-            MapPageReturn::Success => GenericReturn::Success,
-            MapPageReturn::InvalidPageCAddr
-            | MapPageReturn::InvalidVSpaceCAddr
-            | MapPageReturn::InvalidMemCAddr
-            | MapPageReturn::NoMem => GenericReturn::Error,
-            MapPageReturn::UnsupportedSyscall => GenericReturn::UnsupportedSyscall,
-        }
-    }
-}
-
-impl Into<RawSyscallReturn> for MapPageReturn {
-    fn into(self) -> RawSyscallReturn {
-        match self {
-            MapPageReturn::Success => [0, 0],
-            MapPageReturn::InvalidPageCAddr => [1, 0],
-            MapPageReturn::InvalidVSpaceCAddr => [2, 0],
-            MapPageReturn::InvalidMemCAddr => [3, 0],
-            MapPageReturn::NoMem => [4, 0],
-            MapPageReturn::UnsupportedSyscall => [usize::MAX, 0],
-        }
-    }
-}
-
-impl TryFrom<RawSyscallReturn> for MapPageReturn {
-    type Error = UnidentifiableReturnCode;
-
-    fn try_from(value: RawSyscallReturn) -> Result<Self, Self::Error> {
-        let discriminant = value[0];
-        match discriminant {
-            0 => Ok(MapPageReturn::Success),
-            1 => Ok(MapPageReturn::InvalidPageCAddr),
-            2 => Ok(MapPageReturn::InvalidVSpaceCAddr),
-            3 => Ok(MapPageReturn::InvalidMemCAddr),
-            4 => Ok(MapPageReturn::NoMem),
-            usize::MAX => Ok(MapPageReturn::UnsupportedSyscall),
-            _ => Err(UnidentifiableReturnCode),
-        }
     }
 }

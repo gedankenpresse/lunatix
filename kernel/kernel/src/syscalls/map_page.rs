@@ -1,57 +1,28 @@
 use crate::caps::{Capability, Tag};
+use crate::syscalls::utils;
 use crate::virtmem::KernelMapper;
-use bitflags::Flags;
 use core::arch::asm;
-use core::mem;
 use derivation_tree::tree::CursorRefMut;
-use libkernel::mem::ptrs::MappedConstPtr;
 use libkernel::mem::PAGESIZE;
-use riscv::pt::{EntryFlags, MemoryPage};
+use riscv::pt::EntryFlags;
 use riscv::PhysMapper;
-use syscall_abi::map_page::{MapPageArgs, MapPageFlag, MapPageReturn};
+use syscall_abi::map_page::{MapPageArgs, MapPageFlag};
+use syscall_abi::{NoValue, SysError, SyscallResult};
 
 pub(super) fn sys_map_page(
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: MapPageArgs,
-) -> MapPageReturn {
+) -> SyscallResult<NoValue> {
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
     let cspace = cspace.get_shared().unwrap();
     let cspace = cspace.get_inner_cspace().unwrap();
 
-    let page_cap = match unsafe { cspace.lookup_raw(args.page) } {
-        None => return MapPageReturn::InvalidPageCAddr,
-        Some(cap_ptr) => {
-            // TODO Use a cursor to safely access the capability
-            let cap = unsafe { &*cap_ptr };
-            if *cap.get_tag() != Tag::Page {
-                return MapPageReturn::InvalidPageCAddr;
-            }
-            cap
-        }
-    };
+    let page_cap = unsafe { utils::lookup_cap(cspace, args.page, Tag::Page) }?;
 
-    let vspace_cap = match unsafe { cspace.lookup_raw(args.vspace) } {
-        None => return MapPageReturn::InvalidVSpaceCAddr,
-        Some(cap_ptr) => {
-            let cap = unsafe { &*cap_ptr };
-            if *cap.get_tag() != Tag::VSpace {
-                return MapPageReturn::InvalidVSpaceCAddr;
-            }
-            cap
-        }
-    };
+    let vspace_cap = unsafe { utils::lookup_cap(cspace, args.vspace, Tag::VSpace) }?;
 
-    let mem_cap = match unsafe { cspace.lookup_raw(args.mem) } {
-        None => return MapPageReturn::InvalidMemCAddr,
-        Some(cap_ptr) => {
-            let cap = unsafe { &*cap_ptr };
-            if *cap.get_tag() != Tag::Memory {
-                return MapPageReturn::InvalidMemCAddr;
-            }
-            cap
-        }
-    };
+    let mem_cap = unsafe { utils::lookup_cap(cspace, args.mem, Tag::Memory) }?;
 
     // compute flags with which to map from arguments
     let mut flags = EntryFlags::UserReadable;
@@ -78,10 +49,10 @@ pub(super) fn sys_map_page(
             as usize,
         flags,
     ) {
-        Err(_) => MapPageReturn::NoMem,
+        Err(_) => Err(SysError::NoMem),
         Ok(_) => {
             unsafe { asm!("sfence.vma") };
-            MapPageReturn::Success
+            Ok(NoValue)
         }
     }
 }

@@ -1,10 +1,8 @@
-use core::cmp::min;
 use core::mem;
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
 use librust::println;
-use librust::syscall_abi::derive_from_mem::DeriveFromMemReturn;
 use librust::syscall_abi::identify::CapabilityVariant;
-use librust::syscall_abi::map_page::{MapPageFlag, MapPageReturn};
+use librust::syscall_abi::map_page::MapPageFlag;
 use librust::syscall_abi::CAddr;
 
 const PAGESIZE: usize = 4096;
@@ -100,19 +98,17 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                     load_header.offset()
                 );
                 self.interim_addr += PAGESIZE;
-                let alloc_res =
-                    librust::derive_from_mem(self.mem, mapping.page, CapabilityVariant::Page, None);
-                assert_eq!(alloc_res, DeriveFromMemReturn::Success);
-
+                librust::derive_from_mem(self.mem, mapping.page, CapabilityVariant::Page, None)
+                    .unwrap();
                 // map page for us so we can load content into it later
-                let map_res = librust::map_page(
+                librust::map_page(
                     mapping.page,
                     self.own_vspace,
                     self.mem,
                     mapping.local_addr,
                     MapPageFlag::READ | MapPageFlag::WRITE,
-                );
-                assert_eq!(map_res, MapPageReturn::Success);
+                )
+                .unwrap();
 
                 // map page for the new task with appropriate flags
                 let mut flags = MapPageFlag::empty();
@@ -125,14 +121,14 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                 if load_header.flags().is_execute() {
                     flags |= MapPageFlag::EXEC;
                 }
-                let map_res = librust::map_page(
+                librust::map_page(
                     mapping.page,
                     self.target_vspace,
                     self.mem,
                     mapping.target_addr,
                     flags,
-                );
-                assert_eq!(map_res, MapPageReturn::Success);
+                )
+                .unwrap();
             }
         }
 

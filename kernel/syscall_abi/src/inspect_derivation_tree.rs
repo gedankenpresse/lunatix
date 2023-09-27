@@ -1,19 +1,16 @@
 //! Definitions for the `inspect_derivation_tree` syscall
 
-use crate::generic_return::GenericReturn;
 use crate::inspect_derivation_tree::ipc_types::CapabilityList;
-use crate::{IpcReturnBinding, RawSyscallArgs, SyscallBinding};
+use crate::{IpcReturnBinding, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct InspectDerivationTree {}
 
 pub struct InspectDerivationTreeArgs {}
 
-pub type InspectDerivationTreeReturn = GenericReturn;
-
 impl SyscallBinding for InspectDerivationTree {
     const SYSCALL_NO: usize = 0;
     type CallArgs = InspectDerivationTreeArgs;
-    type Return = InspectDerivationTreeReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl IpcReturnBinding for InspectDerivationTree {

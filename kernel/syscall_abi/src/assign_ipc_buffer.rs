@@ -1,7 +1,6 @@
 //! Definitions for the `assign_ipc_buffer` syscall.
 
-use crate::generic_return::GenericReturn;
-use crate::{CAddr, RawSyscallArgs, SyscallBinding};
+use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::convert::Infallible;
 
 pub struct AssignIpcBuffer;
@@ -13,12 +12,10 @@ pub struct AssignIpcBufferArgs {
     pub page: CAddr,
 }
 
-pub type AssignIpcBufferReturn = GenericReturn;
-
 impl SyscallBinding for AssignIpcBuffer {
     const SYSCALL_NO: usize = 6;
     type CallArgs = AssignIpcBufferArgs;
-    type Return = AssignIpcBufferReturn;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl Into<RawSyscallArgs> for AssignIpcBufferArgs {

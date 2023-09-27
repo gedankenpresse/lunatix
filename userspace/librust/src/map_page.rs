@@ -1,6 +1,6 @@
 use crate::syscalls::syscall;
-use syscall_abi::map_page::{MapPage, MapPageArgs, MapPageFlag, MapPageReturn};
-use syscall_abi::CAddr;
+use syscall_abi::map_page::{MapPage, MapPageArgs, MapPageFlag};
+use syscall_abi::{CAddr, NoValue, SyscallResult};
 
 pub fn map_page(
     page: CAddr,
@@ -8,7 +8,7 @@ pub fn map_page(
     mem: CAddr,
     addr: usize,
     flags: MapPageFlag,
-) -> MapPageReturn {
+) -> SyscallResult<NoValue> {
     syscall::<MapPage>(MapPageArgs {
         page,
         vspace,
@@ -16,5 +16,4 @@ pub fn map_page(
         addr,
         flags,
     })
-    .unwrap()
 }

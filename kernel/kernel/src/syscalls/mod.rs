@@ -10,7 +10,9 @@ mod task_assign_vspace;
 mod r#yield;
 mod yield_to;
 
-use crate::caps::Capability;
+mod utils;
+
+use crate::caps::{CSpace, Capability};
 use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;
@@ -73,16 +75,12 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
     // actually handle the specific syscall
     let (res, schedule): (RawSyscallReturn, Schedule) = match syscall_no {
         DebugPutc::SYSCALL_NO => (
-            sys_debug_putc(DebugPutcArgs::try_from(args).unwrap())
-                .unwrap()
-                .into(),
+            sys_debug_putc(DebugPutcArgs::try_from(args).unwrap()).into_response(),
             Schedule::Keep,
         ),
 
         DebugLog::SYSCALL_NO => (
-            sys_debug_log(DebugLogArgs::try_from(args).unwrap())
-                .unwrap()
-                .into(),
+            sys_debug_log(DebugLogArgs::try_from(args).unwrap()).into_response(),
             Schedule::Keep,
         ),
 
@@ -93,7 +91,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let result = sys_identify(task, IdentifyArgs::try_from(args).unwrap());
             log::debug!("identify syscall result is {:x?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         DeriveFromMem::SYSCALL_NO => {
@@ -103,7 +101,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let result = sys_derive_from_mem(task, DeriveFromMemArgs::from(args));
             log::debug!("derive_from_mem result is {:?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         MapPage::SYSCALL_NO => {
@@ -113,7 +111,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let result = sys_map_page(task, MapPageArgs::try_from(args).unwrap());
             log::debug!("map_page syscall result is {:?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         AssignIpcBuffer::SYSCALL_NO => {
@@ -123,7 +121,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
             log::debug!("assign_ipc_buffer syscall result is {:?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         TaskAssignCSpace::SYSCALL_NO => {
@@ -134,7 +132,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             let result =
                 sys_task_assign_cspace(task, TaskAssignCSpaceArgs::try_from(args).unwrap());
             log::debug!("task_assign_cspace syscall result is {:?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         TaskAssignVSpace::SYSCALL_NO => {
@@ -145,7 +143,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             let result =
                 sys_task_assign_vspace(task, TaskAssignVSpaceArgs::try_from(args).unwrap());
             log::debug!("task_assign_vspace syscall result is {:?}", result);
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         TaskAssignControlRegisters::SYSCALL_NO => {
@@ -159,7 +157,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
                 "task_assign_control_registers syscall result is {:?}",
                 result
             );
-            (result.into(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         YieldTo::SYSCALL_NO => {
@@ -169,7 +167,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             );
             let (result, schedule) = sys_yield_to(task, YieldToArgs::from(args));
             log::debug!("yield_to result is {:?}", result);
-            (result.into(), schedule)
+            (result.into_response(), schedule)
         }
 
         Yield::SYSCALL_NO => {
