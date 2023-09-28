@@ -136,7 +136,7 @@ impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
             }
 
             // skip blocks that are tagged as Allocated
-            let begin_tag = BeginTag::from_bytes(&state.backing_mem[i..=i + 1]);
+            let mut begin_tag = BeginTag::from_bytes(&state.backing_mem[i..=i + 1]);
             let block_size = mem::size_of::<BeginTag>()
                 + begin_tag.block_size as usize
                 + mem::size_of::<EndTag>();
@@ -150,7 +150,7 @@ impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
                 (&mut state.backing_mem[i + mem::size_of::<BeginTag>()]) as *mut u8 as usize;
             let aligned_content_addr =
                 (unaligned_content_addr + layout.align() - 1) & !(layout.align() - 1);
-            let begin_padding = aligned_content_addr - unaligned_content_addr;
+            let mut begin_padding = aligned_content_addr - unaligned_content_addr;
             let mut full_content_size = layout.size() + begin_padding;
             if (begin_tag.block_size as usize) < full_content_size {
                 i += block_size;
@@ -158,7 +158,50 @@ impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
             }
 
             // if we have not skipped any blocks, the current block is free and large enough
-            let free_block = &mut state.backing_mem[i..i + block_size];
+            let mut free_block = &mut state.backing_mem[i..i + block_size];
+
+            // if the used padding is so large that an additional allocation would fit into it,
+            // carve of that section
+            if begin_padding > mem::size_of::<BeginTag>() + mem::size_of::<EndTag>() {
+                let (padding_block, remainder) = free_block.split_at_mut(begin_padding);
+
+                // mark the padding block as free but with reduced size
+                let padding_content_size = (padding_block.len()
+                    - mem::size_of::<BeginTag>()
+                    - mem::size_of::<EndTag>()) as u8;
+                padding_block[0..mem::size_of::<BeginTag>()].copy_from_slice(
+                    BeginTag {
+                        state: AllocationState::Free,
+                        block_size: padding_content_size,
+                    }
+                    .as_bytes(),
+                );
+                padding_block[padding_block.len() - 1] = *EndTag {
+                    block_size: padding_content_size,
+                }
+                .as_bytes();
+
+                // update the the remainder blocks tags to its new size
+                let remainder_content_size =
+                    (remainder.len() - mem::size_of::<BeginTag>() - mem::size_of::<EndTag>()) as u8;
+                remainder[0..mem::size_of::<BeginTag>()].copy_from_slice(
+                    BeginTag {
+                        state: AllocationState::Free,
+                        block_size: remainder_content_size,
+                    }
+                    .as_bytes(),
+                );
+                remainder[remainder.len() - 1] = *EndTag {
+                    block_size: remainder_content_size,
+                }
+                .as_bytes();
+
+                // update values that are used for size calculation to the new blocks size
+                begin_tag = BeginTag::from_bytes(&remainder[0..mem::size_of::<BeginTag>()]);
+                begin_padding = 0;
+                full_content_size = layout.size();
+                free_block = remainder;
+            }
 
             // slice of a claim for the allocation from the free block
             let (claimed_block, end_padding) = if begin_tag.block_size as usize == full_content_size
@@ -472,6 +515,40 @@ mod test {
         assert_eq!(
             alloc_state.backing_mem,
             [2, AllocationState::Allocated as u8, 0x11, 0, 2]
+        );
+    }
+
+    #[test]
+    fn test_padding_area_of_very_large_padding_is_reused() {
+        let mut mem = [0u8; 10];
+        let alloc = BoundaryTagAllocator::new(&mut mem);
+
+        println!("Before Allocation: {:#?}", alloc.state.borrow());
+        let block = alloc
+            .allocate(
+                Layout::from_size_align(1, 8).unwrap(),
+                AllocInit::Data(0x11),
+            )
+            .unwrap();
+        println!("After Allocation:  {:#?}", alloc.state.borrow());
+
+        assert_eq!(block.len(), 1);
+        assert_eq!((block.as_ptr() as usize) % 8, 0);
+        let alloc_state = alloc.state.borrow();
+        assert_eq!(
+            alloc_state.backing_mem,
+            [
+                3,
+                AllocationState::Free as u8,
+                0,
+                0,
+                0,
+                3,
+                1,
+                AllocationState::Allocated as u8,
+                0x11,
+                1
+            ]
         );
     }
 }
