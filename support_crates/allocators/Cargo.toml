@@ -9,3 +9,4 @@ edition = "2021"
 ksync = { path = "../ksync" }
 thiserror-no-std = "2.0.2"
 log = "0.4.19"
+static_assertions = "1.1.0"
