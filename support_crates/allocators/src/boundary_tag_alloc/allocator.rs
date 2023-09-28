@@ -1,20 +1,21 @@
-use crate::boundary_tag_alloc::tags::{AllocationState, BeginTag, EndTag};
+use crate::boundary_tag_alloc::tags::{AllocationMarker, BeginTag, EndTag, TagsBinding};
 use crate::{AllocError, AllocInit, Allocator};
 use core::alloc::Layout;
 use core::cell::RefCell;
-use core::mem;
+use core::marker::PhantomData;
 
 #[derive(Eq, PartialEq)]
-pub(super) struct AllocatorState<'mem> {
+pub(super) struct AllocatorState<'mem, Tags: TagsBinding> {
     pub backing_mem: &'mem mut [u8],
+    _tags: PhantomData<Tags>,
 }
 
-pub struct BlockIterator<'state, 'mem> {
-    state: &'state AllocatorState<'mem>,
+pub(super) struct BlockIterator<'state, 'mem, Tags: TagsBinding> {
+    state: &'state AllocatorState<'mem, Tags>,
     i: usize,
 }
 
-impl<'state, 'mem> Iterator for BlockIterator<'state, 'mem> {
+impl<'state, 'mem, Tags: TagsBinding> Iterator for BlockIterator<'state, 'mem, Tags> {
     type Item = &'state [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -22,54 +23,54 @@ impl<'state, 'mem> Iterator for BlockIterator<'state, 'mem> {
             return None;
         }
 
-        let tag = BeginTag::from_bytes(&self.state.backing_mem[self.i..=self.i + 1]);
+        let tag = Tags::BeginTag::read_from_chunk(&self.state.backing_mem[self.i..]);
         let block_start = self.i;
-        let block_size =
-            mem::size_of::<BeginTag>() + tag.block_size as usize + mem::size_of::<EndTag>();
+        let block_size = Tags::TAGS_SIZE + tag.content_size().into();
         self.i += block_size;
         Some(&self.state.backing_mem[block_start..block_start + block_size])
     }
 }
 
-impl<'mem> AllocatorState<'mem> {
-    pub fn block_iter<'a>(&'a self) -> BlockIterator<'a, 'mem> {
+impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
+    pub fn block_iter<'a>(&'a self) -> BlockIterator<'a, 'mem, Tags> {
         BlockIterator { state: self, i: 0 }
     }
 }
 
 /// A general purpose allocator that attaches boundary tags to handed out memory for bookkeeping.
-pub struct BoundaryTagAllocator<'mem> {
-    pub(super) state: RefCell<AllocatorState<'mem>>,
+pub(super) struct BoundaryTagAllocator<'mem, Tags: TagsBinding> {
+    pub(super) state: RefCell<AllocatorState<'mem, Tags>>,
+    _tags: PhantomData<Tags>,
 }
 
-impl<'mem> BoundaryTagAllocator<'mem> {
+impl<'mem, Tags: TagsBinding> BoundaryTagAllocator<'mem, Tags> {
     /// Create a new allocator that allocates from the given backing memory.
     pub fn new(backing_mem: &'mem mut [u8]) -> Self {
         assert!(
-            backing_mem.len() <= u8::MAX as usize,
+            backing_mem.len() <= Tags::BeginTag::MAX_CONTENT_SIZE,
             "backing memory is too large for the allocator to handle"
+        );
+        assert!(
+            backing_mem.len() > Tags::TAGS_SIZE,
+            "backing memory is too small to small"
         );
 
         // write initial tags into the backing memory
-        let usable_len =
-            (backing_mem.len() - mem::size_of::<BeginTag>() - mem::size_of::<EndTag>()) as u8;
-        let initial_begin_tag = BeginTag {
-            block_size: usable_len,
-            state: AllocationState::Free,
-        };
-        let initial_end_tag = EndTag {
-            block_size: usable_len,
-        };
-        backing_mem[0..2].copy_from_slice(initial_begin_tag.as_bytes());
-        backing_mem[backing_mem.len() - 1] = *initial_end_tag.as_bytes();
+        let usable_len = backing_mem.len() - Tags::TAGS_SIZE;
+        Tags::BeginTag::new(usable_len, AllocationMarker::Free).write_to_chunk(backing_mem);
+        Tags::EndTag::new(usable_len).write_to_chunk(backing_mem);
 
         Self {
-            state: RefCell::new(AllocatorState { backing_mem }),
+            state: RefCell::new(AllocatorState {
+                backing_mem,
+                _tags: PhantomData::default(),
+            }),
+            _tags: PhantomData::default(),
         }
     }
 }
 
-impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
+impl<'mem, Tags: TagsBinding> Allocator<'mem> for BoundaryTagAllocator<'mem, Tags> {
     fn allocate(&self, layout: Layout, init: AllocInit) -> Result<&'mem mut [u8], AllocError> {
         assert!(layout.size() > 0, "must allocate at least 1 byte");
         let mut state = self.state.borrow_mut();
@@ -82,23 +83,22 @@ impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
             }
 
             // skip blocks that are tagged as Allocated
-            let mut begin_tag = BeginTag::from_bytes(&state.backing_mem[i..=i + 1]);
-            let block_size = mem::size_of::<BeginTag>()
-                + begin_tag.block_size as usize
-                + mem::size_of::<EndTag>();
-            if begin_tag.state == AllocationState::Allocated {
+            let mut begin_tag = Tags::BeginTag::read_from_chunk(&state.backing_mem[i..]);
+            let block_size =
+                Tags::BeginTag::TAG_SIZE + begin_tag.content_size().into() + Tags::EndTag::TAG_SIZE;
+            if begin_tag.state() == AllocationMarker::Allocated {
                 i += block_size;
                 continue;
             }
 
             // skip blocks that cannot be used because the required Layout does not fit into them
             let unaligned_content_addr =
-                (&mut state.backing_mem[i + mem::size_of::<BeginTag>()]) as *mut u8 as usize;
+                (&mut state.backing_mem[i + Tags::BeginTag::TAG_SIZE]) as *mut u8 as usize;
             let aligned_content_addr =
                 (unaligned_content_addr + layout.align() - 1) & !(layout.align() - 1);
             let mut begin_padding = aligned_content_addr - unaligned_content_addr;
             let mut full_content_size = layout.size() + begin_padding;
-            if (begin_tag.block_size as usize) < full_content_size {
+            if (begin_tag.content_size().into()) < full_content_size {
                 i += block_size;
                 continue;
             }
@@ -108,110 +108,70 @@ impl<'mem> Allocator<'mem> for BoundaryTagAllocator<'mem> {
 
             // if the used padding is so large that an additional allocation would fit into it,
             // carve of that section
-            if begin_padding > mem::size_of::<BeginTag>() + mem::size_of::<EndTag>() {
+            if begin_padding > Tags::TAGS_SIZE {
                 let (padding_block, remainder) = free_block.split_at_mut(begin_padding);
 
                 // mark the padding block as free but with reduced size
-                let padding_content_size = (padding_block.len()
-                    - mem::size_of::<BeginTag>()
-                    - mem::size_of::<EndTag>()) as u8;
-                padding_block[0..mem::size_of::<BeginTag>()].copy_from_slice(
-                    BeginTag {
-                        state: AllocationState::Free,
-                        block_size: padding_content_size,
-                    }
-                    .as_bytes(),
+                let padding_block_len = padding_block.len();
+                let padding_content_size = padding_block_len - Tags::TAGS_SIZE;
+                Tags::BeginTag::new(padding_content_size, AllocationMarker::Free)
+                    .write_to_chunk(&mut padding_block[0..]);
+                Tags::EndTag::new(padding_content_size).write_to_chunk(
+                    &mut padding_block[padding_block_len - Tags::EndTag::TAG_SIZE..],
                 );
-                padding_block[padding_block.len() - 1] = *EndTag {
-                    block_size: padding_content_size,
-                }
-                .as_bytes();
 
                 // update the the remainder blocks tags to its new size
-                let remainder_content_size =
-                    (remainder.len() - mem::size_of::<BeginTag>() - mem::size_of::<EndTag>()) as u8;
-                remainder[0..mem::size_of::<BeginTag>()].copy_from_slice(
-                    BeginTag {
-                        state: AllocationState::Free,
-                        block_size: remainder_content_size,
-                    }
-                    .as_bytes(),
-                );
-                remainder[remainder.len() - 1] = *EndTag {
-                    block_size: remainder_content_size,
-                }
-                .as_bytes();
+                let remainder_content_size = remainder.len() - Tags::TAGS_SIZE;
+                Tags::BeginTag::new(remainder_content_size, AllocationMarker::Free)
+                    .write_to_chunk(remainder);
+                Tags::EndTag::new(remainder_content_size).write_to_chunk(remainder);
 
                 // update values that are used for size calculation to the new blocks size
-                begin_tag = BeginTag::from_bytes(&remainder[0..mem::size_of::<BeginTag>()]);
+                begin_tag = Tags::BeginTag::read_from_chunk(&remainder[0..]);
                 begin_padding = 0;
                 full_content_size = layout.size();
                 free_block = remainder;
             }
 
             // slice of a claim for the allocation from the free block
-            let (claimed_block, end_padding) = if begin_tag.block_size as usize == full_content_size
-            {
-                // the free block an requested allocation match sizes exactly so we can use the found block as-is
-                (free_block, 0)
-            } else if begin_tag.block_size as usize
-                > full_content_size + mem::size_of::<BeginTag>() + mem::size_of::<EndTag>()
-            {
-                // this branch is taken if the free block is large enough to hold the currently requested allocation
-                // as well as another one later.
+            let (claimed_block, end_padding) =
+                if begin_tag.content_size().into() == full_content_size {
+                    // the free block an requested allocation match sizes exactly so we can use the found block as-is
+                    (free_block, 0)
+                } else if begin_tag.content_size().into() > full_content_size + Tags::TAGS_SIZE {
+                    // this branch is taken if the free block is large enough to hold the currently requested allocation
+                    // as well as another one later.
 
-                let (claimed_block, remaining_block) = free_block.split_at_mut(
-                    mem::size_of::<BeginTag>() + full_content_size + mem::size_of::<EndTag>(),
-                );
+                    let (claimed_block, remaining_block) =
+                        free_block.split_at_mut(full_content_size + Tags::TAGS_SIZE);
 
-                // add a new end tag to the claimed block
-                claimed_block[claimed_block.len() - 1] = *EndTag {
-                    block_size: full_content_size as u8,
-                }
-                .as_bytes();
+                    // add a new end tag to the claimed block
+                    Tags::EndTag::new(full_content_size).write_to_chunk(claimed_block);
 
-                // mark the remainder as still free by writing a new boundary tag at its beginning and updating the end tag
-                let remaining_block_content_size =
-                    (remaining_block.len() - mem::size_of::<BeginTag>() - mem::size_of::<EndTag>())
-                        as u8;
-                remaining_block[0..2].copy_from_slice(
-                    BeginTag {
-                        state: AllocationState::Free,
-                        block_size: remaining_block_content_size,
-                    }
-                    .as_bytes(),
-                );
-                remaining_block[remaining_block.len() - 1] = *EndTag {
-                    block_size: remaining_block_content_size,
-                }
-                .as_bytes();
+                    // mark the remainder as still free by writing a new boundary tag at its beginning and updating the end tag
+                    let remaining_block_content_size = remaining_block.len() - Tags::TAGS_SIZE;
+                    Tags::BeginTag::new(remaining_block_content_size, AllocationMarker::Free)
+                        .write_to_chunk(remaining_block);
+                    Tags::EndTag::new(remaining_block_content_size).write_to_chunk(remaining_block);
 
-                (claimed_block, 0)
-            } else {
-                // the free block is larger than it needs to but not large enough to hold an additional allocation
-                // so we use the the free block without any modification but need to apply some padding at the end
-                // so that the handed out allocation is the correct size
-                let end_padding = begin_tag.block_size as usize - full_content_size;
-                full_content_size += end_padding;
-                (free_block, end_padding)
-            };
+                    (claimed_block, 0)
+                } else {
+                    // the free block is larger than it needs to but not large enough to hold an additional allocation
+                    // so we use the the free block without any modification but need to apply some padding at the end
+                    // so that the handed out allocation is the correct size
+                    let end_padding = begin_tag.content_size().into() - full_content_size;
+                    full_content_size += end_padding;
+                    (free_block, end_padding)
+                };
 
             // mark the block as claimed by updating its boundary tag at the beginning
-            claimed_block[0..2].copy_from_slice(
-                BeginTag {
-                    state: AllocationState::Allocated,
-                    block_size: full_content_size as u8,
-                }
-                .as_bytes(),
-            );
-            claimed_block[claimed_block.len() - 1] = *EndTag {
-                block_size: full_content_size as u8,
-            }
-            .as_bytes();
+            Tags::BeginTag::new(full_content_size, AllocationMarker::Allocated)
+                .write_to_chunk(claimed_block);
+            Tags::EndTag::new(full_content_size).write_to_chunk(claimed_block);
 
             // get the slice from the claimed block that should hold the content
-            let allocation = &mut claimed_block[mem::size_of::<BeginTag>() + begin_padding
-                ..mem::size_of::<BeginTag>() + full_content_size - end_padding];
+            let allocation = &mut claimed_block[Tags::BeginTag::TAG_SIZE + begin_padding
+                ..Tags::BeginTag::TAG_SIZE + full_content_size - end_padding];
             debug_assert_eq!(allocation.len(), layout.size());
 
             // initialize the allocation as required

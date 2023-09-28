@@ -12,6 +12,5 @@ mod traits;
 
 pub use arena_allocator::Arena;
 pub use arena_allocator::ArenaAlloc;
-pub use boundary_tag_alloc::BoundaryTagAllocator;
 pub use custom_box::Box;
 pub use traits::{AllocError, AllocInit, Allocator, MutGlobalAlloc};
