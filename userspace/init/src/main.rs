@@ -24,9 +24,16 @@ const CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
 const CADDR_IRQ_CONTROL: CAddr = 4;
 
+#[panic_handler]
+fn panic_handler(info: &PanicInfo) -> ! {
+    println!("panic {}", info);
+    loop {}
+}
+
 fn main() {
     //run_second_task();
     handle_interrupts();
+    println!("Init task says good bye 👋");
 }
 
 fn run_second_task() {
@@ -97,7 +104,6 @@ fn run_second_task() {
     .unwrap();
     println!("Yielding to Hello World Task");
     librust::yield_to(CADDR_CHILD_TASK).unwrap();
-    println!("Init task says good bye 👋");
 }
 
 fn handle_interrupts() {
@@ -105,10 +111,27 @@ fn handle_interrupts() {
         librust::identify(CADDR_IRQ_CONTROL).unwrap(),
         CapabilityVariant::IrqControl
     );
-}
 
-#[panic_handler]
-fn panic_handler(info: &PanicInfo) -> ! {
-    println!("panic {}", info);
-    loop {}
+    const CADDR_NOTIFICATION: CAddr = 6;
+    librust::derive_from_mem(
+        CADDR_MEM,
+        CADDR_NOTIFICATION,
+        CapabilityVariant::Notification,
+        None,
+    )
+    .unwrap();
+
+    const CADDR_CLAIMED_IRQ: CAddr = 5;
+    const UART_INTERRUPT_LINE: usize = 0xa;
+    librust::irq_control_claim(
+        CADDR_IRQ_CONTROL,
+        UART_INTERRUPT_LINE,
+        CADDR_CLAIMED_IRQ,
+        CADDR_NOTIFICATION,
+    )
+    .unwrap();
+    assert_eq!(
+        librust::identify(CADDR_CLAIMED_IRQ).unwrap(),
+        CapabilityVariant::Irq
+    );
 }

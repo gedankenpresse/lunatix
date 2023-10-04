@@ -10,6 +10,7 @@ mod task_assign_vspace;
 mod r#yield;
 mod yield_to;
 
+mod irq_control_claim;
 mod utils;
 
 use crate::caps::Capability;
@@ -19,6 +20,7 @@ use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 use crate::syscalls::identify::sys_identify;
+use crate::syscalls::irq_control_claim::sys_irq_control_claim;
 use crate::syscalls::map_page::sys_map_page;
 use crate::syscalls::r#yield::sys_yield;
 use crate::syscalls::task_assign_control_registers::sys_task_assign_control_registers;
@@ -32,6 +34,7 @@ use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
 use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
 use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
+use syscall_abi::irq_control_claim::{IrqControlClaim, IrqControlClaimArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::task_assign_control_registers::{
@@ -178,6 +181,14 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
             let (result, schedule) = sys_yield(YieldArgs::from(args));
             log::debug!("yield result is {:?}", result);
             (result.into(), schedule)
+        }
+
+        IrqControlClaim::SYSCALL_NO => {
+            let args = IrqControlClaimArgs::from(args);
+            log::debug!("handling irq_control_claim with args {:?}", args);
+            let result = sys_irq_control_claim(task, args);
+            log::debug!("irq_control_claim result is {:?}", result);
+            (result.into_response(), Schedule::Keep)
         }
 
         no => {

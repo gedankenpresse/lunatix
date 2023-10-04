@@ -1,11 +1,11 @@
 use crate::caps::irq::Irq;
 use crate::caps::{CapCounted, Capability, KernelAlloc, Tag, Variant};
 use allocators::bump_allocator::BumpAllocator;
-use allocators::{Allocator, Box};
+use allocators::Box;
 use core::cell::RefCell;
 use core::mem;
 use core::mem::{ManuallyDrop, MaybeUninit};
-use core::ops::{Deref, DerefMut};
+use core::ops::DerefMut;
 use core::ptr::addr_of_mut;
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::tree::TreeNodeOps;
@@ -20,7 +20,7 @@ const NUM_INTERRUPT_LINES: usize = 1024;
 
 /// The internal shared state of an IrqControl capability
 pub struct IrqControlState {
-    /// An tracking which interrupt lines are already mapped to interrupt handlers (which are IRQ capabilities).
+    /// An tracking which interrupt lines are already mapped to interrupt handlers.
     interrupt_lines: [RefCell<Capability>; NUM_INTERRUPT_LINES],
 }
 
@@ -61,10 +61,13 @@ impl Correspondence for IrqControl {
 pub struct IrqControlIface;
 
 impl IrqControlIface {
-    /// Try to claim a specific interrupt line or fail if it is already claimed.
-    ///
-    /// Return a pointer to an IRQ capability that handles the claimed interrupt line.
-    pub fn try_claim_line(&self, cap: &mut Capability, line: usize) -> Result<*mut Capability, ()> {
+    /// Get the CSlot for a specific interrupt line if it is not already claimed
+    pub fn try_get_unclaimed(
+        &self,
+        cap: &mut Capability,
+        line: usize,
+    ) -> Result<*mut Capability, ()> {
+        assert_eq!(cap.tag, Tag::IrqControl);
         let irq_control = cap.get_inner_irq_control_mut().unwrap();
 
         // initialize a notification capability into the slot of the interrupt line
@@ -74,23 +77,10 @@ impl IrqControlIface {
             .get(line)
             .ok_or(())?
             .borrow_mut();
-        irq_slot.tag = Tag::Irq;
-        irq_slot.variant = Variant {
-            irq: ManuallyDrop::new(Irq {
-                interrupt_line: line,
-            }),
-        };
-
-        // insert the newly created irq into the derivation tree
-        unsafe {
-            // this is needed to remove the lifetime bound to state which needs to be dropped to mutably use cap again
-            //
-            // it is safe to do because aliases can not occur while we have an &mut reference to cap which is the only
-            // place where a reference to the irq_slot could be obtained from
-            let irq_slot2 = &mut *(irq_slot.deref_mut() as *mut Capability);
-            drop(irq_slot);
-            cap.insert_derivation(irq_slot2);
-            Ok(irq_slot2 as *mut _)
+        if irq_slot.tag != Tag::Uninit {
+            Err(())
+        } else {
+            Ok(irq_slot.deref_mut() as *mut Capability)
         }
     }
 
@@ -129,7 +119,24 @@ impl CapabilityIface<Capability> for IrqControlIface {
     }
 
     fn copy(&self, src: &impl AsStaticRef<Capability>, dst: &mut impl AsStaticMut<Capability>) {
-        todo!()
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::IrqControl);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        // semantically copy the irq-control
+        dst.tag = Tag::IrqControl;
+        {
+            let src_irq_ctrl = src.get_inner_irq_control().unwrap();
+            dst.variant = Variant {
+                irq_control: ManuallyDrop::new(IrqControl {
+                    state: src_irq_ctrl.state.clone(),
+                }),
+            };
+        }
+
+        // insert the new copy into the derivation tree
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {

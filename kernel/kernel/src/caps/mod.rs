@@ -188,6 +188,20 @@ cap_get_inner_mut!(
     get_inner_irq_control_mut
 );
 
+cap_get_ref_mut!(
+    Notification,
+    Notification,
+    get_notification,
+    get_notification_mut
+);
+cap_get_inner_mut!(
+    Notification,
+    Notification,
+    notification,
+    get_inner_notification,
+    get_inner_notification_mut
+);
+
 pub struct CapRef<'a, T> {
     pub cap: &'a Capability,
     _type: PhantomData<T>,

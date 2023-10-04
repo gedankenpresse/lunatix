@@ -28,6 +28,7 @@ use riscv::pt::PageTable;
 
 pub struct InitCaps<'alloc, 'mem> {
     pub init_task: Box<'alloc, 'mem, Capability>,
+    pub irq_control: Box<'alloc, 'mem, Capability>,
 }
 
 /// A global static reference to the root PageTable which has only the kernel part mapped

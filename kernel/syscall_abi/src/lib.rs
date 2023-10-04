@@ -18,6 +18,7 @@
 //! | [task_assign_control_registers](task_assign_control_registers::TaskAssignControlRegisters) | *10* | [TaskAssignControlRegistersArgs](task_assign_control_registers::TaskAssignControlRegistersArgs) | [TaskAssignControlRegistersReturn](task_assign_control_registers::TaskAssignControlRegistersReturn) | Assign control reigsters like `pc` and `sp` to the task |
 //! | [yield_to](yield_to::YieldTo) | *11* | [YieldToArgs](yield_to::YieldToArgs) | [YieldToReturn](yield_to::YieldToReturn) | Yield execution to another task |
 //! | [yield](yield::Yield) | *12* | [YieldArgs](yield::YieldArgs) | [YieldReturn](yield::YieldReturn) | Yield execution back to the scheduler |
+//! | [irq_control_claim](irq_control_claim::IrqControlClaim) | *13* | [IrqControlClaimArgs](irq_control_claim::IrqControlClaimArgs) | [NoValue](NoValue) | Claim the handling of a specific interrupt line |
 //!
 
 #![no_std]
@@ -32,6 +33,7 @@ pub mod derive_from_mem;
 pub mod generic_return;
 pub mod identify;
 pub mod inspect_derivation_tree;
+pub mod irq_control_claim;
 pub mod map_page;
 pub mod task_assign_control_registers;
 pub mod task_assign_cspace;

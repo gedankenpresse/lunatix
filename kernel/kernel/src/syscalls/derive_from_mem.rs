@@ -1,4 +1,6 @@
-use crate::caps::{CSpaceIface, Capability, PageIface, Tag, TaskIface, VSpaceIface};
+use crate::caps::{
+    CSpaceIface, Capability, NotificationIface, PageIface, Tag, TaskIface, VSpaceIface,
+};
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::derive_from_mem::DeriveFromMem;
 use syscall_abi::identify::CapabilityVariant;
@@ -42,7 +44,9 @@ pub(super) fn sys_derive_from_mem(
             todo!("signal that deriving irq-control from mem is not supported")
         }
         CapabilityVariant::Irq => todo!("signal that deriving irq from mem is not supported"),
-        CapabilityVariant::Notification => todo!(),
+        CapabilityVariant::Notification => {
+            NotificationIface.derive(mem_cap, target_cap);
+        }
     }
     Ok(NoValue)
 }

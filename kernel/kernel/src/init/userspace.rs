@@ -171,6 +171,7 @@ pub fn create_init_caps(
     log::debug!("creating capabilities for the init task");
     let mut init_caps = InitCaps {
         init_task: Box::new(Capability::empty(), alloc).unwrap(),
+        irq_control: Box::new(Capability::empty(), alloc).unwrap(),
     };
 
     // initializing root memory capability with remaining free space from the kernel allocator#
@@ -187,6 +188,13 @@ pub fn create_init_caps(
         .unwrap();
     let mut mem_cap = derivation_tree.get_root_cursor().unwrap();
     let mem_cap = mem_cap.get_exclusive().unwrap();
+
+    // initialize irq control into the tasks cspace
+    {
+        log::debug!("initializing irq-control capability");
+        let target_slot: &mut Capability = &mut init_caps.irq_control;
+        IrqControlIface.init(&mem_cap, target_slot);
+    }
 
     log::debug!("deriving task capability from root memory capability");
     TaskIface.derive(&mem_cap, &mut init_caps.init_task);
@@ -239,21 +247,18 @@ pub fn create_init_caps(
         };
         VSpaceIface.copy(&task_state.vspace, target_slot);
     }
-
-    // initialize irq control into the tasks cspace
     {
-        log::debug!("initializing irq-control for the init task");
+        // copy irq-control
         let target_slot = unsafe {
-            task_state
+            &mut *task_state
                 .cspace
                 .get_inner_cspace()
                 .unwrap()
                 .lookup_raw(4)
                 .unwrap()
-                .as_mut()
-                .unwrap()
         };
-        IrqControlIface.init(&mem_cap, target_slot);
+        let irq_control: &Capability = &init_caps.irq_control;
+        IrqControlIface.copy(irq_control, target_slot);
     }
 
     init_caps

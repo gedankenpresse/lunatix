@@ -1,4 +1,5 @@
-use crate::caps::Capability;
+use crate::caps::{Capability, Tag, Variant};
+use core::mem::ManuallyDrop;
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::{AsStaticMut, AsStaticRef, Correspondence};
 
@@ -18,10 +19,18 @@ impl Correspondence for Irq {
 pub struct IrqIface;
 
 impl CapabilityIface<Capability> for IrqIface {
-    type InitArgs = ();
+    type InitArgs = usize;
 
     fn init(&self, target: &mut impl AsStaticMut<Capability>, args: Self::InitArgs) {
-        todo!()
+        let target = target.as_static_mut();
+        assert_eq!(target.tag, Tag::Uninit);
+
+        target.tag = Tag::Irq;
+        target.variant = Variant {
+            irq: ManuallyDrop::new(Irq {
+                interrupt_line: args,
+            }),
+        }
     }
 
     fn copy(&self, src: &impl AsStaticRef<Capability>, dst: &mut impl AsStaticMut<Capability>) {
