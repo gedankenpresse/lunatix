@@ -5,6 +5,7 @@ mod elfloader;
 
 use crate::elfloader::LunatixElfLoader;
 use ::elfloader::ElfBinary;
+use core::arch::asm;
 use core::panic::PanicInfo;
 use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
@@ -134,4 +135,6 @@ fn handle_interrupts() {
         librust::identify(CADDR_CLAIMED_IRQ).unwrap(),
         CapabilityVariant::Irq
     );
+
+    loop {}
 }

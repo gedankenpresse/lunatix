@@ -13,6 +13,7 @@ mod yield_to;
 mod irq_control_claim;
 mod utils;
 
+use crate::arch_specific::plic::PLIC;
 use crate::caps::Capability;
 use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
@@ -45,6 +46,10 @@ use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
 
+pub struct SyscallContext {
+    pub plic: &'static mut PLIC,
+}
+
 #[derive(Debug)]
 #[repr(usize)]
 pub enum SyscallError {
@@ -66,7 +71,10 @@ pub enum SyscallError {
 /// executed on the CPU.
 /// It might be the same as `tf` but might also not be.
 #[inline(always)]
-pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
+pub fn handle_syscall(
+    task: &mut CursorRefMut<'_, '_, Capability>,
+    ctx: &mut SyscallContext,
+) -> Schedule {
     let (syscall_no, args) = {
         let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
         let tf = &mut task_state.frame;
@@ -186,7 +194,7 @@ pub fn handle_syscall(task: &mut CursorRefMut<'_, '_, Capability>) -> Schedule {
         IrqControlClaim::SYSCALL_NO => {
             let args = IrqControlClaimArgs::from(args);
             log::debug!("handling irq_control_claim with args {:?}", args);
-            let result = sys_irq_control_claim(task, args);
+            let result = sys_irq_control_claim(task, ctx, args);
             log::debug!("irq_control_claim result is {:?}", result);
             (result.into_response(), Schedule::Keep)
         }

@@ -6,6 +6,7 @@ use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
 use kernel::caps::{Capability, KernelAlloc};
 use kernel::sched::Schedule;
+use kernel::syscalls::SyscallContext;
 use kernel::{syscalls, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
@@ -75,8 +76,6 @@ extern "C" fn kernel_main(
                 .raw(),
         )
     };
-    plic.enable_interrupt(0xa, 1);
-    plic.set_priority(0xa, 2);
     plic.set_threshold(1, 1);
     uart.enable_rx_interrupts();
 
@@ -98,6 +97,9 @@ extern "C" fn kernel_main(
     log::debug!("enabling interrupts");
     riscv::timer::set_next_timer(0).unwrap();
     riscv::trap::enable_interrupts();
+
+    // set the context object for the following main loop
+    let mut ctx = SyscallContext { plic };
 
     unsafe {
         set_return_to_user();
@@ -130,7 +132,7 @@ extern "C" fn kernel_main(
                     let tf = &mut task_state.frame;
                     tf.start_pc = trap_info.epc + 4;
                 };
-                schedule = syscalls::handle_syscall(&mut active_task);
+                schedule = syscalls::handle_syscall(&mut active_task, &mut ctx);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::trace!("⏰");
@@ -146,14 +148,14 @@ extern "C" fn kernel_main(
                 schedule = Schedule::RunInit;
             }
             TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => {
-                let claim = plic.claim_next(1).expect("no claim available");
+                let claim = ctx.plic.claim_next(1).expect("no claim available");
                 assert!(uart.has_rx());
                 let c = unsafe { uart.read_data() } as char;
                 if c == ':' {
                     panic!("panic test")
                 }
                 log::debug!("✍️  {c}");
-                plic.complete(1, claim);
+                ctx.plic.complete(1, claim);
 
                 {
                     let mut task_state =

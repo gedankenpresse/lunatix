@@ -1,5 +1,5 @@
 use crate::caps::{Capability, IrqControlIface, IrqIface, NotificationIface, Tag};
-use crate::syscalls::utils;
+use crate::syscalls::{utils, SyscallContext};
 use derivation_tree::caps::CapabilityIface;
 use derivation_tree::tree::{CursorRefMut, TreeNodeOps};
 use syscall_abi::irq_control_claim::IrqControlClaim;
@@ -7,6 +7,7 @@ use syscall_abi::{NoValue, SysError, SyscallBinding};
 
 pub(super) fn sys_irq_control_claim(
     task: &mut CursorRefMut<'_, '_, Capability>,
+    ctx: &mut SyscallContext,
     args: <IrqControlClaim as SyscallBinding>::CallArgs,
 ) -> <IrqControlClaim as SyscallBinding>::Return {
     // get basic caps from task
@@ -39,6 +40,12 @@ pub(super) fn sys_irq_control_claim(
             // write a copy of the notification into the irq-control slot to claim it
             let irq_control_slot = unsafe { &mut *irq_control_slot };
             NotificationIface.copy(notification_cap, irq_control_slot);
+
+            // activate the specified interrupt line in the PLIC
+            // we currently only run the first hart in supervisor mode which should be context 1
+            ctx.plic.enable_interrupt(args.interrupt_line as u32, 1);
+            // we use priority 2 because we set the interrupt threshold to 1 in plic initialization
+            ctx.plic.set_priority(args.interrupt_line as u32, 2);
 
             Ok(NoValue)
         }

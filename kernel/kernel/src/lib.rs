@@ -21,7 +21,6 @@ pub mod syscalls;
 use crate::caps::KernelAlloc;
 use allocators::Box;
 pub use arch_specific::mmu;
-pub use arch_specific::trap;
 use caps::Capability;
 use libkernel::mem::ptrs::PhysConstPtr;
 use riscv::pt::PageTable;
