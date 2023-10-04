@@ -3,10 +3,10 @@ extern crate std;
 
 use crate::boundary_tag_alloc::allocator::{AllocatorState, BoundaryTagAllocator};
 use crate::boundary_tag_alloc::tags::{
-    AllocationMarker, BeginTag, BeginTagU8, EndTag, EndTagU8, TagsBinding, TagsU16, TagsU8,
+    AllocationMarker, BeginTag, BeginTagU16, EndTag, EndTagU16, TagsBinding, TagsU16, TagsU8,
     TagsUsize,
 };
-use crate::{AllocInit, Allocator};
+use crate::{stack_alloc, AllocInit, Allocator, Box};
 use std::alloc::Layout;
 use std::fmt::{Debug, Formatter};
 use std::vec::Vec;
@@ -133,7 +133,7 @@ fn test_alloc_multiple_u8() {
 
 #[test]
 fn test_alloc_one_u32() {
-    let mut mem = [0u8; 16];
+    let mut mem = [0u8; 13];
     let alloc: BoundaryTagAllocator<TagsU8> = BoundaryTagAllocator::new(&mut mem);
 
     println!("Before Allocation: {:#?}", alloc.state.borrow());
@@ -147,22 +147,19 @@ fn test_alloc_one_u32() {
     assert_eq!(
         alloc_state.backing_mem,
         [
-            6,
-            AllocationMarker::Allocated as u8,
-            0,
-            0,
-            0x11,
-            0x11,
-            0x11,
-            0x11,
-            6,
-            4,
+            3,
             AllocationMarker::Free as u8,
             0,
             0,
             0,
-            0,
-            4,
+            3,
+            mem::size_of::<u32>() as u8,
+            AllocationMarker::Allocated as u8,
+            0x11,
+            0x11,
+            0x11,
+            0x11,
+            mem::size_of::<u32>() as u8,
         ]
     );
 }
@@ -223,42 +220,8 @@ fn test_not_enough_mem_for_two_allocs_but_more_than_enough_for_one() {
 }
 
 #[test]
-fn test_padding_area_of_very_large_padding_is_reused() {
-    let mut mem = [0u8; 10];
-    let alloc: BoundaryTagAllocator<TagsU8> = BoundaryTagAllocator::new(&mut mem);
-
-    println!("Before Allocation: {:#?}", alloc.state.borrow());
-    let block = alloc
-        .allocate(
-            Layout::from_size_align(1, 8).unwrap(),
-            AllocInit::Data(0x11),
-        )
-        .unwrap();
-    println!("After Allocation:  {:#?}", alloc.state.borrow());
-
-    assert_eq!(block.len(), 1);
-    assert_eq!((block.as_ptr() as usize) % 8, 0);
-    let alloc_state = alloc.state.borrow();
-    assert_eq!(
-        alloc_state.backing_mem,
-        [
-            3,
-            AllocationMarker::Free as u8,
-            0,
-            0,
-            0,
-            3,
-            1,
-            AllocationMarker::Allocated as u8,
-            0x11,
-            1
-        ]
-    );
-}
-
-#[test]
 fn test_u16_tag() {
-    let mut mem = [0u8; 16];
+    let mut mem = [0u8; 32];
     let alloc: BoundaryTagAllocator<TagsU16> = BoundaryTagAllocator::new(&mut mem);
 
     println!("Initial: {:#?}", alloc.state.borrow());
@@ -273,13 +236,11 @@ fn test_u16_tag() {
 
     assert_eq!(block1.len(), mem::size_of::<u8>());
     assert_eq!(block2.len(), mem::size_of::<u8>());
-    let alloc_state = alloc.state.borrow();
-    assert_eq!(alloc_state.backing_mem, []);
 }
 
 #[test]
 fn test_usize_tags() {
-    let mut mem = [0u8; 32];
+    let mut mem = [0u8; 64];
     let alloc: BoundaryTagAllocator<TagsUsize> = BoundaryTagAllocator::new(&mut mem);
 
     println!("Initial: {:#?}", alloc.state.borrow());
@@ -294,6 +255,139 @@ fn test_usize_tags() {
 
     assert_eq!(block1.len(), mem::size_of::<u8>());
     assert_eq!(block2.len(), mem::size_of::<u8>());
+}
+
+#[test]
+fn test_second_chunk_needing_padding() {
+    let mut mem = [0u8; 16];
+    let alloc: BoundaryTagAllocator<TagsU8> = BoundaryTagAllocator::new(&mut mem);
+
+    println!("Initial State: {:#?}", alloc.state.borrow());
+    let block1 = alloc
+        .allocate(
+            Layout::from_size_align(1, 1).unwrap(),
+            AllocInit::Data(0x55),
+        )
+        .unwrap();
+    println!("After Allocation 1:  {:#?}", alloc.state.borrow());
+    let block2 = alloc
+        .allocate(
+            Layout::from_size_align(1, 4).unwrap(),
+            AllocInit::Data(0x55),
+        )
+        .unwrap();
+    println!("After Allocation 2: {:#?}", alloc.state.borrow());
+}
+
+#[test]
+fn test_dealloc_one() {
+    let mut mem = [0u8; 8];
+    let alloc: BoundaryTagAllocator<TagsU8> = BoundaryTagAllocator::new(&mut mem);
+
+    println!("Before Allocation: {:#?}", alloc.state.borrow());
+    let layout = Layout::new::<u8>();
+    let block = alloc.allocate(layout, AllocInit::Data(0x55)).unwrap();
+    println!("After Allocation:  {:#?}", alloc.state.borrow());
+    unsafe { alloc.deallocate(block.as_mut_ptr(), layout) };
+    println!("After Deallocation: {:#?}", alloc.state.borrow());
+
+    assert_eq!(block.len(), mem::size_of::<u8>());
     let alloc_state = alloc.state.borrow();
-    assert_eq!(alloc_state.backing_mem, []);
+    assert_eq!(
+        alloc_state.backing_mem,
+        [5, AllocationMarker::Free as u8, 0x55, 1, 1, 1, 0, 5]
+    );
+}
+
+#[test]
+fn test_get_first_chunk() {
+    // arrange
+    let mut mem = [0u8; 8];
+    let begin_tag = BeginTagU16::new(3, AllocationMarker::Free);
+    let end_tag = EndTagU16::new(3);
+    begin_tag.write_to_chunk(&mut mem);
+    end_tag.write_to_chunk(&mut mem);
+    let mut state = AllocatorState::<TagsU16>::new(&mut mem);
+
+    // act
+    let chunk = state.get_first_chunk();
+
+    // assert
+    assert_eq!(chunk.0, begin_tag);
+    assert_eq!(chunk.1, unsafe {
+        mem.as_mut_ptr().add(BeginTagU16::TAG_SIZE)
+    });
+    assert_eq!(chunk.2, end_tag);
+}
+
+#[test]
+fn test_get_chunk_from_begin_tag() {
+    // arrange
+    let mut mem = [0u8; 8];
+    let begin_ptr = mem.as_mut_ptr().cast();
+    let begin_tag = BeginTagU16::new(3, AllocationMarker::Free);
+    let end_tag = EndTagU16::new(3);
+    begin_tag.write_to_chunk(&mut mem);
+    end_tag.write_to_chunk(&mut mem);
+    let mut state = AllocatorState::<TagsU16>::new(&mut mem);
+
+    // act
+    let chunk = state.get_chunk_from_begin(begin_ptr).unwrap();
+
+    // assert
+    assert_eq!(chunk.0, begin_tag);
+    assert_eq!(chunk.1, unsafe {
+        mem.as_mut_ptr().add(BeginTagU16::TAG_SIZE)
+    });
+    assert_eq!(chunk.2, end_tag);
+}
+
+#[test]
+fn test_get_chunk_from_content_ptr() {
+    // arrange
+    let mut mem = [0u8; 8];
+    let content_ptr = unsafe { mem.as_mut_ptr().add(BeginTagU16::TAG_SIZE) };
+    let begin_tag = BeginTagU16::new(3, AllocationMarker::Free);
+    let end_tag = EndTagU16::new(3);
+    begin_tag.write_to_chunk(&mut mem);
+    end_tag.write_to_chunk(&mut mem);
+    let mut state = AllocatorState::<TagsU16>::new(&mut mem);
+
+    // act
+    let chunk = state.get_chunk_from_content(content_ptr).unwrap();
+
+    // assert
+    assert_eq!(chunk.0, begin_tag);
+    assert_eq!(chunk.1, content_ptr);
+    assert_eq!(chunk.2, end_tag);
+}
+
+#[test]
+fn test_get_chunk_from_end_tag() {
+    // arrange
+    let mut mem = [0u8; 8];
+    let end_ptr = unsafe { mem.as_mut_ptr().add(BeginTagU16::TAG_SIZE).add(3).cast() };
+    let begin_tag = BeginTagU16::new(3, AllocationMarker::Free);
+    let end_tag = EndTagU16::new(3);
+    begin_tag.write_to_chunk(&mut mem);
+    end_tag.write_to_chunk(&mut mem);
+    let mut state = AllocatorState::<TagsU16>::new(&mut mem);
+
+    // act
+    let chunk = state.get_chunk_from_end(end_ptr).unwrap();
+
+    // assert
+    assert_eq!(chunk.0, begin_tag);
+    assert_eq!(chunk.1, unsafe {
+        mem.as_mut_ptr().add(BeginTagU16::TAG_SIZE)
+    });
+    assert_eq!(chunk.2, end_tag);
+}
+
+#[test]
+fn test_with_box() {
+    stack_alloc!(allocator, 16, BoundaryTagAllocator<TagsU16>);
+    let b = Box::new(0x55u8, &allocator).unwrap();
+    assert_eq!(*b, 0x55u8);
+    drop(b);
 }

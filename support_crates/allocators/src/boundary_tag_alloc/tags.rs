@@ -6,30 +6,30 @@ use core::mem;
 /// Whether a chunk is allocated or free
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
-pub(super) enum AllocationMarker {
+pub enum AllocationMarker {
     Free = 1,
     Allocated = 2,
 }
 
 /// A trait binding BeginTag and EndTag implementations together
-pub(super) trait TagsBinding {
+pub trait TagsBinding {
     /// How much memory the allocator must reserve to store both tags.
     const TAGS_SIZE: usize;
+
+    /// The maximum amount of bytes for which bookkeeping information can be stored using this tag type.
+    const MAX_CONTENT_SIZE: usize;
 
     type BeginTag: BeginTag;
     type EndTag: EndTag;
 }
 
 /// A trait that all possible sizes of begin-tags implement.
-pub(super) trait BeginTag {
+pub trait BeginTag: Debug + Copy + Eq + PartialEq {
     /// The type used for storing the size of a chunks content.
     type SizeT: Into<usize> + TryFrom<usize>;
 
     /// How much memory the allocator must reserve at the start of a chunk for storing this tag type.
     const TAG_SIZE: usize;
-
-    /// The maximum amount of bytes for which bookkeeping information can be stored using this tag type.
-    const MAX_CONTENT_SIZE: usize;
 
     fn new(content_size: usize, state: AllocationMarker) -> Self;
 
@@ -47,7 +47,8 @@ pub(super) trait BeginTag {
     fn write_to_chunk(&self, chunk: &mut [u8]);
 }
 
-pub(super) trait EndTag {
+/// A trait that all possible sizes of end-tags implement.
+pub trait EndTag: Debug + Copy + Eq + PartialEq {
     /// The type used for storing the size of a chunks content.
     type SizeT: Into<usize>;
 
@@ -73,10 +74,12 @@ macro_rules! make_tag_type {
         #[doc = "A type that instructs the allocator to use `"]
         #[doc = stringify!($size_t)]
         #[doc = "` based tags"]
-        pub(super) struct $binding_name;
+        pub struct $binding_name;
 
         impl TagsBinding for $binding_name {
             const TAGS_SIZE: usize = $begin_name::TAG_SIZE + $end_name::TAG_SIZE;
+
+            const MAX_CONTENT_SIZE: usize = <$size_t>::MAX as usize;
 
             type BeginTag = $begin_name;
             type EndTag = $end_name;
@@ -85,9 +88,9 @@ macro_rules! make_tag_type {
         #[doc = "A begin-tag that uses a `"]
         #[doc = stringify!($size_t)]
         #[doc = "` for storing the content size of a chunk"]
-        #[derive(Debug, Eq, PartialEq)]
+        #[derive(Debug, Eq, PartialEq, Copy, Clone)]
         #[repr(C)]
-        pub(super) struct $begin_name {
+        pub struct $begin_name {
             // TODO Make fields private so that access methods are used
             pub content_size: $size_t,
             pub state: AllocationMarker,
@@ -96,9 +99,7 @@ macro_rules! make_tag_type {
         impl BeginTag for $begin_name {
             type SizeT = $size_t;
 
-            const TAG_SIZE: usize = mem::size_of::<$begin_name>();
-
-            const MAX_CONTENT_SIZE: usize = <$size_t>::MAX as usize;
+            const TAG_SIZE: usize = mem::size_of::<$size_t>() + mem::size_of::<u8>();
 
             fn new(content_size: usize, state: AllocationMarker) -> Self {
                 Self {
@@ -146,9 +147,9 @@ macro_rules! make_tag_type {
         #[doc = "An end-tag that uses a `"]
         #[doc = stringify!($size_t)]
         #[doc = "` for storing the content size of a chunk"]
-        #[derive(Debug, Eq, PartialEq)]
+        #[derive(Debug, Eq, PartialEq, Copy, Clone)]
         #[repr(C)]
-        pub(super) struct $end_name {
+        pub struct $end_name {
             // TODO Make fields private so that access methods are used
             pub content_size: $size_t,
         }
