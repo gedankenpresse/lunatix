@@ -136,5 +136,9 @@ fn handle_interrupts() {
         CapabilityVariant::Irq
     );
 
-    loop {}
+    loop {
+        println!("waiting for notification");
+        let notification = librust::wait_on(CADDR_NOTIFICATION).unwrap();
+        println!("got notification {}", notification);
+    }
 }

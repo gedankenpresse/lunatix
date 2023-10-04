@@ -12,6 +12,7 @@ pub mod print;
 mod task_assign_control_registers;
 mod task_assign_cspace;
 mod task_assign_vspace;
+mod wait_on;
 mod r#yield;
 mod yield_to;
 
@@ -26,6 +27,7 @@ pub use r#yield::r#yield;
 pub use task_assign_control_registers::task_assign_control_registers;
 pub use task_assign_cspace::task_assign_cspace;
 pub use task_assign_vspace::task_assign_vspace;
+pub use wait_on::wait_on;
 pub use yield_to::yield_to;
 // pub use ipc::IpcResult;
 // pub use memory::allocate;

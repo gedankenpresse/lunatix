@@ -84,6 +84,16 @@ impl IrqControlIface {
         }
     }
 
+    /// Get the notification capability that handles the given interrupt source
+    pub fn get_irq_notification<'a>(
+        &self,
+        cap: &'a Capability,
+        source: u32,
+    ) -> Option<&'a RefCell<Capability>> {
+        let state = &cap.get_inner_irq_control().unwrap().state;
+        state.interrupt_lines.get(source as usize)
+    }
+
     /// Initialize a new [`IrqControl`](IrqControl) capability that stores its internal state in kernel allocated memory.
     pub fn init(&self, mem: &Capability, target_slot: &mut Capability) {
         assert_eq!(mem.tag, Tag::Memory);

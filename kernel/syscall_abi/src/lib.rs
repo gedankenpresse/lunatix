@@ -19,6 +19,7 @@
 //! | [yield_to](yield_to::YieldTo) | *11* | [YieldToArgs](yield_to::YieldToArgs) | [YieldToReturn](yield_to::YieldToReturn) | Yield execution to another task |
 //! | [yield](yield::Yield) | *12* | [YieldArgs](yield::YieldArgs) | [YieldReturn](yield::YieldReturn) | Yield execution back to the scheduler |
 //! | [irq_control_claim](irq_control_claim::IrqControlClaim) | *13* | [IrqControlClaimArgs](irq_control_claim::IrqControlClaimArgs) | [NoValue](NoValue) | Claim the handling of a specific interrupt line |
+//! | [wait_on](wait_on::WaitOn) | *14* | [WaitOnArgs](wait_on::WaitOnArgs) | `usize` | Wait on a notification until it is set with a value |
 //!
 
 #![no_std]
@@ -38,6 +39,7 @@ pub mod map_page;
 pub mod task_assign_control_registers;
 pub mod task_assign_cspace;
 pub mod task_assign_vspace;
+pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;
 
@@ -108,6 +110,7 @@ pub enum SysError {
     InvalidCaddr = 1,
     UnexpectedCap = 2,
     NoMem = 3,
+    WouldBlock = 4,
     ValueInvalid = usize::MAX - 2,
     UnknownError = usize::MAX - 1,
     UnknownSyscall = usize::MAX,

@@ -2,9 +2,11 @@
 #![no_main]
 
 use allocators::Box;
+use core::arch::asm;
 use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
-use kernel::caps::{Capability, KernelAlloc};
+use kernel::caps::task::TaskExecutionState;
+use kernel::caps::{Capability, IrqControlIface, KernelAlloc, NotificationIface};
 use kernel::sched::Schedule;
 use kernel::syscalls::SyscallContext;
 use kernel::{syscalls, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
@@ -111,6 +113,21 @@ extern "C" fn kernel_main(
         match schedule {
             Schedule::RunInit => {
                 active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
+
+                {
+                    let handle = active_cursor.get_shared().unwrap();
+                    if handle
+                        .get_inner_task()
+                        .unwrap()
+                        .state
+                        .borrow()
+                        .execution_state
+                        == TaskExecutionState::Waiting
+                    {
+                        unsafe { asm!("wfi") };
+                    }
+                }
+
                 prepare_task(&mut active_cursor.get_exclusive().unwrap());
             }
             Schedule::Keep => {}
@@ -149,20 +166,31 @@ extern "C" fn kernel_main(
             }
             TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => {
                 let claim = ctx.plic.claim_next(1).expect("no claim available");
-                assert!(uart.has_rx());
-                let c = unsafe { uart.read_data() } as char;
-                if c == ':' {
-                    panic!("panic test")
-                }
-                log::debug!("✍️  {c}");
-                ctx.plic.complete(1, claim);
 
+                if let Some(notification) =
+                    IrqControlIface.get_irq_notification(&mut init_caps.irq_control, claim)
                 {
-                    let mut task_state =
-                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
-                    let tf = &mut task_state.frame;
-                    tf.start_pc = trap_info.epc;
-                };
+                    log::debug!("triggering notification for irq 0x{:x}", claim);
+                    NotificationIface.notify(&notification.borrow());
+                }
+
+                // TODO claim the claim the notification
+
+                // assert!(uart.has_rx());
+                // let c = unsafe { uart.read_data() } as char;
+                // if c == ':' {
+                //     panic!("panic test")
+                // }
+                // log::debug!("✍️  {c}");
+                // ctx.plic.complete(1, claim);
+                //
+                // {
+                //     let mut task_state =
+                //         active_task.get_inner_task_mut().unwrap().state.borrow_mut();
+                //     let tf = &mut task_state.frame;
+                //     tf.start_pc = trap_info.epc;
+                // };
+
                 schedule = Schedule::Keep;
             }
             _ => {

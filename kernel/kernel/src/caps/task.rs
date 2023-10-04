@@ -14,11 +14,20 @@ use super::Capability;
 use super::Tag;
 use super::Variant;
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum TaskExecutionState {
+    Running,
+    Waiting,
+    Idle,
+}
+
 pub struct TaskState {
     pub frame: TrapFrame,
     pub cspace: Capability,
     pub vspace: Capability,
     pub ipc_buffer: Option<*mut MemoryPage>,
+    pub execution_state: TaskExecutionState,
+    pub waiting_on: Option<*const Capability>,
 }
 
 pub struct Task {
@@ -44,26 +53,6 @@ impl Correspondence for Task {
     }
 }
 
-/*
-impl TaskState {
-    pub fn init(mem: &mut caps::Memory) -> Result<*mut TaskState, caps::errors::NoMem> {
-        // allocate a pointer from memory to store our task state
-        use core::mem::size_of;
-        assert!(size_of::<Self>() <= PAGESIZE);
-        let ptr: *mut TaskState = mem.alloc_pages_raw(1)?.cast();
-
-        // initialize the task state
-        unsafe {
-            ptr::addr_of_mut!((*ptr).cspace).write(caps::CSlot::empty());
-            ptr::addr_of_mut!((*ptr).vspace).write(caps::CSlot::empty());
-            ptr::addr_of_mut!((*ptr).frame).write(TrapFrame::null());
-        }
-
-        Ok(ptr)
-    }
-}
-*/
-
 #[derive(Copy, Clone)]
 pub struct TaskIface;
 
@@ -79,6 +68,8 @@ impl TaskIface {
                 cspace: Capability::empty(),
                 frame: TrapFrame::null(),
                 ipc_buffer: None,
+                execution_state: TaskExecutionState::Idle,
+                waiting_on: None,
             }),
             src_mem.get_inner_memory().unwrap().allocator.deref(),
         )
@@ -96,6 +87,14 @@ impl TaskIface {
         unsafe {
             src_mem.insert_derivation(target_slot);
         }
+    }
+
+    /// Wake the task from its waiting state so that it can be scheduled again
+    pub fn wake(&self, task: &Capability) {
+        assert_eq!(task.tag, Tag::Task);
+        let mut state = task.get_inner_task().unwrap().state.borrow_mut();
+        log::debug!("waking task");
+        state.execution_state = TaskExecutionState::Idle;
     }
 }
 

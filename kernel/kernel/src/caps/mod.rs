@@ -2,7 +2,7 @@ pub mod cspace;
 mod irq;
 mod irq_control;
 pub mod memory;
-mod notification;
+pub mod notification;
 pub mod page;
 pub mod prelude;
 pub mod task;

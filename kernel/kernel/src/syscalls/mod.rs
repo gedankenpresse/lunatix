@@ -12,6 +12,7 @@ mod yield_to;
 
 mod irq_control_claim;
 mod utils;
+mod wait_on;
 
 use crate::arch_specific::plic::PLIC;
 use crate::caps::Capability;
@@ -27,6 +28,7 @@ use crate::syscalls::r#yield::sys_yield;
 use crate::syscalls::task_assign_control_registers::sys_task_assign_control_registers;
 use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
 use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
+use crate::syscalls::wait_on::sys_wait_on;
 use crate::syscalls::yield_to::sys_yield_to;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
@@ -43,6 +45,7 @@ use syscall_abi::task_assign_control_registers::{
 };
 use syscall_abi::task_assign_cspace::{TaskAssignCSpace, TaskAssignCSpaceArgs};
 use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
+use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
 
@@ -199,6 +202,18 @@ pub fn handle_syscall(
             (result.into_response(), Schedule::Keep)
         }
 
+        WaitOn::SYSCALL_NO => {
+            let args = WaitOnArgs::from(args);
+            log::debug!("handling wait_on syscall with args {:?}", args);
+            let (result, schedule) = sys_wait_on(task, args);
+            log::debug!(
+                "wait_on result is {:?} with schedule {:?}",
+                result,
+                schedule
+            );
+            (result.into_response(), schedule)
+        }
+
         no => {
             log::warn!(
                 "received unknown syscall {} with args {:x?}",
@@ -210,9 +225,11 @@ pub fn handle_syscall(
     };
 
     // write the result back to userspace
-    let [a0, a1] = res;
-    let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
-    let tf = &mut task_state.frame;
-    tf.write_syscall_result(a0, a1);
+    if res[0] != SysError::WouldBlock as usize {
+        let [a0, a1] = res;
+        let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
+        let tf = &mut task_state.frame;
+        tf.write_syscall_result(a0, a1);
+    }
     schedule
 }

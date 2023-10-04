@@ -2,6 +2,7 @@
 
 use crate::caps::Capability;
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum Schedule {
     RunInit,
     Keep,
