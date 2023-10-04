@@ -10,6 +10,7 @@ mod task_assign_vspace;
 mod r#yield;
 mod yield_to;
 
+mod irq_complete;
 mod irq_control_claim;
 mod utils;
 mod wait_on;
@@ -22,6 +23,7 @@ use crate::syscalls::debug_log::sys_debug_log;
 use crate::syscalls::debug_putc::sys_debug_putc;
 use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 use crate::syscalls::identify::sys_identify;
+use crate::syscalls::irq_complete::sys_irq_complete;
 use crate::syscalls::irq_control_claim::sys_irq_control_claim;
 use crate::syscalls::map_page::sys_map_page;
 use crate::syscalls::r#yield::sys_yield;
@@ -37,6 +39,7 @@ use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
 use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
 use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
+use syscall_abi::irq_complete::{IrqComplete, IrqCompleteArgs};
 use syscall_abi::irq_control_claim::{IrqControlClaim, IrqControlClaimArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
@@ -212,6 +215,14 @@ pub fn handle_syscall(
                 schedule
             );
             (result.into_response(), schedule)
+        }
+
+        IrqComplete::SYSCALL_NO => {
+            let args = IrqCompleteArgs::from(args);
+            log::debug!("handling irq_complete syscall with args {:?}", args);
+            let result = sys_irq_complete(task, ctx, args);
+            log::debug!("irq_claim result is {:?}", result);
+            (result.into_response(), Schedule::Keep)
         }
 
         no => {

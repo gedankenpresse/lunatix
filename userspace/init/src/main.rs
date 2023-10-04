@@ -139,6 +139,7 @@ fn handle_interrupts() {
     loop {
         println!("waiting for notification");
         let notification = librust::wait_on(CADDR_NOTIFICATION).unwrap();
+        librust::irq_complete(CADDR_CLAIMED_IRQ).unwrap();
         println!("got notification {}", notification);
     }
 }

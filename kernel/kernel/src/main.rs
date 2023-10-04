@@ -174,23 +174,6 @@ extern "C" fn kernel_main(
                     NotificationIface.notify(&notification.borrow());
                 }
 
-                // TODO claim the claim the notification
-
-                // assert!(uart.has_rx());
-                // let c = unsafe { uart.read_data() } as char;
-                // if c == ':' {
-                //     panic!("panic test")
-                // }
-                // log::debug!("✍️  {c}");
-                // ctx.plic.complete(1, claim);
-                //
-                // {
-                //     let mut task_state =
-                //         active_task.get_inner_task_mut().unwrap().state.borrow_mut();
-                //     let tf = &mut task_state.frame;
-                //     tf.start_pc = trap_info.epc;
-                // };
-
                 schedule = Schedule::Keep;
             }
             _ => {

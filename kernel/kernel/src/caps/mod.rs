@@ -188,6 +188,9 @@ cap_get_inner_mut!(
     get_inner_irq_control_mut
 );
 
+cap_get_ref_mut!(Irq, Irq, get_irq, get_irq_mut);
+cap_get_inner_mut!(Irq, Irq, irq, get_inner_irq, get_inner_irq_mut);
+
 cap_get_ref_mut!(
     Notification,
     Notification,
