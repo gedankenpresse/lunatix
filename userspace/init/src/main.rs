@@ -22,8 +22,14 @@ fn _start() {
 const CADDR_MEM: CAddr = 1;
 const CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
+const CADDR_IRQ_CONTROL: CAddr = 4;
 
 fn main() {
+    //run_second_task();
+    handle_interrupts();
+}
+
+fn run_second_task() {
     const CADDR_CHILD_TASK: CAddr = 4;
     librust::derive_from_mem(CADDR_MEM, CADDR_CHILD_TASK, CapabilityVariant::Task, None).unwrap();
 
@@ -92,6 +98,13 @@ fn main() {
     println!("Yielding to Hello World Task");
     librust::yield_to(CADDR_CHILD_TASK).unwrap();
     println!("Init task says good bye 👋");
+}
+
+fn handle_interrupts() {
+    assert_eq!(
+        librust::identify(CADDR_IRQ_CONTROL).unwrap(),
+        CapabilityVariant::IrqControl
+    );
 }
 
 #[panic_handler]

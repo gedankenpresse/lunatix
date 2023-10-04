@@ -12,6 +12,9 @@ pub enum CapabilityVariant {
     VSpace = 3,
     Task = 4,
     Page = 5,
+    IrqControl = 6,
+    Irq = 7,
+    Notification = 8,
 }
 
 impl Into<usize> for CapabilityVariant {
@@ -58,6 +61,9 @@ impl TryFrom<usize> for CapabilityVariant {
             3 => Ok(Self::VSpace),
             4 => Ok(Self::Task),
             5 => Ok(Self::Page),
+            6 => Ok(Self::IrqControl),
+            7 => Ok(Self::Irq),
+            8 => Ok((Self::Notification)),
             _ => Err(()),
         }
     }

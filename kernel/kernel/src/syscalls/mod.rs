@@ -12,7 +12,7 @@ mod yield_to;
 
 mod utils;
 
-use crate::caps::{CSpace, Capability};
+use crate::caps::Capability;
 use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug_log::sys_debug_log;

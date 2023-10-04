@@ -16,7 +16,7 @@ use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -47,7 +47,7 @@ extern "C" fn _start(
 extern "C" fn kernel_main(
     _hartid: usize,
     _unused: usize,
-    dtb: *const u8,
+    _dtb: *const u8,
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) {

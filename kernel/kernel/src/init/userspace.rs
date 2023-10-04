@@ -1,6 +1,6 @@
 //! Loading and execution of the init process
 
-use crate::caps::{self, CSpaceIface, Capability, VSpaceIface};
+use crate::caps::{self, CSpaceIface, Capability, IrqControlIface, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, TaskIface};
 use crate::virtmem;
 use crate::InitCaps;
@@ -238,6 +238,22 @@ pub fn create_init_caps(
                 .unwrap()
         };
         VSpaceIface.copy(&task_state.vspace, target_slot);
+    }
+
+    // initialize irq control into the tasks cspace
+    {
+        log::debug!("initializing irq-control for the init task");
+        let target_slot = unsafe {
+            task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(4)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+        };
+        IrqControlIface.init(&mem_cap, target_slot);
     }
 
     init_caps

@@ -5,7 +5,6 @@ use crate::virtmem;
 use allocators::Box;
 use caps::errors::NoMem;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
-use libkernel::mem::ptrs::VirtConstPtr;
 use riscv::pt::{EntryFlags, PageTable};
 
 // use crate::virtmem;

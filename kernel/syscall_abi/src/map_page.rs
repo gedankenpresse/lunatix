@@ -1,7 +1,6 @@
 //! Definitions for the `map_page` syscall.
 
-use crate::generic_return::{GenericReturn, UnidentifiableReturnCode};
-use crate::{CAddr, NoValue, RawSyscallArgs, RawSyscallReturn, SyscallBinding, SyscallResult};
+use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 use bitflags::bitflags;
 use core::convert::Infallible;
 

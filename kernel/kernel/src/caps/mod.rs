@@ -1,5 +1,8 @@
 pub mod cspace;
+mod irq;
+mod irq_control;
 pub mod memory;
+mod notification;
 pub mod page;
 pub mod prelude;
 pub mod task;
@@ -13,7 +16,10 @@ use derivation_tree::{
 };
 
 pub use cspace::{CSpace, CSpaceIface};
+pub use irq::{Irq, IrqIface};
+pub use irq_control::{IrqControl, IrqControlIface};
 pub use memory::{Memory, MemoryIface};
+pub use notification::{Notification, NotificationIface};
 pub use page::{Page, PageIface};
 pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
@@ -33,6 +39,9 @@ pub enum Tag {
     VSpace,
     Task,
     Page,
+    IrqControl,
+    Irq,
+    Notification,
 }
 
 pub union Variant {
@@ -42,6 +51,9 @@ pub union Variant {
     vspace: ManuallyDrop<VSpace>,
     task: ManuallyDrop<Task>,
     page: ManuallyDrop<Page>,
+    irq_control: ManuallyDrop<IrqControl>,
+    irq: ManuallyDrop<Irq>,
+    notification: ManuallyDrop<Notification>,
 }
 
 pub struct Capability {
@@ -154,6 +166,7 @@ cap_get_inner_mut!(
     get_inner_cspace,
     get_inner_cspace_mut
 );
+
 cap_get_ref_mut!(Memory, Memory, get_memory, get_memory_mut);
 cap_get_inner_mut!(
     Memory,
@@ -162,8 +175,18 @@ cap_get_inner_mut!(
     get_inner_memory,
     get_inner_memory_mut
 );
+
 cap_get_ref_mut!(Page, Page, get_page, get_page_mut);
 cap_get_inner_mut!(Page, Page, page, get_inner_page, get_inner_page_mut);
+
+cap_get_ref_mut!(IrqControl, IrqControl, get_irq_control, get_irq_control_mut);
+cap_get_inner_mut!(
+    IrqControl,
+    IrqControl,
+    irq_control,
+    get_inner_irq_control,
+    get_inner_irq_control_mut
+);
 
 pub struct CapRef<'a, T> {
     pub cap: &'a Capability,

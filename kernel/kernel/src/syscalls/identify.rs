@@ -25,6 +25,9 @@ pub(super) fn sys_identify(
         Tag::VSpace => CapabilityVariant::VSpace,
         Tag::Task => CapabilityVariant::Task,
         Tag::Page => CapabilityVariant::Page,
+        Tag::IrqControl => CapabilityVariant::IrqControl,
+        Tag::Irq => CapabilityVariant::Irq,
+        Tag::Notification => CapabilityVariant::Notification,
     };
     Ok(variant)
 }
