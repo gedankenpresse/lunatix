@@ -174,6 +174,11 @@ extern "C" fn kernel_main(
                     NotificationIface.notify(&notification.borrow());
                 }
 
+                {
+                    let mut task_state = active_task.get_inner_task().unwrap().state.borrow_mut();
+                    task_state.frame.start_pc = trap_info.epc;
+                }
+
                 schedule = Schedule::Keep;
             }
             _ => {
