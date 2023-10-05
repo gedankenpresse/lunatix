@@ -9,6 +9,7 @@ autotests = false
 [dependencies]
 elfloader = "0.16.0"
 librust = { version = "0.1.0", path = "../librust" }
+uart_driver = { version = "0.1.0", path = "../../support_crates/uart_driver" }
 
 [build-dependencies]
 cc = "1.0.79"

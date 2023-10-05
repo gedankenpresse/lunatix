@@ -19,7 +19,7 @@ use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {

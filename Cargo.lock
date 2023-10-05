@@ -117,6 +117,7 @@ dependencies = [
  "cc",
  "elfloader 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "librust",
+ "uart_driver",
 ]
 
 [[package]]

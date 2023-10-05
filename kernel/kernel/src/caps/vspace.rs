@@ -30,7 +30,7 @@ impl VSpace {
         mem: &Capability,
         vaddr_base: usize,
         size: usize,
-        flags: usize,
+        flags: EntryFlags,
     ) -> Result<(), NoMem> {
         let mem = mem.get_inner_memory().unwrap();
         virtmem::map_range_alloc(
@@ -38,7 +38,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
-            EntryFlags::from_bits_truncate(flags as u64),
+            flags,
         );
         Ok(())
     }

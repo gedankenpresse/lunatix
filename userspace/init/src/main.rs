@@ -7,10 +7,11 @@ use crate::elfloader::LunatixElfLoader;
 use ::elfloader::ElfBinary;
 use core::arch::asm;
 use core::panic::PanicInfo;
-use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::map_page::MapPageFlag;
 use librust::syscall_abi::CAddr;
+use librust::{print, println, put_c};
+use uart_driver::{MmUart, Uart};
 
 static HELLO_WORLD_BIN: &[u8] =
     include_bytes!("../../../target/riscv64imac-unknown-none-elf/release/hello_world");
@@ -107,6 +108,13 @@ fn run_second_task() {
     librust::yield_to(CADDR_CHILD_TASK).unwrap();
 }
 
+fn read_char_blocking(uart: &Uart, noti: CAddr, irq: CAddr) -> u8 {
+    let _ = librust::wait_on(noti).unwrap();
+    let c = unsafe { uart.read_data() };
+    librust::irq_complete(irq).unwrap();
+    return c;
+}
+
 fn handle_interrupts() {
     assert_eq!(
         librust::identify(CADDR_IRQ_CONTROL).unwrap(),
@@ -136,10 +144,36 @@ fn handle_interrupts() {
         CapabilityVariant::Irq
     );
 
+    // TODO: allocate pages for this memory map yourself
+    let uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
+    let mut buf = [0u8; 256];
+    let mut pos: isize = 0;
+    print!("> ");
     loop {
-        println!("waiting for notification");
-        let notification = librust::wait_on(CADDR_NOTIFICATION).unwrap();
-        librust::irq_complete(CADDR_CLAIMED_IRQ).unwrap();
-        println!("got notification {}", notification);
+        let c = read_char_blocking(&uart, CADDR_NOTIFICATION, CADDR_CLAIMED_IRQ);
+        //print!("{}", c);
+        match c as char {
+            '\x7f' => {
+                buf[pos as usize] = 0;
+                if pos > 0 {
+                    print!("\x08 \x08");
+                }
+                pos = core::cmp::max(pos - 1, 0);
+            }
+            '\x0d' => {
+                // process comand
+                pos = 0;
+                for c in buf.iter_mut() {
+                    *c = 0;
+                }
+                println!("\n processing command!");
+                print!("> ");
+            }
+            _ => {
+                buf[pos as usize] = c;
+                print!("{}", c as char);
+                pos = core::cmp::min(pos + 1, buf.len() as isize - 1);
+            }
+        }
     }
 }

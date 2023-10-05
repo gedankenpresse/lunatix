@@ -39,12 +39,7 @@ impl<'a, 'b> StackLoader<'a, 'b> {
             .get_vspace_mut()
             .unwrap()
             .as_ref()
-            .map_range(
-                mem,
-                self.vbase as usize,
-                self.stack_bytes as usize,
-                rw.bits() as usize,
-            )
+            .map_range(mem, self.vbase as usize, self.stack_bytes as usize, rw)
             .unwrap();
         Ok(self.vbase + self.stack_bytes)
     }
@@ -89,7 +84,7 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
                     &mut self.mem,
                     virt_start as usize,
                     header.mem_size() as usize,
-                    bits.bits() as usize,
+                    bits,
                 )
                 .unwrap();
         }
@@ -289,6 +284,20 @@ pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
         .load(&mut elf_loader)
         .expect("Cannot load init binary");
     let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
+
+    {
+        //! TODO: remove this block, because this is just mapping the uart driver with hard coded addresses
+        //! for testing
+        let vspace = task_state.vspace.get_inner_vspace().unwrap();
+        vspace
+            .map_address(
+                mem_cap.get_inner_memory().unwrap(),
+                0x10000000,
+                0x10000000,
+                EntryFlags::UserReadable | EntryFlags::Read | EntryFlags::Write,
+            )
+            .unwrap();
+    }
 
     // configure the task for the init binary
     task_state.frame.set_stack_start(stack_start as usize);
