@@ -1,17 +1,17 @@
 #![no_std]
 #![no_main]
 
+mod commands;
 mod elfloader;
 
+use crate::commands::KNOWN_COMMANDS;
 use crate::elfloader::LunatixElfLoader;
 use ::elfloader::ElfBinary;
-use core::arch::asm;
 use core::panic::PanicInfo;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::map_page::MapPageFlag;
-use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::CAddr;
-use librust::{print, println, put_c};
+use librust::{print, println};
 use uart_driver::{MmUart, Uart};
 
 static HELLO_WORLD_BIN: &[u8] =
@@ -26,6 +26,9 @@ const CADDR_MEM: CAddr = 1;
 const CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
 const CADDR_IRQ_CONTROL: CAddr = 4;
+
+const CADDR_UART_IRQ: CAddr = 5;
+const CADDR_UART_NOTIFICATION: CAddr = 6;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -109,10 +112,10 @@ fn run_second_task() {
     librust::yield_to(CADDR_CHILD_TASK).unwrap();
 }
 
-fn read_char_blocking(uart: &Uart, noti: CAddr, irq: CAddr) -> u8 {
-    let _ = librust::wait_on(noti).unwrap();
+fn read_char_blocking(uart: &Uart) -> u8 {
+    let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
     let c = unsafe { uart.read_data() };
-    librust::irq_complete(irq).unwrap();
+    librust::irq_complete(CADDR_UART_IRQ).unwrap();
     return c;
 }
 
@@ -122,36 +125,47 @@ fn handle_interrupts() {
         CapabilityVariant::IrqControl
     );
 
-    const CADDR_NOTIFICATION: CAddr = 6;
     librust::derive_from_mem(
         CADDR_MEM,
-        CADDR_NOTIFICATION,
+        CADDR_UART_NOTIFICATION,
         CapabilityVariant::Notification,
         None,
     )
     .unwrap();
 
-    const CADDR_CLAIMED_IRQ: CAddr = 5;
     const UART_INTERRUPT_LINE: usize = 0xa;
     librust::irq_control_claim(
         CADDR_IRQ_CONTROL,
         UART_INTERRUPT_LINE,
-        CADDR_CLAIMED_IRQ,
-        CADDR_NOTIFICATION,
+        CADDR_UART_IRQ,
+        CADDR_UART_NOTIFICATION,
     )
     .unwrap();
     assert_eq!(
-        librust::identify(CADDR_CLAIMED_IRQ).unwrap(),
+        librust::identify(CADDR_UART_IRQ).unwrap(),
         CapabilityVariant::Irq
     );
 
     // TODO: allocate pages for this memory map yourself
     let uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
     let mut buf = [0u8; 256];
-    let mut pos: isize = 0;
-    print!("> ");
     loop {
-        let c = read_char_blocking(&uart, CADDR_NOTIFICATION, CADDR_CLAIMED_IRQ);
+        let cmd = read_cmd(&uart, &mut buf);
+        process_cmd(cmd);
+    }
+}
+
+fn read_cmd<'a, 'b>(uart: &'a Uart, buf: &'b mut [u8]) -> &'b str {
+    // reset buffer
+    let mut pos: isize = 0;
+    for c in buf.iter_mut() {
+        *c = 0;
+    }
+
+    print!("> ");
+
+    loop {
+        let c = read_char_blocking(&uart);
         //print!("{}", c);
         match c as char {
             // handle backspace
@@ -165,19 +179,8 @@ fn handle_interrupts() {
 
             // handle carriage return
             '\x0d' => {
-                // process command
-                let cmd = core::str::from_utf8(&buf)
-                    .expect("could not interpret char buffer as string")
-                    .trim_end_matches('\0')
-                    .trim_end();
-                process_command(cmd);
-
-                // reset buffer
-                pos = 0;
-                for c in buf.iter_mut() {
-                    *c = 0;
-                }
-                print!("> ");
+                return core::str::from_utf8(&buf[0..pos as usize])
+                    .expect("could not interpret char buffer as string");
             }
 
             // append any other character to buffer
@@ -190,17 +193,18 @@ fn handle_interrupts() {
     }
 }
 
-fn process_command(cmd: &str) {
+fn process_cmd(input: &str) {
     print!("\n");
-    match cmd {
-        "help" => {
-            println!("Available commands: help, shutdown");
-        }
-        "shutdown" => {
-            librust::system_reset(ResetType::Shutdown, ResetReason::NoReason);
-        }
-        _ => {
-            println!("Unknown command. Enter 'help' for a list of commands");
-        }
-    }
+    match KNOWN_COMMANDS
+        .iter()
+        .find(|i| input.starts_with(i.get_name()))
+    {
+        None => println!(
+            "Unknown command {:?}. Enter 'help' for a list of commands",
+            input
+        ),
+        Some(cmd) => cmd
+            .execute(input.strip_prefix(cmd.get_name()).unwrap().trim_start())
+            .expect("Could not execute command"),
+    };
 }
