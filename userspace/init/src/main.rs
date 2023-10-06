@@ -153,6 +153,7 @@ fn handle_interrupts() {
         let c = read_char_blocking(&uart, CADDR_NOTIFICATION, CADDR_CLAIMED_IRQ);
         //print!("{}", c);
         match c as char {
+            // handle backspace
             '\x7f' => {
                 buf[pos as usize] = 0;
                 if pos > 0 {
@@ -160,20 +161,46 @@ fn handle_interrupts() {
                 }
                 pos = core::cmp::max(pos - 1, 0);
             }
+
+            // handle carriage return
             '\x0d' => {
-                // process comand
+                // process command
+                let cmd = core::str::from_utf8(&buf)
+                    .expect("could not interpret char buffer as string")
+                    .trim_end_matches('\0')
+                    .trim_end();
+                process_command(cmd);
+
+                // reset buffer
                 pos = 0;
                 for c in buf.iter_mut() {
                     *c = 0;
                 }
-                println!("\n processing command!");
                 print!("> ");
             }
+
+            // append any other character to buffer
             _ => {
                 buf[pos as usize] = c;
                 print!("{}", c as char);
                 pos = core::cmp::min(pos + 1, buf.len() as isize - 1);
             }
+        }
+    }
+}
+
+fn process_command(cmd: &str) {
+    print!("\n");
+    match cmd {
+        "help" => {
+            println!("Available commands: help, shutdown");
+        }
+        "shutdown" => {
+            println!("Shutting down system");
+            panic!("implement shutdown syscall");
+        }
+        _ => {
+            println!("Unknown command. Enter 'help' for a list of commands");
         }
     }
 }
