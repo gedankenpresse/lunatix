@@ -12,6 +12,7 @@ mod yield_to;
 
 mod irq_complete;
 mod irq_control_claim;
+mod system_reset;
 mod utils;
 mod wait_on;
 
@@ -27,6 +28,7 @@ use crate::syscalls::irq_complete::sys_irq_complete;
 use crate::syscalls::irq_control_claim::sys_irq_control_claim;
 use crate::syscalls::map_page::sys_map_page;
 use crate::syscalls::r#yield::sys_yield;
+use crate::syscalls::system_reset::sys_system_reset;
 use crate::syscalls::task_assign_control_registers::sys_task_assign_control_registers;
 use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
 use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
@@ -43,6 +45,7 @@ use syscall_abi::irq_complete::{IrqComplete, IrqCompleteArgs};
 use syscall_abi::irq_control_claim::{IrqControlClaim, IrqControlClaimArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
+use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 use syscall_abi::task_assign_control_registers::{
     TaskAssignControlRegisters, TaskAssignControlRegistersArgs,
 };
@@ -223,6 +226,12 @@ pub fn handle_syscall(
             let result = sys_irq_complete(task, ctx, args);
             log::debug!("irq_claim result is {:?}", result);
             (result.into_response(), Schedule::Keep)
+        }
+
+        SystemReset::SYSCALL_NO => {
+            let args = SystemResetArgs::from(args);
+            log::debug!("handling system_reset syscall with args {:?}", args);
+            sys_system_reset(args);
         }
 
         no => {

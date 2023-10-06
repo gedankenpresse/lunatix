@@ -9,6 +9,7 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::map_page::MapPageFlag;
+use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::CAddr;
 use librust::{print, println, put_c};
 use uart_driver::{MmUart, Uart};
@@ -196,8 +197,7 @@ fn process_command(cmd: &str) {
             println!("Available commands: help, shutdown");
         }
         "shutdown" => {
-            println!("Shutting down system");
-            panic!("implement shutdown syscall");
+            librust::system_reset(ResetType::Shutdown, ResetReason::NoReason);
         }
         _ => {
             println!("Unknown command. Enter 'help' for a list of commands");

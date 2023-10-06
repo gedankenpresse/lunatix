@@ -21,6 +21,7 @@
 //! | [irq_control_claim](irq_control_claim::IrqControlClaim) | *13* | [IrqControlClaimArgs](irq_control_claim::IrqControlClaimArgs) | [NoValue](NoValue) | Claim the handling of a specific interrupt line |
 //! | [wait_on](wait_on::WaitOn) | *14* | [WaitOnArgs](wait_on::WaitOnArgs) | `usize` | Wait on a notification until it is set with a value |
 //! | [irq_complete](irq_complete::IrqComplete) | *15* | [IrqCompleteArgs](irq_complete::IrqCompleteArgs) | [NoValue](NoValue) | Mark the interrupt on an IRQ as completed |
+//! | [system_reset](system_reset::SystemReset) | *16* | [SystemResetArgs](system_reset::SystemResetArgs) | [NoValue](NoValue) | Schedule a hardware reset |
 //!
 
 #![no_std]
@@ -38,6 +39,7 @@ pub mod inspect_derivation_tree;
 pub mod irq_complete;
 pub mod irq_control_claim;
 pub mod map_page;
+pub mod system_reset;
 pub mod task_assign_control_registers;
 pub mod task_assign_cspace;
 pub mod task_assign_vspace;
