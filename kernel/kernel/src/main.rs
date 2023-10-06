@@ -18,6 +18,7 @@ use log::Level;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
+use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
 
 static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
 
@@ -139,7 +140,13 @@ extern "C" fn kernel_main(
         };
 
         let mut active_task = active_cursor.get_exclusive().unwrap();
+        unsafe {
+            set_user_trap_handler();
+        }
         let trap_info = yield_to_task(&mut active_task);
+        unsafe {
+            set_kernel_trap_handler();
+        }
 
         match trap_info.cause {
             TrapEvent::Exception(Exception::EnvCallFromUMode) => {

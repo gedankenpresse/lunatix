@@ -132,16 +132,33 @@ extern "C" {
     pub fn trap_frame_load(trap_frame: *mut TrapFrame);
 }
 
-/// Instruct the CPU to call our trap handler for interrupts and enable triggering of traps.
-pub fn enable_interrupts() {
-    log::debug!("enabling supervisor interrupts triggering asm_trap_handler");
+/// this function is unsafe, because it actually should
+/// be careful to not clobber registers and stack, because
+/// this function is not called by expected rust calling convention,
+/// but just directly jumped to by assembly
+unsafe fn kernel_trap_handler() -> ! {
+    unsafe { core::arch::asm!(".align 8") };
+    let info = TrapInfo::from_current_regs();
+    panic!("kernel trap: {:#0x?}", info);
+}
 
+pub unsafe fn set_kernel_trap_handler() {
+    let handler: usize = kernel_trap_handler as usize;
+    log::debug!("kernel trap handler address: {handler:0x}");
+    unsafe {
+        cpu::StVec::write(&StVecData {
+            mode: 0,
+            base: handler as u64,
+        });
+    }
+}
+
+pub unsafe fn set_user_trap_handler() {
     extern "C" {
         /// the asm_trap_handler function is hand written assembly that
         /// calls the [`rust_trap_handler`] with appropriate arguments
         fn asm_trap_handler();
     }
-
     let handler = asm_trap_handler as usize;
     log::debug!("trap handler address: {handler:0x}");
     unsafe {
@@ -150,6 +167,15 @@ pub fn enable_interrupts() {
             mode: 0,
             base: handler as u64,
         });
+    }
+}
+
+/// Instruct the CPU to call our trap handler for interrupts and enable triggering of traps.
+pub fn enable_interrupts() {
+    log::debug!("enabling supervisor interrupts triggering asm_trap_handler");
+
+    unsafe {
+        set_user_trap_handler();
         // configure certain interrupt sources to actually trigger an interrupt
         cpu::Sie::write(
             InterruptBits::SupervisorExternalInterrupt
