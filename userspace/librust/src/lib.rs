@@ -38,6 +38,14 @@ pub use yield_to::yield_to;
 
 pub use syscall_abi;
 
+pub mod prelude {
+    pub use crate::print;
+    pub use crate::println;
+    pub use crate::syscall_abi::CAddr;
+    pub use crate::syscall_abi::NoValue;
+    pub use crate::syscall_abi::SysError;
+}
+
 // #[repr(usize)]
 // #[derive(Debug, PartialEq, Eq)]
 // pub enum Error {

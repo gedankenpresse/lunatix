@@ -1,7 +1,9 @@
 use librust::println;
 use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 
-pub const KNOWN_COMMANDS: [&dyn Command; 3] = [&Help, &Shutdown, &Echo];
+use crate::second_task::SecondTask;
+
+pub const KNOWN_COMMANDS: [&dyn Command; 4] = [&Help, &Shutdown, &Echo, &SecondTask];
 
 pub trait Command {
     /// Get the name of the command
@@ -14,7 +16,7 @@ pub trait Command {
     fn execute(&self, args: &str) -> Result<(), ()>;
 }
 
-struct Shutdown;
+pub struct Shutdown;
 
 impl Command for Shutdown {
     fn get_name(&self) -> &'static str {
@@ -30,7 +32,7 @@ impl Command for Shutdown {
     }
 }
 
-struct Echo;
+pub struct Echo;
 
 impl Command for Echo {
     fn get_name(&self) -> &'static str {
@@ -47,7 +49,7 @@ impl Command for Echo {
     }
 }
 
-struct Help;
+pub struct Help;
 
 impl Command for Help {
     fn get_name(&self) -> &'static str {
