@@ -8,15 +8,13 @@ use derivation_tree::tree::DerivationTree;
 use kernel::caps::task::TaskExecutionState;
 use kernel::caps::{Capability, IrqControlIface, KernelAlloc, NotificationIface};
 use kernel::sched::Schedule;
-use kernel::syscalls::SyscallContext;
-use kernel::{syscalls, KERNEL_ALLOCATOR, KERNEL_ROOT_PT};
+use kernel::{syscalls, InitCaps, SyscallContext};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
-use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
+use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use libkernel::println;
 use log::Level;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
-use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
 
@@ -51,62 +49,37 @@ extern "C" fn _start(
 extern "C" fn kernel_main(
     _hartid: usize,
     _unused: usize,
-    _dtb: *const u8,
+    dtb: *const u8,
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) {
     use kernel::init::*;
 
-    unsafe { KERNEL_ALLOCATOR = Some(init_alloc(phys_mem_start, phys_mem_end)) };
-    let allocator: &'static KernelAlloc = unsafe { (&mut KERNEL_ALLOCATOR).as_mut().unwrap() };
+    let allocator: &KernelAlloc = init_kernel_allocator(phys_mem_start, phys_mem_end);
+    let device_tree = init_device_tree(dtb);
+    let mut external_device_buf: [_; 16] = core::array::from_fn(|_| None);
+    let external_devices =
+        kernel::devtree::get_external_devices(&device_tree, &mut external_device_buf);
 
-    // parse device tree from bootloader
-    // let device_tree = unsafe { DevTree::from_raw_pointer(dtb).unwrap() };
+    init_kernel_root_pt();
 
-    let kernel_root_pt = init_kernel_pagetable();
-    unsafe { KERNEL_ROOT_PT = MappedConstPtr::from(kernel_root_pt as *const PageTable).as_direct() }
+    let plic = init_plic();
 
-    let plic = unsafe {
-        use kernel::arch_specific::plic::*;
-        let plic = init_plic(PhysMutPtr::from(0xc000000 as *mut PLIC).as_mapped().raw());
-        plic
-    };
-
-    let mut uart = unsafe {
-        uart_driver::Uart::from_ptr(
-            PhysMutPtr::from(0x10000000 as *mut uart_driver::MmUart)
-                .as_mapped()
-                .raw(),
-        )
-    };
-    plic.set_threshold(1, 1);
-    uart.enable_rx_interrupts();
-
-    // fill the derivation tree with initially required capabilities
-    let mut derivation_tree = Box::new_uninit(allocator).unwrap();
-    let derivation_tree = unsafe {
-        DerivationTree::init_with_root_value(&mut derivation_tree, Capability::empty());
-        derivation_tree.assume_init()
-    };
+    let derivation_tree = init_derivation_tree(allocator);
     let mut init_caps = create_init_caps(&allocator, &derivation_tree);
+    load_init_task(&derivation_tree, &mut init_caps);
 
-    // load the init binary
-    {
-        let mut mem_cap = derivation_tree.get_root_cursor().unwrap();
-        let mut mem_cap = mem_cap.get_exclusive().unwrap();
-        load_init_binary(&mut init_caps.init_task, &mut mem_cap)
-    }
+    prepare_userspace_handoff();
 
-    log::debug!("enabling interrupts");
-    riscv::timer::set_next_timer(0).unwrap();
-    riscv::trap::enable_interrupts();
+    kernel_loop(derivation_tree, init_caps, &mut SyscallContext { plic });
+}
 
-    // set the context object for the following main loop
-    let mut ctx = SyscallContext { plic };
-
-    unsafe {
-        set_return_to_user();
-    };
+fn kernel_loop(
+    derivation_tree: Box<DerivationTree<Capability>>,
+    mut init_caps: InitCaps,
+    ctx: &mut SyscallContext,
+) {
+    use kernel::init::{prepare_task, yield_to_task};
     log::info!("🚀 launching init");
     let mut active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
     let mut schedule = Schedule::RunInit;
@@ -156,7 +129,7 @@ extern "C" fn kernel_main(
                     let tf = &mut task_state.frame;
                     tf.start_pc = trap_info.epc + 4;
                 };
-                schedule = syscalls::handle_syscall(&mut active_task, &mut ctx);
+                schedule = syscalls::handle_syscall(&mut active_task, ctx);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::trace!("⏰");

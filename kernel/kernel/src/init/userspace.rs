@@ -286,8 +286,8 @@ pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
     let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
 
     {
-        //! TODO: remove this block, because this is just mapping the uart driver with hard coded addresses
-        //! for testing
+        // TODO: remove this block, because this is just mapping the uart driver with hard coded addresses
+        // for testing
         let vspace = task_state.vspace.get_inner_vspace().unwrap();
         vspace
             .map_address(

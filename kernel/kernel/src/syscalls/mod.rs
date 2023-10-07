@@ -16,7 +16,6 @@ mod system_reset;
 mod utils;
 mod wait_on;
 
-use crate::arch_specific::plic::PLIC;
 use crate::caps::Capability;
 use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
@@ -34,6 +33,7 @@ use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
 use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
 use crate::syscalls::wait_on::sys_wait_on;
 use crate::syscalls::yield_to::sys_yield_to;
+use crate::SyscallContext;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
@@ -54,10 +54,6 @@ use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
-
-pub struct SyscallContext {
-    pub plic: &'static mut PLIC,
-}
 
 #[derive(Debug)]
 #[repr(usize)]

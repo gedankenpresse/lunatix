@@ -1,4 +1,3 @@
-use crate::caps::irq::Irq;
 use crate::caps::{CapCounted, Capability, KernelAlloc, Tag, Variant};
 use allocators::bump_allocator::BumpAllocator;
 use allocators::Box;

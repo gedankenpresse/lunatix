@@ -9,6 +9,12 @@ pub mod ipc;
 pub mod sched;
 pub mod virtmem;
 
+pub mod devtree;
+
+pub struct SyscallContext {
+    pub plic: &'static mut arch_specific::plic::PLIC,
+}
+
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv64imac/mod.rs"]
 pub mod arch_specific;

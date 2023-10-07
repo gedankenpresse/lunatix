@@ -147,7 +147,8 @@ fn handle_interrupts() {
     );
 
     // TODO: allocate pages for this memory map yourself
-    let uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
+    let mut uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
+    uart.enable_rx_interrupts();
     let mut buf = [0u8; 256];
     loop {
         let cmd = read_cmd(&uart, &mut buf);

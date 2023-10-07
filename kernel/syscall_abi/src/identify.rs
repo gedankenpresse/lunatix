@@ -63,7 +63,7 @@ impl TryFrom<usize> for CapabilityVariant {
             5 => Ok(Self::Page),
             6 => Ok(Self::IrqControl),
             7 => Ok(Self::Irq),
-            8 => Ok((Self::Notification)),
+            8 => Ok(Self::Notification),
             _ => Err(()),
         }
     }
