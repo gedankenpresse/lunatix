@@ -28,6 +28,7 @@ pub(super) fn sys_identify(
         Tag::IrqControl => CapabilityVariant::IrqControl,
         Tag::Irq => CapabilityVariant::Irq,
         Tag::Notification => CapabilityVariant::Notification,
+        Tag::Devmem => CapabilityVariant::Devmem,
     };
     Ok(variant)
 }

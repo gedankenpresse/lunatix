@@ -12,6 +12,7 @@ mod yield_to;
 
 mod irq_complete;
 mod irq_control_claim;
+mod map_devmem;
 mod system_reset;
 mod utils;
 mod wait_on;
@@ -25,6 +26,7 @@ use crate::syscalls::derive_from_mem::sys_derive_from_mem;
 use crate::syscalls::identify::sys_identify;
 use crate::syscalls::irq_complete::sys_irq_complete;
 use crate::syscalls::irq_control_claim::sys_irq_control_claim;
+use crate::syscalls::map_devmem::sys_map_devmem;
 use crate::syscalls::map_page::sys_map_page;
 use crate::syscalls::r#yield::sys_yield;
 use crate::syscalls::system_reset::sys_system_reset;
@@ -43,6 +45,7 @@ use syscall_abi::generic_return::GenericReturn;
 use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::irq_complete::{IrqComplete, IrqCompleteArgs};
 use syscall_abi::irq_control_claim::{IrqControlClaim, IrqControlClaimArgs};
+use syscall_abi::map_devmem::{MapDevmem, MapDevmemArgs};
 use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
@@ -229,7 +232,12 @@ pub fn handle_syscall(
             log::debug!("handling system_reset syscall with args {:?}", args);
             sys_system_reset(args);
         }
-
+        MapDevmem::SYSCALL_NO => {
+            let args = MapDevmemArgs::try_from(args).unwrap();
+            log::debug!("mapping devmem: {:0x?}", args);
+            let result = sys_map_devmem(task, args);
+            (result.into_response(), Schedule::Keep)
+        }
         no => {
             log::warn!(
                 "received unknown syscall {} with args {:x?}",

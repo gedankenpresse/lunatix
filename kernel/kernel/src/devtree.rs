@@ -4,6 +4,8 @@ use fdt_rs::{
 };
 use libkernel::println;
 
+use crate::caps::DevmemEntry;
+
 pub struct ExternalDevice<'buf, 'dt> {
     node: DevTreeNode<'buf, 'dt>,
 }
@@ -43,17 +45,33 @@ fn nodes_with_props<'a, 'p: 'a, 'dt>(
     })
 }
 
+pub fn read_reg_prop<'a, 'dt>(node: &DevTreeNode<'a, 'dt>) -> Option<DevmemEntry> {
+    let mut props = node.props();
+    while let Ok(Some(prop)) = props.next() {
+        if prop.name() == Ok("reg") {
+            let base = prop.u64(0);
+            let len = prop.u64(1);
+            let entry = DevmemEntry {
+                base: base.ok()? as usize,
+                len: len.ok()? as usize,
+            };
+            return Some(entry);
+        }
+    }
+    None
+}
+
 pub fn get_external_devices<'buf, 'a, 'dt>(
     fdt: &'a DevTree<'dt>,
-    buf: &'buf mut [Option<ExternalDevice<'a, 'dt>>],
-) -> &'buf [Option<ExternalDevice<'a, 'dt>>] {
+    buf: &'buf mut [Option<DevmemEntry>],
+) -> &'buf [Option<DevmemEntry>] {
     let mut pos = 0;
     for (i, (node, slot)) in nodes_with_props(fdt, &["reg", "compatible", "interrupt-parent"])
         .zip(buf.iter_mut())
         .enumerate()
     {
-        println!("{}", node.name().unwrap());
-        *slot = Some(ExternalDevice { node });
+        log::info!("external device found: {}", node.name().unwrap());
+        *slot = read_reg_prop(&node);
         pos = i;
     }
     &buf[0..pos]

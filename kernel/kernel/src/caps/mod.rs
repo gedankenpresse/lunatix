@@ -1,4 +1,5 @@
 pub mod cspace;
+pub mod devmem;
 mod irq;
 mod irq_control;
 pub mod memory;
@@ -16,6 +17,7 @@ use derivation_tree::{
 };
 
 pub use cspace::{CSpace, CSpaceIface};
+pub use devmem::{Devmem, DevmemEntry, DevmemIface};
 pub use irq::{Irq, IrqIface};
 pub use irq_control::{IrqControl, IrqControlIface};
 pub use memory::{Memory, MemoryIface};
@@ -42,6 +44,7 @@ pub enum Tag {
     IrqControl,
     Irq,
     Notification,
+    Devmem,
 }
 
 pub union Variant {
@@ -54,6 +57,7 @@ pub union Variant {
     irq_control: ManuallyDrop<IrqControl>,
     irq: ManuallyDrop<Irq>,
     notification: ManuallyDrop<Notification>,
+    devmem: ManuallyDrop<Devmem>,
 }
 
 pub struct Capability {
@@ -203,6 +207,15 @@ cap_get_inner_mut!(
     notification,
     get_inner_notification,
     get_inner_notification_mut
+);
+cap_get_ref_mut!(Devmem, Devmem, get_devmem, get_devmem_mut);
+
+cap_get_inner_mut!(
+    Devmem,
+    Devmem,
+    devmem,
+    get_inner_devmem,
+    get_inner_devmem_mut
 );
 
 pub struct CapRef<'a, T> {

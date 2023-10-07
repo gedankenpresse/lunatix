@@ -56,17 +56,16 @@ extern "C" fn kernel_main(
     use kernel::init::*;
 
     let allocator: &KernelAlloc = init_kernel_allocator(phys_mem_start, phys_mem_end);
-    let device_tree = init_device_tree(dtb);
+    let dt = init_device_tree(dtb);
     let mut external_device_buf: [_; 16] = core::array::from_fn(|_| None);
-    let external_devices =
-        kernel::devtree::get_external_devices(&device_tree, &mut external_device_buf);
+    let external_devices = kernel::devtree::get_external_devices(&dt, &mut external_device_buf);
 
     init_kernel_root_pt();
 
     let plic = init_plic();
 
     let derivation_tree = init_derivation_tree(allocator);
-    let mut init_caps = create_init_caps(&allocator, &derivation_tree);
+    let mut init_caps = create_init_caps(&allocator, &derivation_tree, &dt);
     load_init_task(&derivation_tree, &mut init_caps);
 
     prepare_userspace_handoff();

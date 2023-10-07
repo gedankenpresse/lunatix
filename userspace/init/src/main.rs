@@ -24,9 +24,9 @@ const CADDR_MEM: CAddr = 1;
 const CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
 const CADDR_IRQ_CONTROL: CAddr = 4;
-
-const CADDR_UART_IRQ: CAddr = 5;
-const CADDR_UART_NOTIFICATION: CAddr = 6;
+const CADDR_DEVMEM: CAddr = 5;
+const CADDR_UART_IRQ: CAddr = 6;
+const CADDR_UART_NOTIFICATION: CAddr = 7;
 
 const CADDR_CHILD_TASK: CAddr = 10;
 const CADDR_CHILD_CSPACE: CAddr = 11;
@@ -79,7 +79,8 @@ fn handle_interrupts() {
         CapabilityVariant::Irq
     );
 
-    // TODO: allocate pages for this memory map yourself
+    // TODO: read magic values from device tree
+    librust::map_devmem(CADDR_DEVMEM, CADDR_MEM, 0x10000000, 0x100).unwrap();
     let mut uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
     uart.enable_rx_interrupts();
     let mut buf = [0u8; 256];

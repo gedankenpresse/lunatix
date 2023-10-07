@@ -177,6 +177,19 @@ impl<'alloc, 'mem, T> Box<'alloc, 'mem, [T]> {
         )
     }
 
+    pub fn new_slice_with(
+        len: usize,
+        allocator: &'alloc dyn Allocator<'mem>,
+        mut f: impl FnMut(usize) -> T,
+    ) -> Result<Box<'alloc, 'mem, [T]>, AllocError> {
+        let mut uninit = Self::new_uninit_slice(len, allocator)?;
+        for i in 0..len {
+            let item = f(i);
+            unsafe { *uninit[i].as_mut_ptr() = item }
+        }
+        Ok(unsafe { uninit.assume_init() })
+    }
+
     /// Create a new boxed slice with zero-initialized contents.
     ///
     /// See [`MaybeUninit::zeroed`] for examples of correct and incorrect usage of this method

@@ -1,7 +1,8 @@
 //! Loading and execution of the init process
 
-use crate::caps::{self, CSpaceIface, Capability, IrqControlIface, VSpaceIface};
+use crate::caps::{self, CSpaceIface, Capability, DevmemIface, IrqControlIface, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, TaskIface};
+use crate::devtree::get_external_devices;
 use crate::virtmem;
 use crate::InitCaps;
 
@@ -13,6 +14,7 @@ use elfloader::{
     ElfBinary, ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType,
     VAddr,
 };
+use fdt_rs::base::DevTree;
 use libkernel::mem::ptrs::PhysMutPtr;
 use libkernel::mem::{EntryFlags, PAGESIZE};
 
@@ -158,16 +160,25 @@ impl<'a, 'r> ElfLoader for VSpaceLoader<'a, 'r> {
 }
 
 /// Initialize the derivation tree with necessary init capabilities.
-pub fn create_init_caps(
+pub fn create_init_caps<'dt>(
     alloc: &'static KernelAlloc,
     derivation_tree: &DerivationTree<Capability>,
+    dt: &DevTree<'dt>,
 ) -> InitCaps<'static, 'static> {
     // create capability objects for userspace code
     log::debug!("creating capabilities for the init task");
     let mut init_caps = InitCaps {
         init_task: Box::new(Capability::empty(), alloc).unwrap(),
         irq_control: Box::new(Capability::empty(), alloc).unwrap(),
+        devmem: Box::new(Capability::empty(), alloc).unwrap(),
     };
+
+    log::debug!("creating init devmem capability");
+    let mut buf: [_; 16] = core::array::from_fn(|_| None);
+    let devices = get_external_devices(dt, &mut buf);
+    DevmemIface
+        .create_init(&mut init_caps.devmem, alloc, devices)
+        .unwrap();
 
     // initializing root memory capability with remaining free space from the kernel allocator#
     log::debug!("creating root memory capability");
@@ -255,6 +266,21 @@ pub fn create_init_caps(
         let irq_control: &Capability = &init_caps.irq_control;
         IrqControlIface.copy(irq_control, target_slot);
     }
+    {
+        // copy devmem
+        let target_slot = unsafe {
+            task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(5)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+        };
+        let devmem: &Capability = &init_caps.devmem;
+        DevmemIface.copy(devmem, target_slot);
+    }
 
     init_caps
 }
@@ -285,26 +311,12 @@ pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
         .expect("Cannot load init binary");
     let init_entry_point = elf_loader.vbase + elf_binary.entry_point();
 
-    {
-        // TODO: remove this block, because this is just mapping the uart driver with hard coded addresses
-        // for testing
-        let vspace = task_state.vspace.get_inner_vspace().unwrap();
-        vspace
-            .map_address(
-                mem_cap.get_inner_memory().unwrap(),
-                0x10000000,
-                0x10000000,
-                EntryFlags::UserReadable | EntryFlags::Read | EntryFlags::Write,
-            )
-            .unwrap();
-    }
-
     // configure the task for the init binary
     task_state.frame.set_stack_start(stack_start as usize);
     task_state.frame.set_entry_point(init_entry_point as usize);
+
     log::debug!("init stack start: {:0x}", stack_start);
     log::debug!("init entry point: {:0x}", init_entry_point);
-
     // this sets the gp
     task_state.frame.general_purpose_regs[3] = init_entry_point as usize + 0x1000;
 }

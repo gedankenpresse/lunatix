@@ -22,7 +22,7 @@
 //! | [wait_on](wait_on::WaitOn) | *14* | [WaitOnArgs](wait_on::WaitOnArgs) | `usize` | Wait on a notification until it is set with a value |
 //! | [irq_complete](irq_complete::IrqComplete) | *15* | [IrqCompleteArgs](irq_complete::IrqCompleteArgs) | [NoValue](NoValue) | Mark the interrupt on an IRQ as completed |
 //! | [system_reset](system_reset::SystemReset) | *16* | [SystemResetArgs](system_reset::SystemResetArgs) | [NoValue](NoValue) | Schedule a hardware reset |
-//!
+//! | [map_devmem](map_devmem::MapDevmem) | *17* | [MapDevmemArgs](map_devmem::MapDevmemArgs) | [NoValue](NoValue) | Map Device Memory
 
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
@@ -38,6 +38,7 @@ pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod irq_complete;
 pub mod irq_control_claim;
+pub mod map_devmem;
 pub mod map_page;
 pub mod system_reset;
 pub mod task_assign_control_registers;
@@ -115,6 +116,7 @@ pub enum SysError {
     UnexpectedCap = 2,
     NoMem = 3,
     WouldBlock = 4,
+    NotFound = 5,
     ValueInvalid = usize::MAX - 2,
     UnknownError = usize::MAX - 1,
     UnknownSyscall = usize::MAX,
@@ -129,12 +131,14 @@ impl TryFrom<usize> for SysError {
         const UNKNOWN_ERROR: usize = SysError::UnknownError as usize;
         const UNKNOWN_SYSCALL: usize = SysError::UnknownSyscall as usize;
         const NO_MEM: usize = SysError::NoMem as usize;
+        const NOT_FOUND: usize = SysError::NotFound as usize;
         match value {
             INVALID_CADDR => Ok(SysError::InvalidCaddr),
             UNEXPECTED_CAP => Ok(SysError::UnexpectedCap),
             NO_MEM => Ok(SysError::NoMem),
             UNKNOWN_ERROR => Ok(SysError::UnknownError),
             UNKNOWN_SYSCALL => Ok(SysError::UnknownSyscall),
+            NOT_FOUND => Ok(SysError::NotFound),
             _ => Err(()),
         }
     }

@@ -47,6 +47,7 @@ pub(super) fn sys_derive_from_mem(
         CapabilityVariant::Notification => {
             NotificationIface.derive(mem_cap, target_cap);
         }
+        CapabilityVariant::Devmem => todo!("cant derive devmem"),
     }
     Ok(NoValue)
 }

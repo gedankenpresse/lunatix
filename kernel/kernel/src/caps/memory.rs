@@ -18,6 +18,7 @@ impl MemoryIface {
         target_slot: &mut Capability,
         alloc: &'static KernelAlloc,
     ) -> Result<(), super::Error> {
+        assert_eq!(target_slot.tag, Tag::Uninit);
         // convert the remaining memory of the source allocator into a memory capability
         let mem_cap = unsafe {
             // TODO "Allocator first and then remaining bytes". Bene knows what he means by that
