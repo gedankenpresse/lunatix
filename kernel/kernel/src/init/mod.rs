@@ -6,7 +6,7 @@ mod x86_64;
 
 use allocators::{bump_allocator::BumpAllocator, Box};
 use derivation_tree::tree::DerivationTree;
-use libkernel::mem::ptrs::{MappedConstPtr, PhysMutPtr};
+use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
 
 use riscv::pt::PageTable;
 #[cfg(target_arch = "riscv64")]
@@ -19,7 +19,7 @@ use crate::{
     caps::{Capability, KernelAlloc},
     InitCaps, KERNEL_ALLOCATOR, KERNEL_ROOT_PT,
 };
-pub use userspace::{create_init_caps, load_init_binary};
+pub use userspace::{create_init_caps, load_init_binary, map_device_tree};
 
 /// Create an allocator that can be used for kernel initialization
 pub fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) -> KernelAlloc {
@@ -79,12 +79,16 @@ pub fn init_derivation_tree<'a>(
     return derivation_tree;
 }
 
-pub fn load_init_task(derivation_tree: &DerivationTree<Capability>, init_caps: &mut InitCaps) {
+pub fn load_init_task(
+    derivation_tree: &DerivationTree<Capability>,
+    init_caps: &mut InitCaps,
+    dtb: PhysConstPtr<u8>,
+) {
     // load the init binary
     {
         let mut mem_cap = derivation_tree.get_root_cursor().unwrap();
         let mut mem_cap = mem_cap.get_exclusive().unwrap();
-        load_init_binary(&mut init_caps.init_task, &mut mem_cap)
+        load_init_binary(&mut init_caps.init_task, &mut mem_cap);
     }
 }
 

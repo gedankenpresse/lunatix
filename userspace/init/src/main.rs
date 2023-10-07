@@ -7,6 +7,8 @@ mod second_task;
 
 use crate::commands::KNOWN_COMMANDS;
 use core::panic::PanicInfo;
+use fdt_rs::base::{DevTree, DevTreeNode, DevTreeProp};
+use fdt_rs::prelude::*;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
 use librust::{print, println};
@@ -31,7 +33,8 @@ const CADDR_UART_NOTIFICATION: CAddr = 7;
 const CADDR_CHILD_TASK: CAddr = 10;
 const CADDR_CHILD_CSPACE: CAddr = 11;
 const CADDR_CHILD_VSPACE: CAddr = 12;
-const CADDR_CHILD_PAGE_START: CAddr = 13;
+const CADDR_CHILD_STACK_PAGE: CAddr = 13;
+const CADDR_CHILD_PAGE_START: CAddr = 14;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -39,9 +42,58 @@ fn panic_handler(info: &PanicInfo) -> ! {
     loop {}
 }
 
+fn devtree_prop<'a, 'dt: 'a>(
+    node: &'a DevTreeNode<'a, 'dt>,
+    name: &str,
+) -> Option<DevTreeProp<'a, 'dt>> {
+    let mut props = node.props();
+    while let Ok(Some(prop)) = props.next() {
+        if prop.name() != Ok(name) {
+            continue;
+        }
+        return Some(prop);
+    }
+    None
+}
+
+fn init_uart<'dt>(dt: &DevTree<'dt>) -> Result<Uart<'static>, &'static str> {
+    let Ok(Some(node)) = dt.compatible_nodes("ns16550a").next() else { return Err("no compatible node found")};
+    let Some(reg) = devtree_prop(&node, "reg") else { return Err("no reg prop")};
+    let base = reg.u64(0).unwrap();
+    let len = reg.u64(1).unwrap();
+    let Some(interrupts) = devtree_prop(&node, "interrupts") else { return Err("no interrupt prop") };
+    let interrupt = interrupts.u32(0).unwrap();
+
+    librust::derive_from_mem(
+        CADDR_MEM,
+        CADDR_UART_NOTIFICATION,
+        CapabilityVariant::Notification,
+        None,
+    )
+    .unwrap();
+    librust::irq_control_claim(
+        CADDR_IRQ_CONTROL,
+        interrupt as usize,
+        CADDR_UART_IRQ,
+        CADDR_UART_NOTIFICATION,
+    )
+    .unwrap();
+    assert_eq!(
+        librust::identify(CADDR_UART_IRQ).unwrap(),
+        CapabilityVariant::Irq
+    );
+
+    librust::map_devmem(CADDR_DEVMEM, CADDR_MEM, base as usize, len as usize).unwrap();
+    let mut uart = unsafe { Uart::from_ptr(base as *mut MmUart) };
+    uart.enable_rx_interrupts();
+    Ok(uart)
+}
+
 fn main() {
-    //run_second_task();
-    handle_interrupts();
+    let dev_tree_address: usize = 0x20_0000_0000;
+    let dev_tree = unsafe { DevTree::from_raw_pointer(dev_tree_address as *const u8).unwrap() };
+
+    handle_interrupts(&dev_tree);
     println!("Init task says good bye 👋");
 }
 
@@ -52,37 +104,16 @@ fn read_char_blocking(uart: &Uart) -> u8 {
     return c;
 }
 
-fn handle_interrupts() {
+fn handle_interrupts<'dt>(dt: &DevTree<'dt>) {
     assert_eq!(
         librust::identify(CADDR_IRQ_CONTROL).unwrap(),
         CapabilityVariant::IrqControl
     );
 
-    librust::derive_from_mem(
-        CADDR_MEM,
-        CADDR_UART_NOTIFICATION,
-        CapabilityVariant::Notification,
-        None,
-    )
-    .unwrap();
-
-    const UART_INTERRUPT_LINE: usize = 0xa;
-    librust::irq_control_claim(
-        CADDR_IRQ_CONTROL,
-        UART_INTERRUPT_LINE,
-        CADDR_UART_IRQ,
-        CADDR_UART_NOTIFICATION,
-    )
-    .unwrap();
-    assert_eq!(
-        librust::identify(CADDR_UART_IRQ).unwrap(),
-        CapabilityVariant::Irq
-    );
-
-    // TODO: read magic values from device tree
-    librust::map_devmem(CADDR_DEVMEM, CADDR_MEM, 0x10000000, 0x100).unwrap();
-    let mut uart = unsafe { Uart::from_ptr(0x10000000 as *mut MmUart) };
-    uart.enable_rx_interrupts();
+    let uart = match init_uart(dt) {
+        Ok(uart) => uart,
+        Err(err) => panic!("{}", err),
+    };
     let mut buf = [0u8; 256];
     loop {
         let cmd = read_cmd(&uart, &mut buf);

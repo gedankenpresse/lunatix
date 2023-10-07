@@ -6,7 +6,8 @@ use librust::{
 
 use crate::{
     commands::Command, elfloader::LunatixElfLoader, CADDR_CHILD_CSPACE, CADDR_CHILD_PAGE_START,
-    CADDR_CHILD_TASK, CADDR_CHILD_VSPACE, CADDR_MEM, CADDR_VSPACE, HELLO_WORLD_BIN,
+    CADDR_CHILD_STACK_PAGE, CADDR_CHILD_TASK, CADDR_CHILD_VSPACE, CADDR_MEM, CADDR_VSPACE,
+    HELLO_WORLD_BIN,
 };
 
 pub struct SecondTask;
@@ -53,7 +54,6 @@ fn run_second_task() {
 
     println!("loading HelloWorld binary");
     // load a stack for the child task
-    const CADDR_CHILD_STACK_PAGE: CAddr = 7;
     const CHILD_STACK_LOW: usize = 0x5_0000_0000;
     librust::derive_from_mem(
         CADDR_MEM,

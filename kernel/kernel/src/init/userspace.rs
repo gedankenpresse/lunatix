@@ -15,7 +15,7 @@ use elfloader::{
     VAddr,
 };
 use fdt_rs::base::DevTree;
-use libkernel::mem::ptrs::PhysMutPtr;
+use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, PAGESIZE};
 
 static INIT_BIN: &[u8] = include_aligned!(
@@ -283,6 +283,22 @@ pub fn create_init_caps<'dt>(
     }
 
     init_caps
+}
+
+pub fn map_device_tree(mem: &caps::Memory, vspace: &caps::VSpace, dt: &DevTree<'static>) {
+    let fdtb = dt.buf();
+    let fdt_start = MappedConstPtr::from(fdtb.as_ptr()).as_direct();
+    const V_BASE: usize = 0x20_0000_0000;
+    for offset in (0..fdtb.len()).step_by(PAGESIZE) {
+        vspace
+            .map_address(
+                mem,
+                V_BASE + offset,
+                fdt_start.raw() as usize + offset,
+                EntryFlags::Read | EntryFlags::UserReadable,
+            )
+            .unwrap();
+    }
 }
 
 pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {

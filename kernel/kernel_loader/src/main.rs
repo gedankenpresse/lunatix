@@ -151,7 +151,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     log::debug!("moving device tree");
     let mut phys_dev_tree =
-        Box::new_uninit_slice_with_alignment(device_tree.buf().len(), 8, allocator).unwrap();
+        Box::new_uninit_slice_with_alignment(device_tree.buf().len(), 4096, allocator).unwrap();
     let phys_dev_tree = unsafe {
         for (i, &byte) in device_tree.buf().iter().enumerate() {
             phys_dev_tree[i].write(byte);
