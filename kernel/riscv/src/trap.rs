@@ -144,7 +144,7 @@ unsafe fn kernel_trap_handler() -> ! {
 
 pub unsafe fn set_kernel_trap_handler() {
     let handler: usize = kernel_trap_handler as usize;
-    log::debug!("kernel trap handler address: {handler:0x}");
+    log::trace!("kernel trap handler address: {handler:0x}");
     unsafe {
         cpu::StVec::write(&StVecData {
             mode: 0,
@@ -160,7 +160,7 @@ pub unsafe fn set_user_trap_handler() {
         fn asm_trap_handler();
     }
     let handler = asm_trap_handler as usize;
-    log::debug!("trap handler address: {handler:0x}");
+    log::trace!("trap handler address: {handler:0x}");
     unsafe {
         // set trap handler to our asm_trap_handler function
         cpu::StVec::write(&StVecData {

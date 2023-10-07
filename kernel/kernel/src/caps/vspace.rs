@@ -38,7 +38,7 @@ impl VSpace {
             unsafe { self.root.as_mut().unwrap() },
             vaddr_base,
             size,
-            flags,
+            flags | EntryFlags::Accessed | EntryFlags::Dirty,
         );
         Ok(())
     }
@@ -58,7 +58,7 @@ impl VSpace {
             unsafe { &mut *self.root },
             vaddr,
             paddr,
-            flags,
+            flags | EntryFlags::Accessed | EntryFlags::Dirty,
         );
         Ok(())
     }

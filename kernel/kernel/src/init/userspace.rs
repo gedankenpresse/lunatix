@@ -302,6 +302,9 @@ pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
     // configure the task for the init binary
     task_state.frame.set_stack_start(stack_start as usize);
     task_state.frame.set_entry_point(init_entry_point as usize);
+    log::debug!("init stack start: {:0x}", stack_start);
+    log::debug!("init entry point: {:0x}", init_entry_point);
+
     // this sets the gp
     task_state.frame.general_purpose_regs[3] = init_entry_point as usize + 0x1000;
 }

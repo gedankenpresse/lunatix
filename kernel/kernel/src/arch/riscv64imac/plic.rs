@@ -39,6 +39,7 @@ impl PLIC {
     }
 
     pub fn set_threshold(&mut self, tsh: u8, context: usize) {
+        log::debug!("setting plic threshold");
         assert!(tsh < 8);
         unsafe {
             self.context[context].priority_threshold.write(tsh as u32);
