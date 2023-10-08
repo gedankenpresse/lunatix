@@ -58,7 +58,12 @@ pub fn init_plic() -> &'static mut PLIC {
         let plic = init_plic(PhysMutPtr::from(0xc000000 as *mut PLIC).as_mapped().raw());
         plic
     };
+
+    // TODO: determine which context(s) we should enable
+    plic.set_threshold(1, 0);
     plic.set_threshold(1, 1);
+    plic.set_threshold(1, 2);
+    plic.set_threshold(1, 3);
     plic
 }
 

@@ -24,10 +24,12 @@ pub struct PLIC {
 
 impl PLIC {
     pub fn enable_interrupt(&mut self, id: u32, context: usize) {
-        let reg = &mut self.enable[context].enable_bits[0];
+        // NOTE: if something with interrupts (id > 32) is broken, check this bit setting logic
+        let reg = id / 32;
+        let reg = &mut self.enable[context].enable_bits[reg as usize];
         unsafe {
             let bits = reg.read();
-            reg.write(1 << id | bits);
+            reg.write(1 << (id % 32) | bits);
         }
     }
 

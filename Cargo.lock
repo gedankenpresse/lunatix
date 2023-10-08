@@ -87,6 +87,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
 
 [[package]]
+name = "fdt"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "784a4df722dc6267a04af36895398f59d21d07dce47232adf31ec0ff2fa45e67"
+
+[[package]]
 name = "fdt-rs"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -116,8 +122,9 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "elfloader 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "fdt-rs",
+ "fdt",
  "librust",
+ "regs",
  "uart_driver",
 ]
 

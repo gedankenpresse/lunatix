@@ -8,8 +8,9 @@ autotests = false
 
 [dependencies]
 elfloader = "0.16.0"
-fdt-rs = { version = "0.4.3", default-features = false }
+fdt = "0.1.5"
 librust = { version = "0.1.0", path = "../librust" }
+regs = { version = "0.1.0", path = "../../support_crates/regs" }
 uart_driver = { version = "0.1.0", path = "../../support_crates/uart_driver" }
 
 [build-dependencies]

@@ -42,8 +42,16 @@ pub(super) fn sys_irq_control_claim(
             NotificationIface.copy(notification_cap, irq_control_slot);
 
             // activate the specified interrupt line in the PLIC
-            // we currently only run the first hart in supervisor mode which should be context 1
+            // we currently only run the first hart in supervisor mode, which corresponds to
+            // qemu_virt:  context 1
+            // qemu_sifive_u: context 2
+
+            // TODO: determine which context(s) whe should enable
+            ctx.plic.enable_interrupt(args.interrupt_line as u32, 0);
             ctx.plic.enable_interrupt(args.interrupt_line as u32, 1);
+            ctx.plic.enable_interrupt(args.interrupt_line as u32, 2);
+            ctx.plic.enable_interrupt(args.interrupt_line as u32, 3);
+
             // we use priority 2 because we set the interrupt threshold to 1 in plic initialization
             ctx.plic.set_priority(args.interrupt_line as u32, 2);
 
