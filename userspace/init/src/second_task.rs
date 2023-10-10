@@ -1,7 +1,7 @@
 use elfloader::ElfBinary;
 use librust::{
     prelude::*,
-    syscall_abi::{identify::CapabilityVariant, map_page::MapPageFlag},
+    syscall_abi::{identify::CapabilityVariant, MapFlags},
 };
 
 use crate::{
@@ -21,25 +21,26 @@ impl Command for SecondTask {
         "load another elf binary from init"
     }
 
-    fn execute(&self, args: &str) -> Result<(), ()> {
+    fn execute(&self, _args: &str) -> Result<(), ()> {
         run_second_task();
         Ok(())
     }
 }
 
 fn run_second_task() {
-    librust::derive_from_mem(CADDR_MEM, CADDR_CHILD_TASK, CapabilityVariant::Task, None).unwrap();
+    librust::derive(CADDR_MEM, CADDR_CHILD_TASK, CapabilityVariant::Task, None).unwrap();
 
-    librust::derive_from_mem(
+    librust::derive(
         CADDR_MEM,
         CADDR_CHILD_CSPACE,
         CapabilityVariant::CSpace,
         Some(8),
     )
     .unwrap();
+    println!("assigning cspace to task: {}", CADDR_CHILD_CSPACE);
     librust::task_assign_cspace(CADDR_CHILD_CSPACE, CADDR_CHILD_TASK).unwrap();
 
-    librust::derive_from_mem(
+    librust::derive(
         CADDR_MEM,
         CADDR_CHILD_VSPACE,
         CapabilityVariant::VSpace,
@@ -55,7 +56,7 @@ fn run_second_task() {
     println!("loading HelloWorld binary");
     // load a stack for the child task
     const CHILD_STACK_LOW: usize = 0x5_0000_0000;
-    librust::derive_from_mem(
+    librust::derive(
         CADDR_MEM,
         CADDR_CHILD_STACK_PAGE,
         CapabilityVariant::Page,
@@ -67,7 +68,7 @@ fn run_second_task() {
         CADDR_CHILD_VSPACE,
         CADDR_MEM,
         CHILD_STACK_LOW,
-        MapPageFlag::READ | MapPageFlag::WRITE,
+        MapFlags::READ | MapFlags::WRITE,
     )
     .unwrap();
     // load binary elf code

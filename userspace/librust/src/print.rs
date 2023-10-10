@@ -1,7 +1,7 @@
 use crate::syscalls::syscall;
 use core::fmt::{self, Write};
-use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
-use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
+use syscall_abi::debug::{DebugLog, DebugLogArgs};
+use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
 
 pub fn print(s: &str) {
     const REG_SIZE: usize = core::mem::size_of::<usize>();

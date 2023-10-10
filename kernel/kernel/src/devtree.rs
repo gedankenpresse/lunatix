@@ -2,7 +2,6 @@ use fdt_rs::{
     base::{DevTree, DevTreeNode},
     prelude::*,
 };
-use libkernel::println;
 
 use crate::caps::DevmemEntry;
 

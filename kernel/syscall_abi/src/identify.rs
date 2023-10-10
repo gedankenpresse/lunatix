@@ -16,6 +16,7 @@ pub enum CapabilityVariant {
     Irq = 7,
     Notification = 8,
     Devmem = 9,
+    AsidControl = 10,
 }
 
 impl Into<usize> for CapabilityVariant {

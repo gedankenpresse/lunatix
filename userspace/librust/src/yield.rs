@@ -1,6 +1,6 @@
 use crate::syscalls::syscall;
 use syscall_abi::{
-    r#yield::{Yield, YieldArgs, YieldReturn},
+    r#yield::{Yield, YieldArgs},
     NoValue, SyscallResult,
 };
 

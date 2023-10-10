@@ -28,12 +28,13 @@ fn _start() {
 }
 
 const CADDR_MEM: CAddr = 1;
-const CADDR_CSPACE: CAddr = 2;
+const _CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
 const CADDR_IRQ_CONTROL: CAddr = 4;
 const CADDR_DEVMEM: CAddr = 5;
-const CADDR_UART_IRQ: CAddr = 6;
-const CADDR_UART_NOTIFICATION: CAddr = 7;
+const _CADDR_ASID_CONTROL: CAddr = 7;
+const CADDR_UART_IRQ: CAddr = 7;
+const CADDR_UART_NOTIFICATION: CAddr = 8;
 
 const CADDR_CHILD_TASK: CAddr = 10;
 const CADDR_CHILD_CSPACE: CAddr = 11;
@@ -61,7 +62,7 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
     let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
     let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
 
-    librust::derive_from_mem(
+    librust::derive(
         CADDR_MEM,
         CADDR_UART_NOTIFICATION,
         CapabilityVariant::Notification,
@@ -80,9 +81,10 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
         CapabilityVariant::Irq
     );
 
-    librust::map_devmem(
+    librust::devmem_map(
         CADDR_DEVMEM,
         CADDR_MEM,
+        CADDR_VSPACE,
         region.starting_address as usize,
         region.size.unwrap() as usize,
     )
@@ -102,7 +104,7 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
     let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
 
-    librust::derive_from_mem(
+    librust::derive(
         CADDR_MEM,
         CADDR_UART_NOTIFICATION,
         CapabilityVariant::Notification,
@@ -122,9 +124,10 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
         CapabilityVariant::Irq
     );
 
-    librust::map_devmem(
+    librust::devmem_map(
         CADDR_DEVMEM,
         CADDR_MEM,
+        CADDR_VSPACE,
         region.starting_address as usize,
         region.size.unwrap() as usize,
     )

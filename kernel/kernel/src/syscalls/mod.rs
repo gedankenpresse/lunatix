@@ -1,18 +1,17 @@
 mod assign_ipc_buffer;
-mod debug_log;
-mod debug_putc;
-mod derive_from_mem;
 mod identify;
-mod map_page;
-mod task_assign_control_registers;
-mod task_assign_cspace;
-mod task_assign_vspace;
 mod r#yield;
 mod yield_to;
 
-mod irq_complete;
-mod irq_control_claim;
-mod map_devmem;
+mod asid_control;
+mod debug;
+mod irq;
+mod mem;
+mod page;
+mod task;
+
+mod devmem;
+mod send;
 mod system_reset;
 mod utils;
 mod wait_on;
@@ -20,40 +19,22 @@ mod wait_on;
 use crate::caps::Capability;
 use crate::sched::Schedule;
 use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
-use crate::syscalls::debug_log::sys_debug_log;
-use crate::syscalls::debug_putc::sys_debug_putc;
-use crate::syscalls::derive_from_mem::sys_derive_from_mem;
+use crate::syscalls::debug::sys_debug_log;
+use crate::syscalls::debug::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
-use crate::syscalls::irq_complete::sys_irq_complete;
-use crate::syscalls::irq_control_claim::sys_irq_control_claim;
-use crate::syscalls::map_devmem::sys_map_devmem;
-use crate::syscalls::map_page::sys_map_page;
 use crate::syscalls::r#yield::sys_yield;
 use crate::syscalls::system_reset::sys_system_reset;
-use crate::syscalls::task_assign_control_registers::sys_task_assign_control_registers;
-use crate::syscalls::task_assign_cspace::sys_task_assign_cspace;
-use crate::syscalls::task_assign_vspace::sys_task_assign_vspace;
 use crate::syscalls::wait_on::sys_wait_on;
 use crate::syscalls::yield_to::sys_yield_to;
 use crate::SyscallContext;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
-use syscall_abi::debug_log::{DebugLog, DebugLogArgs};
-use syscall_abi::debug_putc::{DebugPutc, DebugPutcArgs};
-use syscall_abi::derive_from_mem::{DeriveFromMem, DeriveFromMemArgs};
-use syscall_abi::generic_return::GenericReturn;
+use syscall_abi::debug::{DebugLog, DebugLogArgs};
+use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
 use syscall_abi::identify::{Identify, IdentifyArgs};
-use syscall_abi::irq_complete::{IrqComplete, IrqCompleteArgs};
-use syscall_abi::irq_control_claim::{IrqControlClaim, IrqControlClaimArgs};
-use syscall_abi::map_devmem::{MapDevmem, MapDevmemArgs};
-use syscall_abi::map_page::{MapPage, MapPageArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
-use syscall_abi::task_assign_control_registers::{
-    TaskAssignControlRegisters, TaskAssignControlRegistersArgs,
-};
-use syscall_abi::task_assign_cspace::{TaskAssignCSpace, TaskAssignCSpaceArgs};
-use syscall_abi::task_assign_vspace::{TaskAssignVSpace, TaskAssignVSpaceArgs};
+
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
@@ -113,26 +94,6 @@ pub fn handle_syscall(
             (result.into_response(), Schedule::Keep)
         }
 
-        DeriveFromMem::SYSCALL_NO => {
-            log::debug!(
-                "handling derive_from_mem syscall with args {:?}",
-                DeriveFromMemArgs::from(args)
-            );
-            let result = sys_derive_from_mem(task, DeriveFromMemArgs::from(args));
-            log::debug!("derive_from_mem result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
-        MapPage::SYSCALL_NO => {
-            log::debug!(
-                "handling map_page syscall with args {:?}",
-                MapPageArgs::try_from(args).unwrap()
-            );
-            let result = sys_map_page(task, MapPageArgs::try_from(args).unwrap());
-            log::debug!("map_page syscall result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
         AssignIpcBuffer::SYSCALL_NO => {
             log::debug!(
                 "handling assign_ipc_buffer syscall with args {:?}",
@@ -140,42 +101,6 @@ pub fn handle_syscall(
             );
             let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
             log::debug!("assign_ipc_buffer syscall result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
-        TaskAssignCSpace::SYSCALL_NO => {
-            log::debug!(
-                "handling task_assign_cspace syscall with args {:?}",
-                TaskAssignCSpaceArgs::try_from(args).unwrap()
-            );
-            let result =
-                sys_task_assign_cspace(task, TaskAssignCSpaceArgs::try_from(args).unwrap());
-            log::debug!("task_assign_cspace syscall result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
-        TaskAssignVSpace::SYSCALL_NO => {
-            log::debug!(
-                "handling task_assign_vspace syscall with args {:?}",
-                TaskAssignVSpaceArgs::try_from(args).unwrap()
-            );
-            let result =
-                sys_task_assign_vspace(task, TaskAssignVSpaceArgs::try_from(args).unwrap());
-            log::debug!("task_assign_vspace syscall result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
-        TaskAssignControlRegisters::SYSCALL_NO => {
-            log::debug!(
-                "handling task_assign_control_registers with args {:?}",
-                TaskAssignControlRegistersArgs::from(args)
-            );
-            let result =
-                sys_task_assign_control_registers(task, TaskAssignControlRegistersArgs::from(args));
-            log::debug!(
-                "task_assign_control_registers syscall result is {:?}",
-                result
-            );
             (result.into_response(), Schedule::Keep)
         }
 
@@ -196,15 +121,7 @@ pub fn handle_syscall(
             );
             let (result, schedule) = sys_yield(YieldArgs::from(args));
             log::debug!("yield result is {:?}", result);
-            (result.into(), schedule)
-        }
-
-        IrqControlClaim::SYSCALL_NO => {
-            let args = IrqControlClaimArgs::from(args);
-            log::debug!("handling irq_control_claim with args {:?}", args);
-            let result = sys_irq_control_claim(task, ctx, args);
-            log::debug!("irq_control_claim result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
+            (result.into_response(), schedule)
         }
 
         WaitOn::SYSCALL_NO => {
@@ -219,24 +136,20 @@ pub fn handle_syscall(
             (result.into_response(), schedule)
         }
 
-        IrqComplete::SYSCALL_NO => {
-            let args = IrqCompleteArgs::from(args);
-            log::debug!("handling irq_complete syscall with args {:?}", args);
-            let result = sys_irq_complete(task, ctx, args);
-            log::debug!("irq_claim result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
         SystemReset::SYSCALL_NO => {
             let args = SystemResetArgs::from(args);
             log::debug!("handling system_reset syscall with args {:?}", args);
             sys_system_reset(args);
         }
-        MapDevmem::SYSCALL_NO => {
-            let args = MapDevmemArgs::try_from(args).unwrap();
-            log::debug!("mapping devmem: {:0x?}", args);
-            let result = sys_map_devmem(task, args);
-            (result.into_response(), Schedule::Keep)
+
+        /* SEND SYSCALL */
+        18 => {
+            let result = send::sys_send(ctx, task, &args);
+            let response = match result {
+                Ok(()) => Ok(NoValue),
+                Err(e) => Err(SysError::UnknownError),
+            };
+            (response.into_response(), Schedule::Keep)
         }
         no => {
             log::warn!(
@@ -244,7 +157,7 @@ pub fn handle_syscall(
                 syscall_no,
                 args
             );
-            (GenericReturn::UnsupportedSyscall.into(), Schedule::Keep)
+            ([SysError::UnknownSyscall as usize, 0], Schedule::Keep)
         }
     };
 

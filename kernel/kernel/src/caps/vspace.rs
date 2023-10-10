@@ -13,6 +13,7 @@ use super::Capability;
 
 pub struct VSpace {
     pub(crate) root: *mut PageTable,
+    pub(crate) asid: usize,
 }
 
 impl Correspondence for VSpace {
@@ -86,6 +87,7 @@ impl VSpaceIface {
         target.variant = Variant {
             vspace: ManuallyDrop::new(VSpace {
                 root: page.leak() as *mut _,
+                asid: 0,
             }),
         };
 
@@ -123,6 +125,7 @@ impl CapabilityIface<Capability> for VSpaceIface {
             dst.variant = Variant {
                 vspace: ManuallyDrop::new(VSpace {
                     root: src_vspace.root,
+                    asid: src_vspace.asid,
                 }),
             }
         }

@@ -2,8 +2,8 @@ use core::mem;
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
 use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
-use librust::syscall_abi::map_page::MapPageFlag;
 use librust::syscall_abi::CAddr;
+use librust::syscall_abi::MapFlags;
 
 const PAGESIZE: usize = 4096;
 
@@ -98,28 +98,27 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                     load_header.offset()
                 );
                 self.interim_addr += PAGESIZE;
-                librust::derive_from_mem(self.mem, mapping.page, CapabilityVariant::Page, None)
-                    .unwrap();
+                librust::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
                 // map page for us so we can load content into it later
                 librust::map_page(
                     mapping.page,
                     self.own_vspace,
                     self.mem,
                     mapping.local_addr,
-                    MapPageFlag::READ | MapPageFlag::WRITE,
+                    MapFlags::READ | MapFlags::WRITE,
                 )
                 .unwrap();
 
                 // map page for the new task with appropriate flags
-                let mut flags = MapPageFlag::empty();
+                let mut flags = MapFlags::empty();
                 if load_header.flags().is_read() {
-                    flags |= MapPageFlag::READ;
+                    flags |= MapFlags::READ;
                 }
                 if load_header.flags().is_write() {
-                    flags |= MapPageFlag::WRITE;
+                    flags |= MapFlags::WRITE;
                 }
                 if load_header.flags().is_execute() {
-                    flags |= MapPageFlag::EXEC;
+                    flags |= MapFlags::EXEC;
                 }
                 librust::map_page(
                     mapping.page,
@@ -135,7 +134,7 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
         Ok(())
     }
 
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
+    fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             let mapping = self.find_mapping(base as usize + i * PAGESIZE).unwrap();
             println!("loading content of region {:?}", mapping);

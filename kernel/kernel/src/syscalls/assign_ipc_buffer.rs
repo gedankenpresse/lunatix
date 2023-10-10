@@ -15,7 +15,7 @@ pub(super) fn sys_assign_ipc_buffer(
     let cspace = cspace.get_shared().unwrap();
     let cspace = cspace.get_inner_cspace().unwrap();
 
-    let page_cap = unsafe { utils::lookup_cap(cspace, args.page, Tag::Page) }?;
+    let page_cap = unsafe { utils::lookup_cap(cspace, args.page, Tag::Page) }.unwrap();
     let page = page_cap.get_inner_page().unwrap();
 
     // TODO The mutable ipc_buffer reference we have here is very much unsafe to use (🤷‍)

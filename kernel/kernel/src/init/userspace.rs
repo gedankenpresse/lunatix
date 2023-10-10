@@ -15,7 +15,7 @@ use elfloader::{
     VAddr,
 };
 use fdt_rs::base::DevTree;
-use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
+use libkernel::mem::ptrs::{MappedConstPtr, PhysMutPtr};
 use libkernel::mem::{EntryFlags, PAGESIZE};
 
 static INIT_BIN: &[u8] = include_aligned!(
@@ -278,8 +278,23 @@ pub fn create_init_caps<'dt>(
                 .as_mut()
                 .unwrap()
         };
+
         let devmem: &Capability = &init_caps.devmem;
         DevmemIface.copy(devmem, target_slot);
+    }
+
+    {
+        let target_slot = unsafe {
+            task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(6)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+        };
+        caps::asid::init_asid_control(target_slot);
     }
 
     init_caps

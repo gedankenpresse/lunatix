@@ -47,7 +47,11 @@ impl CapabilityIface<Capability> for CSpaceIface {
 
     fn copy(&self, src: &impl AsStaticRef<Capability>, dst: &mut impl AsStaticMut<Capability>) {
         assert_eq!(src.as_static_ref().tag, Tag::CSpace);
-        assert_eq!(dst.as_static_ref().tag, Tag::Uninit);
+        assert_eq!(
+            dst.as_static_ref().tag,
+            Tag::Uninit,
+            "destination is not uninit"
+        );
 
         // semantically copy the cspace
         dst.as_static_mut().tag = Tag::CSpace;

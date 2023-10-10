@@ -64,7 +64,7 @@ impl Into<RawSyscallArgs> for DebugLogArgs {
 
 #[cfg(test)]
 mod test {
-    use crate::debug_log::DebugLogArgs;
+    use crate::debug::DebugLogArgs;
     use crate::RawSyscallArgs;
     use core::mem;
 
@@ -122,4 +122,29 @@ mod test {
             byte_slice: bytes,
         };
     }
+}
+
+// Definitions for the `debug_putc` syscall
+pub struct DebugPutc;
+
+pub struct DebugPutcArgs(pub char);
+
+impl TryFrom<RawSyscallArgs> for DebugPutcArgs {
+    type Error = Infallible;
+
+    fn try_from(value: RawSyscallArgs) -> Result<Self, Self::Error> {
+        Ok(Self(*value.first().unwrap() as u8 as char))
+    }
+}
+
+impl Into<RawSyscallArgs> for DebugPutcArgs {
+    fn into(self) -> RawSyscallArgs {
+        [self.0 as usize, 0, 0, 0, 0, 0, 0]
+    }
+}
+
+impl SyscallBinding for DebugPutc {
+    const SYSCALL_NO: usize = 1;
+    type CallArgs = DebugPutcArgs;
+    type Return = SyscallResult<NoValue>;
 }

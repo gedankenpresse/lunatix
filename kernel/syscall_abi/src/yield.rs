@@ -1,6 +1,5 @@
 //! Definitions for the `yield` syscall
 
-use crate::generic_return::GenericReturn;
 use crate::{NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct Yield;
@@ -8,7 +7,7 @@ pub struct Yield;
 #[derive(Debug, Eq, PartialEq)]
 pub struct YieldArgs {}
 
-pub type YieldReturn = GenericReturn;
+pub type YieldReturn = SyscallResult<NoValue>;
 
 impl SyscallBinding for Yield {
     const SYSCALL_NO: usize = 12;

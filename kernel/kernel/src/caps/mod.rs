@@ -1,7 +1,8 @@
+pub mod asid;
 pub mod cspace;
 pub mod devmem;
-mod irq;
-mod irq_control;
+pub mod irq;
+pub mod irq_control;
 pub mod memory;
 pub mod notification;
 pub mod page;
@@ -16,6 +17,7 @@ use derivation_tree::{
     AsStaticMut, AsStaticRef, Correspondence,
 };
 
+pub use asid::{AsidControl, AsidControlIface};
 pub use cspace::{CSpace, CSpaceIface};
 pub use devmem::{Devmem, DevmemEntry, DevmemIface};
 pub use irq::{Irq, IrqIface};
@@ -45,6 +47,7 @@ pub enum Tag {
     Irq,
     Notification,
     Devmem,
+    AsidControl,
 }
 
 pub union Variant {
@@ -58,6 +61,7 @@ pub union Variant {
     irq: ManuallyDrop<Irq>,
     notification: ManuallyDrop<Notification>,
     devmem: ManuallyDrop<Devmem>,
+    asid_control: ManuallyDrop<AsidControl>,
 }
 
 pub struct Capability {
@@ -218,6 +222,21 @@ cap_get_inner_mut!(
     get_inner_devmem_mut
 );
 
+cap_get_ref_mut!(
+    AsidControl,
+    AsidControl,
+    get_asid_control,
+    get_asid_control_mut
+);
+
+cap_get_inner_mut!(
+    AsidControl,
+    AsidControl,
+    asid_control,
+    get_inner_asid_control,
+    get_inner_asid_control_mut
+);
+
 pub struct CapRef<'a, T> {
     pub cap: &'a Capability,
     _type: PhantomData<T>,
@@ -303,6 +322,8 @@ mod errors {
         AliasingCSlot = 7,
         InvalidReturn = 8,
         Unsupported = 9,
+        AlreadyMapped = 10,
+        NoAsid = 11,
     }
 
     /// macro to implement From Instances from Singletons to Error

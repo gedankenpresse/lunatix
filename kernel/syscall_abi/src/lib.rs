@@ -23,6 +23,7 @@
 //! | [irq_complete](irq_complete::IrqComplete) | *15* | [IrqCompleteArgs](irq_complete::IrqCompleteArgs) | [NoValue](NoValue) | Mark the interrupt on an IRQ as completed |
 //! | [system_reset](system_reset::SystemReset) | *16* | [SystemResetArgs](system_reset::SystemResetArgs) | [NoValue](NoValue) | Schedule a hardware reset |
 //! | [map_devmem](map_devmem::MapDevmem) | *17* | [MapDevmemArgs](map_devmem::MapDevmemArgs) | [NoValue](NoValue) | Map Device Memory
+//! | [send] | *18* |
 
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
@@ -30,20 +31,10 @@
 use core::usize;
 
 pub mod assign_ipc_buffer;
-pub mod debug_log;
-pub mod debug_putc;
-pub mod derive_from_mem;
-pub mod generic_return;
+pub mod debug;
 pub mod identify;
 pub mod inspect_derivation_tree;
-pub mod irq_complete;
-pub mod irq_control_claim;
-pub mod map_devmem;
-pub mod map_page;
 pub mod system_reset;
-pub mod task_assign_control_registers;
-pub mod task_assign_cspace;
-pub mod task_assign_vspace;
 pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;
@@ -180,5 +171,19 @@ where
                 Err(_) => Err(SysError::UnknownError),
             },
         }
+    }
+}
+
+use bitflags::bitflags;
+
+bitflags! {
+    #[derive(Debug, Eq, PartialEq, Default)]
+    pub struct MapFlags: usize {
+        /// The page should be mapped so that it is readable.
+        const READ = 0b001;
+        /// The page should be mapped so that it is writable.
+        const WRITE = 0b010;
+        /// The page should be mapped so that code stored in it can be executed.
+        const EXEC = 0b100;
     }
 }
