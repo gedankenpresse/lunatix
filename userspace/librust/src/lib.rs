@@ -1,24 +1,26 @@
 #![no_std]
 
+pub mod destroy;
 pub mod identify;
 pub(crate) mod syscalls;
 // pub(crate) mod ipc;
-// pub mod memory;
 mod assign_ipc_buffer;
+
+mod devmem;
 mod irq;
 mod irq_control;
 mod mem;
 mod page;
+mod task;
 
-mod devmem;
 pub mod print;
 mod system_reset;
-mod task;
 mod wait_on;
 mod r#yield;
 mod yield_to;
 
 pub use assign_ipc_buffer::assign_ipc_buffer;
+pub use destroy::destroy;
 pub use devmem::devmem_map;
 pub use identify::identify;
 pub use irq::irq_complete;

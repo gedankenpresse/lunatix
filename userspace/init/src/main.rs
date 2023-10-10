@@ -237,7 +237,7 @@ impl Command for Help {
         "help for this command"
     }
 
-    fn execute(&self, _args: &str) -> Result<(), ()> {
+    fn execute(&self, _args: &str) -> Result<(), &'static str> {
         println!("Known Commands: ");
         for cmd in KNOWN_COMMANDS {
             println!("\t {: <12} {}", cmd.get_name(), cmd.get_summary());
@@ -252,21 +252,23 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Shutdown,
     &Help,
     &commands::Identify,
+    &commands::Destroy,
+    &commands::Copy,
 ];
 
 fn process_cmd(input: &str) {
     print!("\n");
 
-    match KNOWN_COMMANDS
+    let Some(cmd) = KNOWN_COMMANDS
         .iter()
         .find(|i| input.starts_with(i.get_name()))
-    {
-        None => println!(
+    else {
+        println!(
             "Unknown command {:?}. Enter 'help' for a list of commands",
-            input
-        ),
-        Some(cmd) => cmd
-            .execute(input.strip_prefix(cmd.get_name()).unwrap().trim_start())
-            .expect("Could not execute command"),
-    };
+            input);
+            return };
+    match cmd.execute(input.strip_prefix(cmd.get_name()).unwrap().trim_start()) {
+        Ok(()) => {}
+        Err(e) => println!("error: {}", e),
+    }
 }

@@ -17,7 +17,7 @@ pub fn send(
 }
 
 #[inline(always)]
-fn raw_syscall(
+pub fn raw_syscall(
     syscallno: usize,
     a1: usize,
     a2: usize,

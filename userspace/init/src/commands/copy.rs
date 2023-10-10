@@ -1,20 +1,17 @@
-use librust::println;
-
 use super::Command;
 
-pub struct Echo;
+pub struct Copy;
 
-impl Command for Echo {
+impl Command for Copy {
     fn get_name(&self) -> &'static str {
-        "echo"
+        "copy"
     }
 
     fn get_summary(&self) -> &'static str {
-        "echo the input back to the user"
+        "copy syscall"
     }
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
-        println!("{}", args);
-        Ok(())
+        Err("todo")
     }
 }

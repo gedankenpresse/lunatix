@@ -21,7 +21,7 @@ impl Command for SecondTask {
         "load another elf binary from init"
     }
 
-    fn execute(&self, _args: &str) -> Result<(), ()> {
+    fn execute(&self, _args: &str) -> Result<(), &'static str> {
         run_second_task();
         Ok(())
     }

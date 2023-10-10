@@ -13,7 +13,7 @@ impl Command for Shutdown {
         "shut down the system"
     }
 
-    fn execute(&self, _args: &str) -> Result<(), ()> {
+    fn execute(&self, _args: &str) -> Result<(), &'static str> {
         librust::system_reset(ResetType::Shutdown, ResetReason::NoReason);
     }
 }

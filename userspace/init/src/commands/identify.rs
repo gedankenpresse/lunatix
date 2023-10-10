@@ -13,9 +13,15 @@ impl Command for Identify {
         "identify syscall"
     }
 
-    fn execute(&self, args: &str) -> Result<(), ()> {
-        let caddr = args.trim().split(" ").next().ok_or(())?;
-        let caddr = caddr.parse::<usize>().map_err(|_| ())?;
+    fn execute(&self, args: &str) -> Result<(), &'static str> {
+        let caddr = args
+            .trim()
+            .split(" ")
+            .next()
+            .ok_or("failed to read caddr")?;
+        let caddr = caddr
+            .parse::<usize>()
+            .map_err(|_| "failed to parse caddr")?;
         println!("{:?}", librust::identify(caddr));
         Ok(())
     }
