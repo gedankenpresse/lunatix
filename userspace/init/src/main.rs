@@ -4,16 +4,15 @@
 mod commands;
 mod elfloader;
 mod read;
-mod second_task;
 mod sifive_uart;
 
-use crate::commands::KNOWN_COMMANDS;
+use crate::commands::Command;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use core::panic::PanicInfo;
 use fdt::node::FdtNode;
 use fdt::Fdt;
-use librust::syscall_abi::identify::CapabilityVariant;
+use librust::syscall_abi::identify::{CapabilityVariant, Identify};
 use librust::syscall_abi::CAddr;
 use librust::{print, println};
 use sifive_uart::SifiveUart;
@@ -227,8 +226,37 @@ fn read_cmd<'b>(reader: &mut dyn ByteReader, buf: &'b mut [u8]) -> &'b str {
     }
 }
 
+struct Help;
+
+impl Command for Help {
+    fn get_name(&self) -> &'static str {
+        "help"
+    }
+
+    fn get_summary(&self) -> &'static str {
+        "help for this command"
+    }
+
+    fn execute(&self, _args: &str) -> Result<(), ()> {
+        println!("Known Commands: ");
+        for cmd in KNOWN_COMMANDS {
+            println!("\t {: <12} {}", cmd.get_name(), cmd.get_summary());
+        }
+        Ok(())
+    }
+}
+
+const KNOWN_COMMANDS: &[&'static dyn Command] = &[
+    &commands::SecondTask,
+    &commands::Echo,
+    &commands::Shutdown,
+    &Help,
+    &commands::Identify,
+];
+
 fn process_cmd(input: &str) {
     print!("\n");
+
     match KNOWN_COMMANDS
         .iter()
         .find(|i| input.starts_with(i.get_name()))
