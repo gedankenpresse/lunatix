@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod copy;
 pub mod destroy;
 pub mod identify;
 pub(crate) mod syscalls;
@@ -20,6 +21,7 @@ mod r#yield;
 mod yield_to;
 
 pub use assign_ipc_buffer::assign_ipc_buffer;
+pub use copy::copy;
 pub use destroy::destroy;
 pub use devmem::devmem_map;
 pub use identify::identify;

@@ -7,7 +7,6 @@ use syscall_abi::identify::CapabilityVariant;
 use super::utils;
 
 pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &[usize]) -> Result<(), Error> {
-    log::info!("mem derive: {:?}", args);
     const DERIVE: usize = 1;
     match args[0] {
         DERIVE => mem_derive(

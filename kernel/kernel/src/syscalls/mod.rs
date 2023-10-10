@@ -1,4 +1,5 @@
 mod assign_ipc_buffer;
+mod copy;
 mod destroy;
 mod identify;
 mod r#yield;
@@ -156,6 +157,16 @@ pub fn handle_syscall(
         /* DESTROY SYSCALL */
         19 => {
             let result = destroy::sys_destroy(ctx, task, &args);
+            let response = match result {
+                Ok(()) => Ok(NoValue),
+                Err(e) => Err(SysError::UnknownError),
+            };
+            (response.into_response(), Schedule::Keep)
+        }
+
+        /* COPY SYSCALL */
+        20 => {
+            let result = copy::sys_copy(ctx, task, &args);
             let response = match result {
                 Ok(()) => Ok(NoValue),
                 Err(e) => Err(SysError::UnknownError),

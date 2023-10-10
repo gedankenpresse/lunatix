@@ -34,7 +34,6 @@ impl<'a> SifiveUart<'a> {
     }
 
     pub fn enable_rx_interrupts(&mut self) {
-        println!("enabling rx interrupts");
         let ie = unsafe { self.mm.ie.read() };
         unsafe { self.mm.ie.write(ie | 2) }
         let rxctl = unsafe { self.mm.rxctrl.read() };

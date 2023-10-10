@@ -1,4 +1,4 @@
-use super::Command;
+use super::{CAddrArg, Command, ToValue};
 
 pub struct Copy;
 
@@ -12,6 +12,8 @@ impl Command for Copy {
     }
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
-        Err("todo")
+        let (CAddrArg { addr: source }, CAddrArg { addr: target }) = args.to_value()?;
+        librust::copy(source, target).unwrap();
+        Ok(())
     }
 }

@@ -117,7 +117,6 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
         CADDR_UART_NOTIFICATION,
     )
     .unwrap();
-    println!("claimed irq for interrupt line: {}", interrupt);
     assert_eq!(
         librust::identify(CADDR_UART_IRQ).unwrap(),
         CapabilityVariant::Irq
@@ -132,11 +131,7 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     )
     .unwrap();
     let mut uart = unsafe { SifiveUart::from_ptr(region.starting_address as *mut SifiveUartMM) };
-    uart.log_settings();
-    uart.write_data('!' as u8);
     uart.enable_rx_interrupts();
-    uart.write_data('?' as u8);
-    uart.log_settings();
     Ok(uart)
 }
 
