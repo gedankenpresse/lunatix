@@ -19,7 +19,7 @@ pub(super) fn sys_send(
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: &[usize; 7],
 ) -> Result<(), caps::Error> {
-    log::debug!("send args: {:?}", args);
+    log::trace!("send args: {:?}", args);
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
     let cspace = cspace.get_shared().unwrap();

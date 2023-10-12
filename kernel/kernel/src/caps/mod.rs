@@ -28,8 +28,8 @@ pub use page::{Page, PageIface};
 pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
 
-pub use errors::Error;
 pub use prelude::*;
+pub use syscall_abi::Error;
 
 #[derive(Copy, Clone)]
 pub struct Uninit {}
@@ -308,54 +308,4 @@ impl Capability {
             variant: Variant { uninit: Uninit {} },
         }
     }
-}
-
-mod errors {
-    #[repr(usize)]
-    #[derive(Debug)]
-    pub enum Error {
-        InvalidCAddr = 1,
-        NoMem = 2,
-        OccupiedSlot = 3,
-        InvalidCap = 4,
-        InvalidArg = 6,
-        AliasingCSlot = 7,
-        InvalidReturn = 8,
-        Unsupported = 9,
-        AlreadyMapped = 10,
-        NoAsid = 11,
-    }
-
-    /// macro to implement From Instances from Singletons to Error
-    /// invoking with `err_from_impl!(Variant, Type)` results in an impl
-    /// that converts Type to Variant
-    macro_rules! err_from_impl {
-        ($v:ident, $t:ty) => {
-            impl From<$t> for Error {
-                fn from(_value: $t) -> Self {
-                    Self::$v
-                }
-            }
-        };
-    }
-
-    macro_rules! singleton_variant {
-        ($t:ident) => {
-            #[derive(Debug)]
-            pub struct $t;
-        };
-    }
-
-    singleton_variant!(InvalidCAddr);
-    singleton_variant!(NoMem);
-    singleton_variant!(OccupiedSlot);
-    singleton_variant!(InvalidCap);
-
-    err_from_impl!(InvalidCAddr, InvalidCAddr);
-    err_from_impl!(NoMem, NoMem);
-    err_from_impl!(OccupiedSlot, OccupiedSlot);
-    err_from_impl!(InvalidCap, InvalidCap);
-
-    err_from_impl!(AliasingCSlot, core::cell::BorrowMutError);
-    err_from_impl!(AliasingCSlot, core::cell::BorrowError);
 }

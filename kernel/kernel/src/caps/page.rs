@@ -80,6 +80,10 @@ impl CapabilityIface<Capability> for PageIface {
     }
 }
 
+pub fn unmap_page(page: &mut Page) {
+    todo!()
+}
+
 pub fn map_page(
     page: &mut Page,
     mem: &Memory,
@@ -111,6 +115,7 @@ pub fn map_page(
     }
 
     if vspace.asid == ASID_NONE {
+        log::error!("no asid!");
         return Err(Error::NoAsid);
     }
 

@@ -36,7 +36,10 @@ fn task_assign_vspace(cspace: &CSpace, task: &Task, vspace_addr: usize) -> Resul
     let source = unsafe { utils::lookup_cap(cspace, vspace_addr, Tag::VSpace) }?;
 
     // assign cspace to target task
-    log::trace!("copy vspace:");
+    log::trace!(
+        "copy vspace (asid = {}):",
+        source.get_inner_vspace().unwrap().asid
+    );
     let mut task = task.state.borrow_mut();
     VSpaceIface.copy(&source, &mut task.vspace);
     log::trace!("vspace copied");

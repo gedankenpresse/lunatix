@@ -1,11 +1,13 @@
 use core::mem::{ManuallyDrop, MaybeUninit};
 
+use crate::caps::asid::ASID_NONE;
 use crate::caps::{self, Memory, Tag, Variant};
 use crate::virtmem;
 use allocators::Box;
-use caps::errors::NoMem;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
 use riscv::pt::{EntryFlags, PageTable};
+
+use caps::Error;
 
 // use crate::virtmem;
 
@@ -23,6 +25,11 @@ impl Correspondence for VSpace {
 }
 
 impl VSpace {
+    pub(crate) fn asign_asid(&mut self, asid: usize) {
+        assert_eq!(self.asid, ASID_NONE);
+        self.asid = asid;
+    }
+
     /// Allocate a range of virtual addresses
     /// Creates needed pages and page tables from given memory
     // TODO: fix usage of memory.get_inner
@@ -32,7 +39,7 @@ impl VSpace {
         vaddr_base: usize,
         size: usize,
         flags: EntryFlags,
-    ) -> Result<(), NoMem> {
+    ) -> Result<(), Error> {
         let mem = mem.get_inner_memory().unwrap();
         virtmem::map_range_alloc(
             &*mem.allocator,
@@ -53,7 +60,7 @@ impl VSpace {
         vaddr: usize,
         paddr: usize,
         flags: EntryFlags,
-    ) -> Result<(), NoMem> {
+    ) -> Result<(), Error> {
         virtmem::map(
             &mem.allocator,
             unsafe { &mut *self.root },

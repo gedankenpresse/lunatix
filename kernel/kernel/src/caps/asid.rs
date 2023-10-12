@@ -5,13 +5,13 @@ use riscv::pt::PageTable;
 
 use crate::caps::{Tag, Variant};
 
-use super::Capability;
+use super::{Capability, Error, VSpace};
 
 #[derive(Copy, Clone)]
 pub struct Asid {
     allocated: bool,
-    id: usize,
-    pt: *mut PageTable,
+    pub id: usize,
+    pub pt: *mut PageTable,
 }
 
 pub static ASID_MARKER: AtomicUsize = AtomicUsize::new(1);
@@ -24,7 +24,7 @@ pub struct AsidPool {
 unsafe impl Send for AsidPool {}
 unsafe impl Sync for AsidPool {}
 
-pub static ASID_POOL: AsidPool = AsidPool {
+pub static mut ASID_POOL: AsidPool = AsidPool {
     asids: [Asid {
         allocated: false,
         id: 0,
@@ -34,12 +34,33 @@ pub static ASID_POOL: AsidPool = AsidPool {
 
 pub struct AsidControl;
 
+impl AsidControl {
+    pub fn alloc_asid(&self) -> Result<&mut Asid, Error> {
+        let pool = unsafe { &mut ASID_POOL };
+        let asid = pool
+            .asids
+            .iter_mut()
+            .find(|i| !i.allocated)
+            .ok_or(Error::NoAsid)?;
+        asid.allocated = true;
+        asid.id = ASID_MARKER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        Ok(asid)
+    }
+}
+
 pub fn init_asid_control(slot: &mut Capability) {
     assert_eq!(slot.tag, Tag::Uninit);
     slot.tag = Tag::AsidControl;
     slot.variant = Variant {
         asid_control: ManuallyDrop::new(AsidControl),
     }
+}
+
+pub fn asid_control_assign(asid_control: &AsidControl, vspace: &mut VSpace) -> Result<(), Error> {
+    let asid = asid_control.alloc_asid()?;
+    asid.pt = vspace.root;
+    vspace.asid = asid.id;
+    Ok(())
 }
 
 pub struct AsidControlIface;

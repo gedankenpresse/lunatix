@@ -7,6 +7,7 @@ pub(crate) mod syscalls;
 // pub(crate) mod ipc;
 mod assign_ipc_buffer;
 
+mod asid;
 mod devmem;
 mod irq;
 mod irq_control;
@@ -20,6 +21,7 @@ mod wait_on;
 mod r#yield;
 mod yield_to;
 
+pub use asid::asid_assign;
 pub use assign_ipc_buffer::assign_ipc_buffer;
 pub use copy::copy;
 pub use destroy::destroy;
@@ -47,8 +49,8 @@ pub mod prelude {
     pub use crate::print;
     pub use crate::println;
     pub use crate::syscall_abi::CAddr;
+    pub use crate::syscall_abi::Error;
     pub use crate::syscall_abi::NoValue;
-    pub use crate::syscall_abi::SysError;
 }
 
 // #[repr(usize)]

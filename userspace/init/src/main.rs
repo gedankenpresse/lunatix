@@ -31,7 +31,7 @@ const _CADDR_CSPACE: CAddr = 2;
 const CADDR_VSPACE: CAddr = 3;
 const CADDR_IRQ_CONTROL: CAddr = 4;
 const CADDR_DEVMEM: CAddr = 5;
-const _CADDR_ASID_CONTROL: CAddr = 7;
+const CADDR_ASID_CONTROL: CAddr = 6;
 const CADDR_UART_IRQ: CAddr = 7;
 const CADDR_UART_NOTIFICATION: CAddr = 8;
 

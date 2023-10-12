@@ -19,7 +19,7 @@ pub(super) fn sys_yield_to(
     // get valid memory cap from task
     let target_task_cap = match unsafe { utils::lookup_cap_mut(cspace, args.task, Tag::Task) } {
         Ok(c) => c,
-        Err(e) => return (Err(syscall_abi::SysError::UnexpectedCap), Schedule::Keep),
+        Err(e) => return (Err(syscall_abi::Error::InvalidCap), Schedule::Keep),
     };
 
     // TODO Verify that the task is schedulable

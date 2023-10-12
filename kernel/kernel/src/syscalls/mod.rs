@@ -149,7 +149,7 @@ pub fn handle_syscall(
             let result = send::sys_send(ctx, task, &args);
             let response = match result {
                 Ok(()) => Ok(NoValue),
-                Err(e) => Err(SysError::UnknownError),
+                Err(e) => Err(e),
             };
             (response.into_response(), Schedule::Keep)
         }
@@ -159,7 +159,7 @@ pub fn handle_syscall(
             let result = destroy::sys_destroy(ctx, task, &args);
             let response = match result {
                 Ok(()) => Ok(NoValue),
-                Err(e) => Err(SysError::UnknownError),
+                Err(e) => Err(e),
             };
             (response.into_response(), Schedule::Keep)
         }
@@ -169,7 +169,7 @@ pub fn handle_syscall(
             let result = copy::sys_copy(ctx, task, &args);
             let response = match result {
                 Ok(()) => Ok(NoValue),
-                Err(e) => Err(SysError::UnknownError),
+                Err(e) => Err(e),
             };
             (response.into_response(), Schedule::Keep)
         }
@@ -179,12 +179,12 @@ pub fn handle_syscall(
                 syscall_no,
                 args
             );
-            ([SysError::UnknownSyscall as usize, 0], Schedule::Keep)
+            ([Error::UnknownSyscall as usize, 0], Schedule::Keep)
         }
     };
 
     // write the result back to userspace
-    if res[0] != SysError::WouldBlock as usize {
+    if res[0] != Error::WouldBlock as usize {
         let [a0, a1] = res;
         let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
         let tf = &mut task_state.frame;

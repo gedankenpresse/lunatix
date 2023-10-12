@@ -2,7 +2,7 @@ use crate::caps::{Capability, Tag};
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::{
     identify::{CapabilityVariant, IdentifyArgs},
-    SysError, SyscallResult,
+    Error, SyscallResult,
 };
 
 pub(super) fn sys_identify(
@@ -14,7 +14,7 @@ pub(super) fn sys_identify(
     let cspace = cspace.get_shared().unwrap();
     let cspace = cspace.get_inner_cspace().unwrap();
 
-    let cap_ptr = unsafe { cspace.lookup_raw(args.caddr) }.ok_or(SysError::InvalidCaddr)?;
+    let cap_ptr = unsafe { cspace.lookup_raw(args.caddr) }.ok_or(Error::InvalidCAddr)?;
     // TODO Use a cursor to safely access the capability
     let cap = unsafe { &*cap_ptr };
     let tag = cap.get_tag();

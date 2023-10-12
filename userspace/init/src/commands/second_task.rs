@@ -5,9 +5,9 @@ use librust::{
 };
 
 use crate::{
-    commands::Command, elfloader::LunatixElfLoader, CADDR_CHILD_CSPACE, CADDR_CHILD_PAGE_START,
-    CADDR_CHILD_STACK_PAGE, CADDR_CHILD_TASK, CADDR_CHILD_VSPACE, CADDR_MEM, CADDR_VSPACE,
-    HELLO_WORLD_BIN,
+    commands::Command, elfloader::LunatixElfLoader, CADDR_ASID_CONTROL, CADDR_CHILD_CSPACE,
+    CADDR_CHILD_PAGE_START, CADDR_CHILD_STACK_PAGE, CADDR_CHILD_TASK, CADDR_CHILD_VSPACE,
+    CADDR_MEM, CADDR_VSPACE, HELLO_WORLD_BIN,
 };
 
 pub struct SecondTask;
@@ -37,7 +37,6 @@ fn run_second_task() {
         Some(8),
     )
     .unwrap();
-    println!("assigning cspace to task: {}", CADDR_CHILD_CSPACE);
     librust::task_assign_cspace(CADDR_CHILD_CSPACE, CADDR_CHILD_TASK).unwrap();
 
     librust::derive(
@@ -51,6 +50,7 @@ fn run_second_task() {
         librust::identify(CADDR_CHILD_VSPACE).unwrap(),
         CapabilityVariant::VSpace
     );
+    librust::asid_assign(CADDR_ASID_CONTROL, CADDR_CHILD_VSPACE).unwrap();
     librust::task_assign_vspace(CADDR_CHILD_VSPACE, CADDR_CHILD_TASK).unwrap();
 
     println!("loading HelloWorld binary");

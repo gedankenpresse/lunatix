@@ -5,7 +5,7 @@ use crate::syscalls::utils;
 use derivation_tree::tree::CursorRefMut;
 use derivation_tree::AsStaticMut;
 use syscall_abi::wait_on::WaitOnArgs;
-use syscall_abi::{SysError, SyscallResult};
+use syscall_abi::{Error, SyscallResult};
 
 pub(super) fn sys_wait_on(
     task_cap: &mut CursorRefMut<'_, '_, Capability>,
@@ -37,7 +37,7 @@ pub(super) fn sys_wait_on(
         // this has the effect of then executing the branch below to construct a valid return value
         task_state.frame.start_pc -= 4;
 
-        (Err(SysError::WouldBlock), Schedule::RunInit)
+        (Err(Error::WouldBlock), Schedule::RunInit)
     } else {
         // notification already has a value so we ensure that the task is not blocked anymore and return that value
         unsafe {

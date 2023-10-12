@@ -32,12 +32,15 @@ use core::usize;
 
 pub mod assign_ipc_buffer;
 pub mod debug;
+mod errors;
 pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod system_reset;
 pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;
+
+pub use errors::Error;
 
 /// A type alias for explicitly marking a capability address in type signatures.
 pub type CAddr = usize;
@@ -100,41 +103,6 @@ impl Into<usize> for NoValue {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-#[repr(usize)]
-pub enum SysError {
-    InvalidCaddr = 1,
-    UnexpectedCap = 2,
-    NoMem = 3,
-    WouldBlock = 4,
-    NotFound = 5,
-    ValueInvalid = usize::MAX - 2,
-    UnknownError = usize::MAX - 1,
-    UnknownSyscall = usize::MAX,
-}
-
-impl TryFrom<usize> for SysError {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        const INVALID_CADDR: usize = SysError::InvalidCaddr as usize;
-        const UNEXPECTED_CAP: usize = SysError::UnexpectedCap as usize;
-        const UNKNOWN_ERROR: usize = SysError::UnknownError as usize;
-        const UNKNOWN_SYSCALL: usize = SysError::UnknownSyscall as usize;
-        const NO_MEM: usize = SysError::NoMem as usize;
-        const NOT_FOUND: usize = SysError::NotFound as usize;
-        match value {
-            INVALID_CADDR => Ok(SysError::InvalidCaddr),
-            UNEXPECTED_CAP => Ok(SysError::UnexpectedCap),
-            NO_MEM => Ok(SysError::NoMem),
-            UNKNOWN_ERROR => Ok(SysError::UnknownError),
-            UNKNOWN_SYSCALL => Ok(SysError::UnknownSyscall),
-            NOT_FOUND => Ok(SysError::NotFound),
-            _ => Err(()),
-        }
-    }
-}
-
 pub trait FromRawSysResponse {
     fn from_response(raw: RawSyscallReturn) -> Self;
 }
@@ -143,7 +111,7 @@ pub trait IntoRawSysRepsonse {
     fn into_response(self) -> RawSyscallReturn;
 }
 
-pub type SyscallResult<T> = Result<T, SysError>;
+pub type SyscallResult<T> = Result<T, Error>;
 impl<T> IntoRawSysRepsonse for SyscallResult<T>
 where
     T: Into<usize>,
@@ -156,7 +124,7 @@ where
     }
 }
 
-impl<T> FromRawSysResponse for Result<T, SysError>
+impl<T> FromRawSysResponse for Result<T, Error>
 where
     T: TryFrom<usize>,
 {
@@ -164,11 +132,11 @@ where
         match raw {
             [0, v] => match T::try_from(v) {
                 Ok(v) => Ok(v),
-                Err(_) => Err(SysError::ValueInvalid),
+                Err(_) => Err(Error::ValueInvalid),
             },
-            [e, _] => match SysError::try_from(e) {
+            [e, _] => match Error::try_from(e) {
                 Ok(e) => Err(e),
-                Err(_) => Err(SysError::UnknownError),
+                Err(_) => Err(Error::UnknownError),
             },
         }
     }

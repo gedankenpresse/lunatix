@@ -1,5 +1,6 @@
 //! Loading and execution of the init process
 
+use crate::caps::asid::asid_control_assign;
 use crate::caps::{self, CSpaceIface, Capability, DevmemIface, IrqControlIface, VSpaceIface};
 use crate::caps::{KernelAlloc, MemoryIface, TaskIface};
 use crate::devtree::get_external_devices;
@@ -216,6 +217,29 @@ pub fn create_init_caps<'dt>(
     log::debug!("initializing cspace for the init task");
     CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 32);
 
+    {
+        let target_slot = unsafe {
+            task_state
+                .cspace
+                .get_inner_cspace()
+                .unwrap()
+                .lookup_raw(6)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+        };
+        caps::asid::init_asid_control(target_slot);
+        asid_control_assign(
+            target_slot.get_inner_asid_control().unwrap(),
+            task_state.vspace.get_inner_vspace_mut().unwrap(),
+        )
+        .unwrap();
+        log::info!(
+            "init vspace asid: {}",
+            task_state.vspace.get_inner_vspace().unwrap().asid
+        );
+    }
+
     log::debug!("copying memory, vspace and cspace of the init task into its cspace");
     {
         // copy memory
@@ -281,20 +305,6 @@ pub fn create_init_caps<'dt>(
 
         let devmem: &Capability = &init_caps.devmem;
         DevmemIface.copy(devmem, target_slot);
-    }
-
-    {
-        let target_slot = unsafe {
-            task_state
-                .cspace
-                .get_inner_cspace()
-                .unwrap()
-                .lookup_raw(6)
-                .unwrap()
-                .as_mut()
-                .unwrap()
-        };
-        caps::asid::init_asid_control(target_slot);
     }
 
     init_caps
