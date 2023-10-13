@@ -30,7 +30,7 @@ pub use identify::identify;
 pub use irq::irq_complete;
 pub use irq_control::irq_control_claim;
 pub use mem::derive;
-pub use page::map_page;
+pub use page::{map_page, unmap_page};
 pub use print::print;
 pub use print::put_c;
 pub use r#yield::r#yield;

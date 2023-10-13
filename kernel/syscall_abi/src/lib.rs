@@ -145,7 +145,7 @@ where
 use bitflags::bitflags;
 
 bitflags! {
-    #[derive(Debug, Eq, PartialEq, Default)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
     pub struct MapFlags: usize {
         /// The page should be mapped so that it is readable.
         const READ = 0b001;

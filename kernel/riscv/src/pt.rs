@@ -249,6 +249,43 @@ pub fn map_pt(
     panic!("can't set leaf entry as pt");
 }
 
+pub fn unmap(trans: impl crate::PhysMapper, root: &mut PageTable, vaddr: usize, paddr: usize) {
+    // physical address should be at least page aligned and in PPN range
+    assert!(paddr & PBIT_MASK == 0);
+    assert!(paddr & !PADDR_MASK == 0);
+    // virtual addresses must also be page aligned
+    assert!(vaddr & PBIT_MASK == 0, "vaddr is not page-aligned");
+
+    let vpn = vpn_segments(vaddr);
+
+    let mut v = &mut root.entries[vpn[2]];
+    for level in (0..2).rev() {
+        if !v.is_valid() {
+            log::warn!("missing pt when unmapping page");
+            return;
+        }
+        let next_pt_addr = v.get_addr().unwrap();
+        let next_pt = unsafe { trans.phys_to_mapped_mut(next_pt_addr as *mut PageTable) };
+        v = unsafe { &mut (*next_pt).entries[vpn[level]] };
+    }
+
+    if !v.is_valid() {
+        log::warn!("tried to unmap invalid page entry");
+        return;
+    }
+    if !v.is_leaf() {
+        log::error!("tried to unmap page entry that is not a leaf");
+        panic!();
+    }
+    if v.get_addr().unwrap() != paddr {
+        log::warn!("tried to unmap page at vaddr that currently holds another page: entry {:x} paddr: {:x}", v.get_addr().unwrap(), paddr);
+        return;
+    }
+    unsafe {
+        v.set(0 as u64, EntryFlags::empty());
+    }
+}
+
 pub fn map(
     trans: impl crate::PhysMapper,
     root: &mut PageTable,

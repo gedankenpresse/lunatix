@@ -14,6 +14,7 @@ struct Mapping {
     page: CAddr,
     local_addr: usize,
     target_addr: usize,
+    flags: MapFlags,
 }
 
 /// An Elfloader implementation that uses lunatix kernel capabilities to allocate pages, map them
@@ -57,7 +58,12 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
         }
     }
 
-    fn claim_free_page(&mut self, local_addr: usize, target_addr: usize) -> Option<&Mapping> {
+    fn claim_free_page(
+        &mut self,
+        local_addr: usize,
+        target_addr: usize,
+        target_flags: MapFlags,
+    ) -> Option<&Mapping> {
         let free_page_ref = self.free_pages.iter_mut().find(|i| i.is_some())?;
         let mut tmp = None;
         mem::swap(free_page_ref, &mut tmp);
@@ -66,6 +72,7 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
             page: tmp.unwrap(),
             local_addr,
             target_addr,
+            flags: target_flags,
         });
 
         let used_page_ref = self.used_pages.iter_mut().find(|i| i.is_none())?;
@@ -79,37 +86,29 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
             .filter_map(|i| i.as_ref())
             .find(|i| i.target_addr <= target_addr && i.target_addr + PAGESIZE > target_addr)
     }
+
+    pub fn remap_to_target_vspace(&mut self) {
+        println!("remapping to target vspace");
+        for m in self.used_pages {
+            let Some(mapping) = m else { continue; };
+            librust::unmap_page(mapping.page).unwrap();
+            librust::map_page(
+                mapping.page,
+                self.target_vspace,
+                self.mem,
+                mapping.target_addr,
+                mapping.flags,
+            )
+            .unwrap();
+        }
+    }
 }
 
 impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for load_header in load_headers {
             for page_offset in (0..load_header.mem_size() as usize).step_by(PAGESIZE) {
-                // allocate a page
-                let mapping = *self
-                    .claim_free_page(
-                        self.interim_addr,
-                        load_header.virtual_addr() as usize + page_offset,
-                    )
-                    .unwrap();
-                println!(
-                    "allocating region {:x?} from elf-offset={:x}",
-                    mapping,
-                    load_header.offset()
-                );
-                self.interim_addr += PAGESIZE;
-                librust::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
-                // map page for us so we can load content into it later
-                librust::map_page(
-                    mapping.page,
-                    self.own_vspace,
-                    self.mem,
-                    mapping.local_addr,
-                    MapFlags::READ | MapFlags::WRITE,
-                )
-                .unwrap();
-
-                // map page for the new task with appropriate flags
+                // calculate mapping flags for target VSPACE
                 let mut flags = MapFlags::empty();
                 if load_header.flags().is_read() {
                     flags |= MapFlags::READ;
@@ -120,12 +119,30 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                 if load_header.flags().is_execute() {
                     flags |= MapFlags::EXEC;
                 }
+
+                // allocate a page
+                let mapping = *self
+                    .claim_free_page(
+                        self.interim_addr,
+                        load_header.virtual_addr() as usize + page_offset,
+                        flags,
+                    )
+                    .unwrap();
+                println!(
+                    "allocating region {:x?} from elf-offset={:x}",
+                    mapping,
+                    load_header.offset()
+                );
+                self.interim_addr += PAGESIZE;
+                librust::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
+                // map page for us so we can load content into it later
+                println!("mapping page {} {:x}", mapping.page, mapping.local_addr);
                 librust::map_page(
                     mapping.page,
-                    self.target_vspace,
+                    self.own_vspace,
                     self.mem,
-                    mapping.target_addr,
-                    flags,
+                    mapping.local_addr,
+                    MapFlags::READ | MapFlags::WRITE,
                 )
                 .unwrap();
             }

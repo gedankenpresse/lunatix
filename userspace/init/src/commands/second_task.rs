@@ -73,7 +73,7 @@ fn run_second_task() {
     .unwrap();
     // load binary elf code
     let elf_binary = ElfBinary::new(HELLO_WORLD_BIN).unwrap();
-    let mut elf_loader = LunatixElfLoader::<8>::new(
+    let mut elf_loader = LunatixElfLoader::<4>::new(
         CADDR_MEM,
         CADDR_VSPACE,
         CADDR_CHILD_VSPACE,
@@ -89,6 +89,7 @@ fn run_second_task() {
         0x0,
     )
     .unwrap();
+    elf_loader.remap_to_target_vspace();
     println!("Yielding to Hello World Task");
     librust::yield_to(CADDR_CHILD_TASK).unwrap();
 }

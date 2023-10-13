@@ -7,6 +7,7 @@ use crate::{
 
 pub fn page_send(cspace: &CSpace, page: &mut Page, args: &[usize]) -> Result<(), Error> {
     const MAP: usize = 0;
+    const UNMAP: usize = 1;
 
     match args[0] {
         MAP => {
@@ -21,6 +22,10 @@ pub fn page_send(cspace: &CSpace, page: &mut Page, args: &[usize]) -> Result<(),
                 flags,
                 addr,
             )
+        }
+        UNMAP => {
+            page.unmap();
+            Ok(())
         }
         _ => Err(Error::Unsupported),
     }

@@ -1,4 +1,7 @@
-use super::{asid::ASID_NONE, Capability, Error, Memory, Tag, VSpace, Variant};
+use super::{
+    asid::{ASID_NONE, ASID_POOL},
+    Capability, Error, Memory, Tag, VSpace, Variant,
+};
 use crate::virtmem::KernelMapper;
 
 use allocators::{AllocInit, Allocator};
@@ -14,6 +17,7 @@ use syscall_abi::MapFlags;
 /// A capability to physical memory.
 pub struct Page {
     pub(crate) kernel_addr: *mut MemoryPage,
+    pub(crate) vaddr: *mut u8,
     pub(crate) asid: usize,
 }
 
@@ -48,6 +52,7 @@ impl PageIface {
             page: ManuallyDrop::new(Page {
                 kernel_addr: page,
                 asid: 0,
+                vaddr: core::ptr::null_mut(),
             }),
         };
         unsafe {
@@ -80,8 +85,20 @@ impl CapabilityIface<Capability> for PageIface {
     }
 }
 
-pub fn unmap_page(page: &mut Page) {
-    todo!()
+impl Page {
+    pub fn unmap(&mut self) {
+        let mut page = self;
+        if page.asid == ASID_NONE {
+            return;
+        }
+        let Ok(asid) = (unsafe { ASID_POOL.find_asid(page.asid) }) else { return };
+        let pt = unsafe { asid.pt.as_mut().unwrap() };
+        riscv::pt::unmap(KernelMapper, pt, page.vaddr as usize, unsafe {
+            KernelMapper.mapped_to_phys(page.kernel_addr) as usize
+        });
+        page.asid = ASID_NONE;
+        page.vaddr = core::ptr::null_mut();
+    }
 }
 
 pub fn map_page(
@@ -122,6 +139,7 @@ pub fn map_page(
     let paddr = unsafe { KernelMapper.mapped_to_phys(page.kernel_addr) } as usize;
     vspace.map_address(mem, addr, paddr, entry_flags)?;
     page.asid = vspace.asid;
+    page.vaddr = addr as *mut u8;
     unsafe { asm!("sfence.vma") };
     Ok(())
 }

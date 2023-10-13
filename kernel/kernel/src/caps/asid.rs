@@ -32,12 +32,9 @@ pub static mut ASID_POOL: AsidPool = AsidPool {
     }; 64],
 };
 
-pub struct AsidControl;
-
-impl AsidControl {
-    pub fn alloc_asid(&self) -> Result<&mut Asid, Error> {
-        let pool = unsafe { &mut ASID_POOL };
-        let asid = pool
+impl AsidPool {
+    pub fn alloc_asid(&mut self) -> Result<&mut Asid, Error> {
+        let asid = self
             .asids
             .iter_mut()
             .find(|i| !i.allocated)
@@ -45,6 +42,22 @@ impl AsidControl {
         asid.allocated = true;
         asid.id = ASID_MARKER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
         Ok(asid)
+    }
+
+    pub fn find_asid(&mut self, id: usize) -> Result<&Asid, Error> {
+        self.asids
+            .iter()
+            .find(|i| i.allocated && i.id == id)
+            .ok_or(Error::NoAsid)
+    }
+}
+
+pub struct AsidControl;
+
+impl AsidControl {
+    pub fn alloc_asid(&self) -> Result<&mut Asid, Error> {
+        let pool = unsafe { &mut ASID_POOL };
+        pool.alloc_asid()
     }
 }
 
