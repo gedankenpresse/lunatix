@@ -1,7 +1,7 @@
 use crate::tree::cursors::{CursorData, CursorSet};
 use crate::Correspondence;
 use core::cell::Cell;
-use core::ptr;
+use core::ptr::{self, NonNull};
 
 use super::CursorHandle;
 
@@ -84,6 +84,23 @@ pub trait TreeNodeOps: Sized + Correspondence {
         let mut cursor = cursor_set.get_free_cursor().unwrap();
         cursor.select_node(self as *const Self as *mut Self);
         cursor
+    }
+
+    /// Get the parant of this node. returns null if no parent exists.
+    fn get_parent(&self) -> *const Self {
+        let tree_data = self.get_tree_data();
+        let depth = tree_data.depth.get();
+        let mut cur: *const Self = tree_data.prev.get() as *const Self;
+        loop {
+            if cur.is_null() {
+                return core::ptr::null();
+            };
+            let cur_td = unsafe { (*cur).get_tree_data() };
+            if cur_td.depth.get() < depth {
+                return cur;
+            }
+            cur = cur_td.prev.get() as *const Self;
+        }
     }
 
     /// Get a cursor to the last copy of `self`
@@ -254,7 +271,7 @@ impl<T: TreeNodeOps> TreeNodeData<T> {
 
     /// Remove all links that this struct has to the containing tree.
     /// Effectively, this removes the node from the tree without dropping it.
-    pub(crate) fn unlink(&mut self) {
+    pub fn unlink(&mut self) {
         // remove this node from the linked list of nodes
         unsafe {
             if let Some(prev_node) = self.prev.get().as_ref() {

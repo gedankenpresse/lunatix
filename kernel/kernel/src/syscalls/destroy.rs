@@ -2,9 +2,8 @@ use derivation_tree::{caps::CapabilityIface, tree::CursorRefMut};
 
 use crate::{
     caps::{
-        AsidControl, AsidControlIface, CSpaceIface, Capability, DevmemIface, Error,
-        IrqControlIface, IrqIface, MemoryIface, NotificationIface, PageIface, TaskIface,
-        VSpaceIface,
+        AsidControlIface, CSpaceIface, Capability, DevmemIface, Error, IrqControlIface, IrqIface,
+        MemoryIface, NotificationIface, PageIface, TaskIface, VSpaceIface,
     },
     SyscallContext,
 };

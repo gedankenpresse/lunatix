@@ -1,4 +1,4 @@
-use crate::caps::{asid::asid_control_assign, AsidControl, CSpace, Capability, Error, VSpace};
+use crate::caps::{asid::asid_control_assign, AsidControl, CSpace, Error};
 
 pub fn asid_control_send(
     cspace: &CSpace,

@@ -2,7 +2,7 @@ use super::{
     asid::{ASID_NONE, ASID_POOL},
     Capability, Error, Memory, Tag, VSpace, Variant,
 };
-use crate::virtmem::KernelMapper;
+use crate::{caps::Uninit, virtmem::KernelMapper};
 
 use allocators::{AllocInit, Allocator};
 use core::{alloc::Layout, arch::asm, mem::ManuallyDrop, ptr};
@@ -81,7 +81,27 @@ impl CapabilityIface<Capability> for PageIface {
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::Page);
+        let kernel_addr = {
+            let page = target.get_inner_page_mut().unwrap();
+            page.unmap();
+            page.kernel_addr
+        };
+        if target.is_final_copy() {
+            let Some(parent) = (unsafe { target.get_parent().as_ref() }) else {
+                panic!("page has no parent");
+            };
+            assert_eq!(parent.tag, Tag::Memory);
+            let parent = parent.get_inner_memory().unwrap();
+            unsafe {
+                parent
+                    .allocator
+                    .deallocate(kernel_addr as *mut u8, Layout::new::<MemoryPage>())
+            };
+        }
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }
 

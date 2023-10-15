@@ -47,7 +47,7 @@ pub trait FromArgs {
     where
         Self: Sized,
     {
-        let (a, rest) = Self::parse(args)?;
+        let (a, _rest) = Self::parse(args)?;
         Ok(a)
     }
 }

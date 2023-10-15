@@ -12,7 +12,7 @@ use crate::sifive_uart::SifiveUartMM;
 use core::panic::PanicInfo;
 use fdt::node::FdtNode;
 use fdt::Fdt;
-use librust::syscall_abi::identify::{CapabilityVariant, Identify};
+use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
 use librust::{print, println};
 use sifive_uart::SifiveUart;
