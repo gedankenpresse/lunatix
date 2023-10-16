@@ -5,6 +5,8 @@ use derivation_tree::caps::CapabilityIface;
 use derivation_tree::tree::TreeNodeOps;
 use derivation_tree::{AsStaticMut, AsStaticRef};
 
+use crate::caps::Uninit;
+
 use super::{Capability, KernelAlloc, Tag, Variant};
 pub type Memory = derivation_tree::caps::Memory<'static, 'static, KernelAlloc>;
 
@@ -69,6 +71,20 @@ impl CapabilityIface<Capability> for MemoryIface {
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::Memory);
+
+        if target.is_final_copy() {
+            while target.has_derivations() {
+                todo!("destroy children");
+            }
+
+            let mem = target.get_inner_memory_mut().unwrap();
+            unsafe { mem.allocator.destroy() };
+            unsafe { mem.backing_mem.destroy() };
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

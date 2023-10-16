@@ -1,4 +1,4 @@
-use crate::caps::{CapCounted, Capability, Tag, TaskIface, Variant};
+use crate::caps::{CapCounted, Capability, Tag, TaskIface, Uninit, Variant};
 use allocators::Box;
 use core::cell::RefCell;
 use core::mem::ManuallyDrop;
@@ -170,6 +170,23 @@ impl CapabilityIface<Capability> for NotificationIface {
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::Notification);
+
+        if target.is_final_copy() {
+            let noti = target.get_inner_notification_mut().unwrap();
+            {
+                let state = noti.state.borrow_mut();
+                assert!(
+                    state.wait_set.is_none(),
+                    "can't destory notifications with waitset yet"
+                );
+            }
+            // free notification memory
+            unsafe { noti.state.destroy() };
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

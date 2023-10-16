@@ -77,7 +77,21 @@ impl CapabilityIface<Capability> for PageIface {
         src: &impl derivation_tree::AsStaticRef<Capability>,
         dst: &mut impl derivation_tree::AsStaticMut<Capability>,
     ) {
-        todo!()
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::Page);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        {
+            let src = src.get_inner_page().unwrap();
+            dst.tag = Tag::Page;
+            dst.variant.page = ManuallyDrop::new(Page {
+                kernel_addr: src.kernel_addr,
+                vaddr: core::ptr::null_mut(),
+                asid: ASID_NONE,
+            });
+        }
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {

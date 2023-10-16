@@ -9,6 +9,9 @@ use derivation_tree::Correspondence;
 use riscv::pt::MemoryPage;
 use riscv::trap::TrapFrame;
 
+use crate::caps::destroy;
+use crate::caps::Uninit;
+
 use super::CapCounted;
 use super::Capability;
 use super::Tag;
@@ -114,10 +117,47 @@ impl CapabilityIface<Capability> for TaskIface {
         src: &impl derivation_tree::AsStaticRef<Capability>,
         dst: &mut impl derivation_tree::AsStaticMut<Capability>,
     ) {
-        todo!()
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::Task);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        {
+            let src = src.get_inner_task().unwrap();
+            dst.tag = Tag::Task;
+            dst.variant.task = ManuallyDrop::new(Task {
+                state: src.state.clone(),
+            });
+        }
+
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::Task);
+
+        if target.is_final_copy() {
+            let task = target.get_inner_task_mut().unwrap();
+            {
+                let mut state = task.state.borrow_mut();
+                assert!(
+                    state.ipc_buffer.is_none(),
+                    "can't destroy task with ipcbuffer yet"
+                );
+                assert!(
+                    state.waiting_on.is_none(),
+                    "can't destroy waiting tasks yet"
+                );
+                // TODO: handle recursive cspace destroys
+                unsafe { destroy(&mut state.cspace) };
+                unsafe { destroy(&mut state.vspace) };
+            }
+            // Free Task State Memory
+            unsafe { task.state.destroy() };
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

@@ -13,7 +13,7 @@
 - [ ] change kernel device tree lib?
 - [ ] add PCI to dev memory
 - [ ] implement destroy for more caps (maybe add a simple drop to CapCounted?)
-- [ ] implement copy for more caps
+- [x] implement copy for more caps
 - [ ] cleanup documentation of syscalls
 - [ ] use unique syscall labels for capabilities (maybe add some simple name hashing?)
 - [ ] recursive caddr lookup

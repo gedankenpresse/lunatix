@@ -1,5 +1,5 @@
 use super::Error;
-use crate::caps::{CapCounted, Capability, KernelAlloc, Tag, Variant};
+use crate::caps::{CapCounted, Capability, KernelAlloc, Tag, Uninit, Variant};
 use allocators::bump_allocator::BumpAllocator;
 use allocators::Box;
 use core::cell::RefCell;
@@ -52,7 +52,8 @@ pub struct IrqControl {
 
 impl Correspondence for IrqControl {
     fn corresponds_to(&self, other: &Self) -> bool {
-        todo!("correspondence not implemented for task")
+        // there is only one way to aquire an IrqControl, so we always return true here
+        true
     }
 }
 
@@ -150,6 +151,14 @@ impl CapabilityIface<Capability> for IrqControlIface {
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::IrqControl);
+
+        if target.is_final_copy() {
+            todo!("cleanup irq control state");
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

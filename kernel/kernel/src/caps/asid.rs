@@ -1,9 +1,9 @@
 use core::{mem::ManuallyDrop, ptr, sync::atomic::AtomicUsize};
 
-use derivation_tree::caps::CapabilityIface;
+use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps};
 use riscv::pt::PageTable;
 
-use crate::caps::{Tag, Variant};
+use crate::caps::{Tag, Uninit, Variant};
 
 use super::{Capability, Error, VSpace};
 
@@ -94,10 +94,26 @@ impl CapabilityIface<Capability> for AsidControlIface {
         src: &impl derivation_tree::AsStaticRef<Capability>,
         dst: &mut impl derivation_tree::AsStaticMut<Capability>,
     ) {
-        todo!()
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::AsidControl);
+        assert_eq!(dst.tag, Tag::Uninit);
+
+        dst.tag = Tag::AsidControl;
+        dst.variant.asid_control = ManuallyDrop::new(AsidControl {});
+
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::AsidControl);
+
+        // Note: AsidControl has no local state,
+        // So we just drop the ZST here.
+        // Global state should not be invalidated, because Page/Vspace can still refer to Asids.
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

@@ -1,10 +1,7 @@
-use derivation_tree::{caps::CapabilityIface, tree::CursorRefMut};
+use derivation_tree::tree::CursorRefMut;
 
 use crate::{
-    caps::{
-        AsidControlIface, CSpaceIface, Capability, DevmemIface, Error, IrqControlIface, IrqIface,
-        MemoryIface, NotificationIface, PageIface, TaskIface, VSpaceIface,
-    },
+    caps::{self, Capability, Error},
     SyscallContext,
 };
 
@@ -34,18 +31,6 @@ pub fn sys_copy(
             .unwrap()
     };
 
-    match src.get_tag() {
-        crate::caps::Tag::Uninit => {}
-        crate::caps::Tag::Memory => MemoryIface.copy(src, target),
-        crate::caps::Tag::CSpace => CSpaceIface.copy(src, target),
-        crate::caps::Tag::VSpace => VSpaceIface.copy(src, target),
-        crate::caps::Tag::Task => TaskIface.copy(src, target),
-        crate::caps::Tag::Page => PageIface.copy(src, target),
-        crate::caps::Tag::IrqControl => IrqControlIface.copy(src, target),
-        crate::caps::Tag::Irq => IrqIface.copy(src, target),
-        crate::caps::Tag::Notification => NotificationIface.copy(src, target),
-        crate::caps::Tag::Devmem => DevmemIface.copy(src, target),
-        crate::caps::Tag::AsidControl => AsidControlIface.copy(src, target),
-    };
+    unsafe { caps::copy(src, target) };
     Ok(())
 }

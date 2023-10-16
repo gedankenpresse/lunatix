@@ -1,10 +1,7 @@
-use derivation_tree::{caps::CapabilityIface, tree::CursorRefMut};
+use derivation_tree::tree::CursorRefMut;
 
 use crate::{
-    caps::{
-        AsidControlIface, CSpaceIface, Capability, DevmemIface, Error, IrqControlIface, IrqIface,
-        MemoryIface, NotificationIface, PageIface, TaskIface, VSpaceIface,
-    },
+    caps::{self, Capability, Error},
     SyscallContext,
 };
 
@@ -27,18 +24,6 @@ pub fn sys_destroy(
             .unwrap()
     };
 
-    match target.get_tag() {
-        crate::caps::Tag::Uninit => {}
-        crate::caps::Tag::Memory => MemoryIface.destroy(target),
-        crate::caps::Tag::CSpace => CSpaceIface.destroy(target),
-        crate::caps::Tag::VSpace => VSpaceIface.destroy(target),
-        crate::caps::Tag::Task => TaskIface.destroy(target),
-        crate::caps::Tag::Page => PageIface.destroy(target),
-        crate::caps::Tag::IrqControl => IrqControlIface.destroy(target),
-        crate::caps::Tag::Irq => IrqIface.destroy(target),
-        crate::caps::Tag::Notification => NotificationIface.destroy(target),
-        crate::caps::Tag::Devmem => DevmemIface.destroy(target),
-        crate::caps::Tag::AsidControl => AsidControlIface.destroy(target),
-    };
+    unsafe { caps::destroy(target) };
     Ok(())
 }

@@ -1,7 +1,7 @@
 use core::mem::{ManuallyDrop, MaybeUninit};
 
 use crate::caps::asid::ASID_NONE;
-use crate::caps::{self, Memory, Tag, Variant};
+use crate::caps::{self, Memory, Tag, Uninit, Variant};
 use crate::virtmem;
 use allocators::Box;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
@@ -20,7 +20,7 @@ pub struct VSpace {
 
 impl Correspondence for VSpace {
     fn corresponds_to(&self, other: &Self) -> bool {
-        todo!("correspondence not implemented for vspace")
+        core::ptr::eq(self.root, other.root)
     }
 }
 
@@ -138,12 +138,18 @@ impl CapabilityIface<Capability> for VSpaceIface {
         }
 
         // insert the new copy into the derivation tree
-        unsafe {
-            src.insert_copy(dst);
-        }
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        assert_eq!(target.tag, Tag::VSpace);
+
+        if target.is_final_copy() {
+            todo!("check asid stuff, free page tables");
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

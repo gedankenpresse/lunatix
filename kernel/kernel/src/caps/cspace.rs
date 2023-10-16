@@ -1,4 +1,4 @@
-use crate::caps::{Tag, Variant};
+use crate::caps::{Tag, Uninit, Variant};
 use core::mem;
 use core::mem::ManuallyDrop;
 pub use derivation_tree::caps::CapabilityIface;
@@ -46,26 +46,34 @@ impl CapabilityIface<Capability> for CSpaceIface {
     }
 
     fn copy(&self, src: &impl AsStaticRef<Capability>, dst: &mut impl AsStaticMut<Capability>) {
-        assert_eq!(src.as_static_ref().tag, Tag::CSpace);
-        assert_eq!(
-            dst.as_static_ref().tag,
-            Tag::Uninit,
-            "destination is not uninit"
-        );
+        let src = src.as_static_ref();
+        let dst = dst.as_static_mut();
+        assert_eq!(src.tag, Tag::CSpace);
+        assert_eq!(dst.tag, Tag::Uninit, "destination is not uninit");
 
         // semantically copy the cspace
-        dst.as_static_mut().tag = Tag::CSpace;
-        dst.as_static_mut().variant = Variant {
+        dst.tag = Tag::CSpace;
+        dst.variant = Variant {
             cspace: ManuallyDrop::new(CSpace {
-                slots: unsafe { &src.as_static_ref().variant.cspace }.slots.clone(),
+                slots: unsafe { &src.variant.cspace }.slots.clone(),
             }),
         };
 
         // insert the new copy into the derivation tree
-        unsafe { src.as_static_ref().insert_copy(dst.as_static_mut()) };
+        unsafe { src.insert_copy(dst) };
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!()
+        // TODO: handle recursive cspaces
+        assert_eq!(target.tag, Tag::CSpace);
+
+        if target.is_final_copy() {
+            let cspace = target.get_inner_cspace_mut().unwrap();
+            todo!("destroy cspace slots and dealloc cspace");
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }

@@ -3,7 +3,7 @@ use core::{cell::RefCell, mem::ManuallyDrop};
 use allocators::Box;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps};
 
-use crate::caps::{Tag, Variant};
+use crate::caps::{Tag, Uninit, Variant};
 
 use super::{CapCounted, Capability, KernelAlloc};
 
@@ -83,6 +83,14 @@ impl CapabilityIface<Capability> for DevmemIface {
     }
 
     fn destroy(&self, target: &mut Capability) {
-        todo!("destroy devmem")
+        assert_eq!(target.tag, Tag::Devmem);
+
+        if target.is_final_copy() {
+            todo!("return devmem memory");
+        }
+
+        target.tree_data.unlink();
+        target.tag = Tag::Uninit;
+        target.variant.uninit = Uninit {};
     }
 }
