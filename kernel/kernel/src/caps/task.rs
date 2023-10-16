@@ -52,7 +52,7 @@ impl Task {
 
 impl Correspondence for Task {
     fn corresponds_to(&self, other: &Self) -> bool {
-        todo!("correspondence not implemented for task")
+        self.state.is_same_pointer_as(&other.state)
     }
 }
 

@@ -3,20 +3,44 @@
 use crate::{RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::convert::Infallible;
 
-#[derive(Debug, PartialEq, Eq)]
-#[repr(usize)]
-pub enum CapabilityVariant {
-    Uninit = 0,
-    Memory = 1,
-    CSpace = 2,
-    VSpace = 3,
-    Task = 4,
-    Page = 5,
-    IrqControl = 6,
-    Irq = 7,
-    Notification = 8,
-    Devmem = 9,
-    AsidControl = 10,
+macro_rules! back_to_enum {
+    ($(#[$meta:meta])* $vis:vis enum $name:ident {
+        $($(#[$vmeta:meta])* $vname:ident $(= $val:expr)?,)*
+    }) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $($(#[$vmeta])* $vname $(= $val)?,)*
+        }
+
+        impl core::convert::TryFrom<usize> for $name {
+            type Error = ();
+
+            fn try_from(v: usize) -> Result<Self, Self::Error> {
+                match v {
+                    $(x if x == $name::$vname as usize => Ok($name::$vname),)*
+                    _ => Err(()),
+                }
+            }
+        }
+    }
+}
+
+back_to_enum! {
+    #[derive(Debug, PartialEq, Eq)]
+    #[repr(usize)]
+    pub enum CapabilityVariant {
+        Uninit = 0,
+        Memory = 1,
+        CSpace = 2,
+        VSpace = 3,
+        Task = 4,
+        Page = 5,
+        IrqControl = 6,
+        Irq = 7,
+        Notification = 8,
+        Devmem = 9,
+        AsidControl = 10,
+    }
 }
 
 impl Into<usize> for CapabilityVariant {
@@ -49,24 +73,5 @@ impl TryFrom<RawSyscallArgs> for IdentifyArgs {
 
     fn try_from(args: RawSyscallArgs) -> Result<Self, Self::Error> {
         Ok(Self { caddr: args[0] })
-    }
-}
-
-impl TryFrom<usize> for CapabilityVariant {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::Uninit),
-            1 => Ok(Self::Memory),
-            2 => Ok(Self::CSpace),
-            3 => Ok(Self::VSpace),
-            4 => Ok(Self::Task),
-            5 => Ok(Self::Page),
-            6 => Ok(Self::IrqControl),
-            7 => Ok(Self::Irq),
-            8 => Ok(Self::Notification),
-            _ => Err(()),
-        }
     }
 }

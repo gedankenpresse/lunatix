@@ -12,12 +12,21 @@
 - [ ] improve booting, pass init as boot arg
 - [ ] change kernel device tree lib?
 - [ ] add PCI to dev memory
-- [ ] implement destroy for more caps (maybe add a simple drop to CapCounted?)
-- [x] implement copy for more caps
 - [ ] cleanup documentation of syscalls
 - [ ] use unique syscall labels for capabilities (maybe add some simple name hashing?)
 - [ ] recursive caddr lookup
-- [ ] update syscall_abi cap variants to include all caps
+- [x] update syscall_abi cap variants to include all caps
+- [x] implement copy for more caps
+
+- [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
+- [ ] cspace: destroy slots
+- [ ] devmem: destroy state correctly. (destroy child pages on drop? leave state global?)
+- [ ] irqControl: destroy state correctly. (maybe don't allocate state, but keep as global?)
+- [ ] irq: destroy state (Notification) on Irq destroy
+- [ ] memory: destroy children
+- [ ] vspace: cleanup asid stuff on destroy
+- [ ] notification: signal waitset on destroy
+- [ ] task: signal waitset on destroy
 
 ### Userspace
 - [ ] add global alloc
