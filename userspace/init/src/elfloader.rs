@@ -90,7 +90,9 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
     pub fn remap_to_target_vspace(&mut self) {
         println!("remapping to target vspace");
         for m in self.used_pages {
-            let Some(mapping) = m else { continue; };
+            let Some(mapping) = m else {
+                continue;
+            };
             librust::unmap_page(mapping.page).unwrap();
             librust::map_page(
                 mapping.page,

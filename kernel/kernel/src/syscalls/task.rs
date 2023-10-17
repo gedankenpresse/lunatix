@@ -51,7 +51,9 @@ fn task_assign_control_registers(task: &Task, args: &[usize]) -> Result<(), Erro
 
     // assign control registers as specified by the syscall
     let mut task_state = task.state.borrow_mut();
-    let [pc, sp, gp, tp] = args[..4] else { panic!("wrong count")};
+    let [pc, sp, gp, tp] = args[..4] else {
+        panic!("wrong count")
+    };
     task_state.frame.start_pc = pc;
     task_state.frame.general_purpose_regs[2] = sp;
 

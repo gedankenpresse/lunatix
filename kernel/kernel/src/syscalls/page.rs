@@ -11,7 +11,9 @@ pub fn page_send(cspace: &CSpace, page: &mut Page, args: &[usize]) -> Result<(),
 
     match args[0] {
         MAP => {
-            let [mem, vspace, addr, flags, _] = args[1..] else { panic!("not enough arguments")};
+            let [mem, vspace, addr, flags, _] = args[1..] else {
+                panic!("not enough arguments")
+            };
             let mem_cap = unsafe { utils::lookup_cap(cspace, mem, Tag::Memory) }?;
             let vspace_cap = unsafe { utils::lookup_cap(cspace, vspace, Tag::VSpace) }?;
             let flags = MapFlags::from_bits(flags).ok_or(Error::InvalidArg)?;

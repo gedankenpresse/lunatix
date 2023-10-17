@@ -2,6 +2,7 @@
 #![no_main]
 
 mod commands;
+mod drivers;
 mod elfloader;
 mod read;
 mod sifive_uart;
@@ -13,6 +14,7 @@ use core::panic::PanicInfo;
 use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
+use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::CAddr;
 use librust::{print, println};
 use sifive_uart::SifiveUart;
@@ -44,7 +46,7 @@ const CADDR_CHILD_PAGE_START: CAddr = 14;
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     println!("panic {}", info);
-    loop {}
+    librust::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
 }
 
 fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static str> {
@@ -56,10 +58,18 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
     {
         return Err("not compatible");
     }
-    let Some(mut reg) = node.reg() else { return Err("no reg")};
-    let Some(region) = reg.next() else { return Err("no memory region") };
-    let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
-    let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
+    let Some(mut reg) = node.reg() else {
+        return Err("no reg");
+    };
+    let Some(region) = reg.next() else {
+        return Err("no memory region");
+    };
+    let Some(mut interrupts) = node.interrupts() else {
+        return Err("no interrupts");
+    };
+    let Some(interrupt) = interrupts.next() else {
+        return Err("no interrupt");
+    };
 
     librust::derive(
         CADDR_MEM,
@@ -98,10 +108,18 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     if compatible != "sifive,uart0" {
         return Err("not compatible");
     }
-    let Some(mut reg) = node.reg() else { return Err("no reg")};
-    let Some(region) = reg.next() else { return Err("no memory region") };
-    let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
-    let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
+    let Some(mut reg) = node.reg() else {
+        return Err("no reg");
+    };
+    let Some(region) = reg.next() else {
+        return Err("no memory region");
+    };
+    let Some(mut interrupts) = node.interrupts() else {
+        return Err("no interrupts");
+    };
+    let Some(interrupt) = interrupts.next() else {
+        return Err("no interrupt");
+    };
 
     librust::derive(
         CADDR_MEM,
@@ -136,6 +154,9 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
 }
 
 fn main() {
+    drivers::virtio_9p::test();
+    panic!();
+
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdout = dt.chosen().stdout().expect("no stdout found");
@@ -260,8 +281,10 @@ fn process_cmd(input: &str) {
     else {
         println!(
             "Unknown command {:?}. Enter 'help' for a list of commands",
-            input);
-            return };
+            input
+        );
+        return;
+    };
     match cmd.execute(input.strip_prefix(cmd.get_name()).unwrap().trim_start()) {
         Ok(()) => {}
         Err(e) => println!("error: {}", e),

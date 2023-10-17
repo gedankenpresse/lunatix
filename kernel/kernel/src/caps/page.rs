@@ -125,7 +125,9 @@ impl Page {
         if page.asid == ASID_NONE {
             return;
         }
-        let Ok(asid) = (unsafe { ASID_POOL.find_asid(page.asid) }) else { return };
+        let Ok(asid) = (unsafe { ASID_POOL.find_asid(page.asid) }) else {
+            return;
+        };
         let pt = unsafe { asid.pt.as_mut().unwrap() };
         riscv::pt::unmap(KernelMapper, pt, page.vaddr as usize, unsafe {
             KernelMapper.mapped_to_phys(page.kernel_addr) as usize
