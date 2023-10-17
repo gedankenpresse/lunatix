@@ -1,7 +1,8 @@
-use crate::{CADDR_DEVMEM, CADDR_MEM, CADDR_VSPACE};
+use crate::{caddr_alloc, CADDR_DEVMEM, CADDR_MEM, CADDR_VSPACE};
 use bitflags::{bitflags, Flags};
-use librust::prelude::CAddr;
 use librust::println;
+use librust::syscall_abi::identify::CapabilityVariant;
+use librust::{prelude::CAddr, syscall_abi::MapFlags};
 use regs::{RO, RW, WO};
 
 const VIRTIO_DEVICE: usize = 0x10008000;
@@ -11,7 +12,7 @@ const VIRTIO_MAGIC: u32 = 0x74726976;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
-enum DeviceId {
+pub enum DeviceId {
     INVALID = 0,
     NETWORK_CARD = 1,
     BLOCK_DEVICE = 2,
@@ -108,6 +109,102 @@ pub struct VirtDevice {
     status: RW<u32>,
 }
 
+#[repr(u16)]
+pub enum DescriptorFlags {
+    NEXT = 1,
+    WRITE = 2,
+    INDIRECT = 4,
+}
+
+#[derive(Default, Clone, Copy, Debug)]
+#[repr(C)]
+pub struct Descriptor {
+    pub address: u64,
+    pub length: u32,
+    pub flags: u16,
+    pub next: u16,
+}
+
+pub struct QueueBuf {
+    size: u16,
+    buf: *mut u8,
+}
+
+fn queue_alloc(queue_bytes: usize) -> Result<*mut u8, ()> {
+    const PAGESIZE: usize = 4096;
+    assert!(queue_bytes & (PAGESIZE - 1) == 0);
+    let pages = queue_bytes / PAGESIZE;
+
+    // choose an arbitrary address to store the queue in...
+    // Because this is hardcoded, we can only alloc one queue
+
+    let addr = 0x69_0000_0000 as *mut u8;
+    // map one page as buffer because virtqueue pages have to be physically contigious
+    // and we can't guarantee that, because mapping in a vspace uses pages..
+    {
+        let page = caddr_alloc::alloc_caddr();
+        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        librust::map_page(
+            page,
+            CADDR_VSPACE,
+            CADDR_MEM,
+            addr as usize,
+            MapFlags::READ | MapFlags::WRITE,
+        )
+        .unwrap();
+    }
+    let addr = (addr as usize + PAGESIZE) as *mut u8;
+    let mut paddr = None;
+    for i in 0..pages {
+        let page = caddr_alloc::alloc_caddr();
+        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        let this_paddr = librust::page_paddr(page).unwrap();
+        paddr.get_or_insert(this_paddr);
+        assert_eq!(
+            paddr,
+            Some(this_paddr - i * PAGESIZE),
+            "non consecutive physical pages for virtio driver"
+        );
+        librust::map_page(
+            page,
+            CADDR_VSPACE,
+            CADDR_MEM,
+            addr as usize + i * PAGESIZE,
+            MapFlags::READ | MapFlags::WRITE,
+        )
+        .unwrap();
+    }
+    return Ok(addr);
+}
+
+pub fn queue_setup(dev: &mut VirtDevice, queue_num: u32) -> Result<QueueBuf, ()> {
+    let max_items = unsafe {
+        dev.queue_sel.write(queue_num);
+        let max_items = dev.queue_num_max.read();
+        if max_items == 0 {
+            return Err(());
+        }
+        max_items
+    };
+    let queue_sz = core::cmp::min(max_items as usize, 256);
+    let desc_sz = 16 * queue_sz;
+    let avail_sz = 6 + 2 * queue_sz;
+    let used_sz = 6 + 4 * queue_sz;
+
+    fn align(s: usize) -> usize {
+        const PAGESIZE: usize = 4096;
+        let pages = (s + (PAGESIZE - 1)) / PAGESIZE;
+        return pages * PAGESIZE;
+    }
+    let queue_bytes = align(desc_sz + avail_sz) + align(used_sz);
+    let buf = queue_alloc(queue_bytes)?;
+
+    return Ok(QueueBuf {
+        size: queue_sz.try_into().unwrap(),
+        buf,
+    });
+}
+
 pub fn test() {
     librust::devmem_map(
         CADDR_DEVMEM,
@@ -141,6 +238,11 @@ pub fn test() {
             .write(DeviceFeaturesLow::NINEP_TAGGED.bits());
         device.status.write(DeviceStatus::FEATURES_OK as u32);
         assert_eq!(device.status.read(), DeviceStatus::FEATURES_OK as u32);
+
+        for i in 0..16 {
+            println!("setup queue {i}");
+            queue_setup(device, i).unwrap();
+        }
 
         todo!()
 

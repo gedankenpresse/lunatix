@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod caddr_alloc;
 mod commands;
 mod drivers;
 mod elfloader;
@@ -11,6 +12,7 @@ use crate::commands::Command;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use core::panic::PanicInfo;
+use core::sync::atomic::AtomicUsize;
 use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
