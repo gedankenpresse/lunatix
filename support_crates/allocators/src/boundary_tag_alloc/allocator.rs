@@ -436,7 +436,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
             }
 
             // calculate padding that would be required to use this chunk
-            let unaligned_addr = (chunk.1 as usize);
+            let unaligned_addr = chunk.1 as usize;
             let aligned_addr = (unaligned_addr + layout.align() - 1) & !(layout.align() - 1);
             let padding = aligned_addr - unaligned_addr;
 
