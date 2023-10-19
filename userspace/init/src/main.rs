@@ -9,6 +9,7 @@ mod sifive_uart;
 use crate::commands::Command;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
+use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU16};
 use core::panic::PanicInfo;
 use fdt::node::FdtNode;
 use fdt::Fdt;

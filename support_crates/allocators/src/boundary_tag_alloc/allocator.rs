@@ -1,8 +1,8 @@
 use crate::boundary_tag_alloc::tags::{AllocationMarker, BeginTag, EndTag, TagsBinding};
 use crate::{AllocError, AllocInit, Allocator};
 use core::alloc::Layout;
-use core::cell::RefCell;
 use core::marker::PhantomData;
+use ksync::SpinLock;
 
 type Chunk<T> = (
     <T as TagsBinding>::BeginTag,
@@ -594,7 +594,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
 
 /// A general purpose allocator that attaches boundary tags to handed out memory for bookkeeping.
 pub struct BoundaryTagAllocator<'mem, Tags: TagsBinding> {
-    pub(super) state: RefCell<AllocatorState<'mem, Tags>>,
+    pub(super) state: SpinLock<AllocatorState<'mem, Tags>>,
     _tags: PhantomData<Tags>,
 }
 
@@ -616,7 +616,7 @@ impl<'mem, Tags: TagsBinding> BoundaryTagAllocator<'mem, Tags> {
         Tags::EndTag::new(usable_len).write_to_chunk(backing_mem);
 
         Self {
-            state: RefCell::new(AllocatorState::new(backing_mem)),
+            state: SpinLock::new(AllocatorState::new(backing_mem)),
             _tags: PhantomData::default(),
         }
     }
@@ -626,7 +626,7 @@ impl<'mem, Tags: TagsBinding> Allocator<'mem> for BoundaryTagAllocator<'mem, Tag
     fn allocate(&self, layout: Layout, init: AllocInit) -> Result<&'mem mut [u8], AllocError> {
         assert!(layout.size() > 0, "must allocate at least 1 byte");
         let allocation = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.spin_lock();
             state.allocate_chunk(layout)?
         };
 
@@ -645,11 +645,24 @@ impl<'mem, Tags: TagsBinding> Allocator<'mem> for BoundaryTagAllocator<'mem, Tag
     }
 
     unsafe fn deallocate(&self, data_ptr: *mut u8, layout: Layout) {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.spin_lock();
         let chunk = state
             .get_chunk_from_content(data_ptr)
             .expect("Given data_ptr does not point inside the allocators backing memory");
         assert!(chunk.0.content_size() >= layout.size());
         state.deallocate_chunk(chunk)
+    }
+}
+
+unsafe impl<'mem, T: TagsBinding> core::alloc::GlobalAlloc for BoundaryTagAllocator<'mem, T> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        match self.allocate(layout, AllocInit::Uninitialized) {
+            Ok(slice) => slice.as_mut_ptr(),
+            Err(_) => core::ptr::null_mut(),
+        }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        self.deallocate(ptr, layout)
     }
 }

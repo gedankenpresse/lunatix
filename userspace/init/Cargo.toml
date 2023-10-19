@@ -7,6 +7,7 @@ autotests = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+allocators = { version = "0.1.0", path = "../../support_crates/allocators" }
 elfloader = "0.16.0"
 fdt = "0.1.5"
 librust = { version = "0.1.0", path = "../librust" }
