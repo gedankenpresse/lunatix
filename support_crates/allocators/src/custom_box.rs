@@ -65,7 +65,6 @@ impl<'alloc, 'mem, T: ?Sized> Box<'alloc, 'mem, T> {
     pub unsafe fn as_raw(&self) -> (&'mem mut T, &'alloc dyn Allocator<'mem>, Layout) {
         unsafe {
             (
-                #[warn(cast_ref_to_mut)]
                 &mut *(self.inner as *const _ as *mut _),
                 &*(self.source_alloc as *const _),
                 self.source_layout,

@@ -4,6 +4,7 @@
 extern crate std;
 
 mod arena_allocator;
+pub mod boundary_tag_alloc;
 pub mod bump_allocator;
 mod custom_box;
 mod stack_allocator;
