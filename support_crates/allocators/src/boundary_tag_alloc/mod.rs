@@ -1,11 +1,11 @@
 //! Implementation of the boundary tagged allocator.
 //!
 //! The main type is the [`BoundaryTagAllocator`] which implements the `Allocator` trait and uses a specific tag
-//! type ([`TagsU8`], [`TagsU16`] or [`TagsUsize`]) for bookkeeping.
+//! type ([`TagsU8`], [`TagsU16`], [`TagsU32`], [`TagsU64`] or [`TagsUsize`]) for bookkeeping.
 //!
 //! The different tag types model a trade-off between supporting larger amounts of backing memory and needing more
 //! space.
-//! For example, the `TagsUsize` type supports up to ~18.5 exabytes but uses up 17 bytes for bookkeeping per
+//! For example, the `TagsU64` type supports up to ~18.5 exabytes but uses up 17 bytes for bookkeeping per
 //! allocation even if the allocation is for very small data.
 //! On the other hand `TagsU8` supports only 255 bytes of backing memory but only uses 3 bytes per allocation for
 //! bookkeeping.

@@ -4,10 +4,11 @@ use core::alloc::Layout;
 use core::cell::RefCell;
 use core::marker::PhantomData;
 
-type Chunk<T>
-where
-    T: TagsBinding,
-= (T::BeginTag, *mut u8, T::EndTag);
+type Chunk<T> = (
+    <T as TagsBinding>::BeginTag,
+    *mut u8,
+    <T as TagsBinding>::EndTag,
+);
 
 /// The internal state of the allocator which contains the backing memory.
 ///
@@ -179,11 +180,13 @@ pub(super) struct AllocatorState<'mem, Tags: TagsBinding> {
     _tags: PhantomData<Tags>,
 }
 
+#[cfg(test)]
 pub(super) struct BlockIterator<'state, 'mem, Tags: TagsBinding> {
     state: &'state AllocatorState<'mem, Tags>,
     i: usize,
 }
 
+#[cfg(test)]
 impl<'state, 'mem, Tags: TagsBinding> Iterator for BlockIterator<'state, 'mem, Tags> {
     type Item = &'state [u8];
 
@@ -194,7 +197,7 @@ impl<'state, 'mem, Tags: TagsBinding> Iterator for BlockIterator<'state, 'mem, T
 
         let tag = Tags::BeginTag::read_from_chunk(&self.state.backing_mem[self.i..]);
         let block_start = self.i;
-        let block_size = Tags::TAGS_SIZE + tag.content_size().into();
+        let block_size = Tags::TAGS_SIZE + tag.content_size();
         self.i += block_size;
         Some(&self.state.backing_mem[block_start..block_start + block_size])
     }
@@ -208,6 +211,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         }
     }
 
+    #[cfg(test)]
     pub fn block_iter<'a>(&'a self) -> BlockIterator<'a, 'mem, Tags> {
         BlockIterator { state: self, i: 0 }
     }
@@ -215,7 +219,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
     /// Get the first chunk of the backing memory
     pub(crate) fn get_first_chunk(&mut self) -> Chunk<Tags> {
         let begin_tag = Tags::BeginTag::read_from_chunk(self.backing_mem);
-        let chunk = &mut self.backing_mem[..begin_tag.content_size().into() + Tags::TAGS_SIZE];
+        let chunk = &mut self.backing_mem[..begin_tag.content_size() + Tags::TAGS_SIZE];
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
 
@@ -239,14 +243,11 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
 
         let chunk = &mut self.backing_mem[begin_tag_addr - mem_start_addr..];
         let begin_tag = Tags::BeginTag::read_from_chunk(chunk);
-        let chunk = &mut chunk[..Tags::TAGS_SIZE + begin_tag.content_size().into()];
+        let chunk = &mut chunk[..Tags::TAGS_SIZE + begin_tag.content_size()];
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
 
-        assert_eq!(
-            begin_tag.content_size().into(),
-            end_tag.content_size().into()
-        );
+        assert_eq!(begin_tag.content_size(), end_tag.content_size().into());
 
         Ok((begin_tag, content, end_tag))
     }
@@ -281,15 +282,11 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         let chunk = &mut self.backing_mem[..mem_len - (mem_end_addr - end_tag_addr)];
         let chunk_len = chunk.len();
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
-        let chunk =
-            &mut chunk[chunk_len - end_tag.content_size().into() - Tags::BeginTag::TAG_SIZE..];
+        let chunk = &mut chunk[chunk_len - end_tag.content_size() - Tags::BeginTag::TAG_SIZE..];
         let begin_tag = Tags::BeginTag::read_from_chunk(chunk);
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
 
-        assert_eq!(
-            begin_tag.content_size().into(),
-            end_tag.content_size().into()
-        );
+        assert_eq!(begin_tag.content_size(), end_tag.content_size().into());
 
         Ok((begin_tag, content, end_tag))
     }
@@ -324,9 +321,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         let mem_start_addr = self.backing_mem.as_mut_ptr() as usize;
 
         &mut self.backing_mem[chunk.1 as usize - mem_start_addr - Tags::BeginTag::TAG_SIZE
-            ..chunk.1 as usize - mem_start_addr
-                + chunk.0.content_size().into()
-                + Tags::EndTag::TAG_SIZE]
+            ..chunk.1 as usize - mem_start_addr + chunk.0.content_size() + Tags::EndTag::TAG_SIZE]
     }
 
     /// Get the slice fo the backing memory that holds the given chunks content
@@ -334,7 +329,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
     fn get_content_slice(&mut self, chunk: Chunk<Tags>) -> &mut [u8] {
         let mem_start_addr = self.backing_mem.as_mut_ptr() as usize;
         &mut self.backing_mem[chunk.1 as usize - mem_start_addr
-            ..chunk.1 as usize - mem_start_addr + chunk.0.content_size().into()]
+            ..chunk.1 as usize - mem_start_addr + chunk.0.content_size()]
     }
 
     /// Shift (and shrink) the given chunk by `n` bytes and return a new handle to the shifted chunk.
@@ -350,7 +345,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
     /// immediately before or after it must not be used after calling this function because the underlying memory
     /// layout changed and those handles are now invalid.
     unsafe fn shift_chunk(&mut self, chunk: Chunk<Tags>, n: usize) -> Result<Chunk<Tags>, ()> {
-        assert!(chunk.0.content_size().into() > n);
+        assert!(chunk.0.content_size() > n);
         assert_eq!(chunk.0.state(), AllocationMarker::Free);
 
         let mem_start_addr = self.backing_mem.as_mut_ptr() as usize;
@@ -364,7 +359,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         else {
             // update the tags of the previous chunk for its new size
             let prev_chunk = self.get_prev_chunk(chunk).ok_or(())?;
-            let new_prev_content_size = prev_chunk.0.content_size().into() + n;
+            let new_prev_content_size = prev_chunk.0.content_size() + n;
             Tags::BeginTag::new(new_prev_content_size, prev_chunk.0.state()).write_to_chunk(
                 &mut self.backing_mem
                     [(prev_chunk.1 as usize - Tags::BeginTag::TAG_SIZE) - mem_start_addr..],
@@ -377,7 +372,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
             );
 
             // write new tags for the shifted chunk
-            let new_content_size = chunk.0.content_size().into() - n;
+            let new_content_size = chunk.0.content_size() - n;
             let new_chunk_addr = chunk.1 as usize - Tags::BeginTag::TAG_SIZE + n;
             Tags::BeginTag::new(new_content_size, AllocationMarker::Free)
                 .write_to_chunk(&mut self.backing_mem[new_chunk_addr - mem_start_addr..]);
@@ -406,7 +401,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         chunk: Chunk<Tags>,
         head_content_size: usize,
     ) -> (Chunk<Tags>, Chunk<Tags>) {
-        assert!(head_content_size < chunk.0.content_size().into() - Tags::TAGS_SIZE);
+        assert!(head_content_size < chunk.0.content_size() - Tags::TAGS_SIZE);
         assert!(head_content_size >= 1);
         assert_eq!(chunk.0.state(), AllocationMarker::Free);
 
@@ -418,7 +413,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
             .write_to_chunk(&mut chunk_slice[..head_content_size + Tags::TAGS_SIZE]);
 
         // write new tags for the tail portion
-        let tail_content_size = chunk.0.content_size().into() - head_content_size - Tags::TAGS_SIZE;
+        let tail_content_size = chunk.0.content_size() - head_content_size - Tags::TAGS_SIZE;
         Tags::BeginTag::new(tail_content_size, AllocationMarker::Free)
             .write_to_chunk(&mut chunk_slice[head_content_size + Tags::TAGS_SIZE..]);
         Tags::EndTag::new(tail_content_size).write_to_chunk(chunk_slice);
@@ -483,7 +478,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
             let padding = aligned_addr - unaligned_addr;
 
             // skip chunks that cannot be used because they are not large enough
-            if (chunk.0.content_size().into()) < layout.size() + padding {
+            if (chunk.0.content_size()) < layout.size() + padding {
                 chunk = self
                     .get_next_chunk(chunk)
                     .ok_or(AllocError::InsufficientMemory)?;
@@ -509,7 +504,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
                         // if the padding is not large enough to hold a chunk on its own but the current chunk is so
                         // large that it can hold enough padding to reach the next aligned address, split it in two
                         // so that the tail part is padded correctly to that next aligned address
-                        else if chunk.0.content_size().into() > padding + layout.align() {
+                        else if chunk.0.content_size() > padding + layout.align() {
                             let (_head, tail) = unsafe {
                                 self.split_chunk(chunk, padding + layout.align() - Tags::TAGS_SIZE)
                             };
@@ -529,7 +524,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
 
             // meet the layouts size requirement by slicing of a part of the chunk to use
             // (only if the chunk is large enough to hold another allocation later. otherwise just use it directly)
-            if chunk.0.content_size().into() > layout.size() + Tags::TAGS_SIZE {
+            if chunk.0.content_size() > layout.size() + Tags::TAGS_SIZE {
                 let (head, _tail) = unsafe { self.split_chunk(chunk, layout.size()) };
                 chunk = head;
             }
@@ -559,8 +554,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         assert_eq!(self.get_next_chunk(chunk1), Some(chunk2));
 
         // write new tags at begin and end of the merged chunk
-        let new_size =
-            chunk1.0.content_size().into() + chunk2.0.content_size().into() + Tags::TAGS_SIZE;
+        let new_size = chunk1.0.content_size() + chunk2.0.content_size() + Tags::TAGS_SIZE;
         Tags::BeginTag::new(new_size, AllocationMarker::Free)
             .write_to_chunk(self.get_chunk_slice(chunk1));
         Tags::EndTag::new(new_size).write_to_chunk(self.get_chunk_slice(chunk2));
@@ -589,7 +583,10 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         // try to coalesce with the previous chunk
         if let Some(prev_chunk) = self.get_prev_chunk(chunk) {
             if prev_chunk.0.state() == AllocationMarker::Free {
-                chunk = self.coalesce_chunks(prev_chunk, chunk);
+                #[allow(unused_assignments)]
+                {
+                    chunk = self.coalesce_chunks(prev_chunk, chunk);
+                }
             }
         }
     }
@@ -652,7 +649,7 @@ impl<'mem, Tags: TagsBinding> Allocator<'mem> for BoundaryTagAllocator<'mem, Tag
         let chunk = state
             .get_chunk_from_content(data_ptr)
             .expect("Given data_ptr does not point inside the allocators backing memory");
-        assert!(chunk.0.content_size().into() >= layout.size());
+        assert!(chunk.0.content_size() >= layout.size());
         state.deallocate_chunk(chunk)
     }
 }

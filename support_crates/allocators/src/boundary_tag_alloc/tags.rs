@@ -26,7 +26,7 @@ pub trait TagsBinding {
 /// A trait that all possible sizes of begin-tags implement.
 pub trait BeginTag: Debug + Copy + Eq + PartialEq {
     /// The type used for storing the size of a chunks content.
-    type SizeT: Into<usize> + TryFrom<usize>;
+    type SizeT;
 
     /// How much memory the allocator must reserve at the start of a chunk for storing this tag type.
     const TAG_SIZE: usize;
@@ -34,7 +34,7 @@ pub trait BeginTag: Debug + Copy + Eq + PartialEq {
     fn new(content_size: usize, state: AllocationMarker) -> Self;
 
     /// The size of the content that is stored in the chunk which is governed by this tag.
-    fn content_size(&self) -> Self::SizeT;
+    fn content_size(&self) -> usize;
 
     /// Whether the chunk governed by this tag is currently allocated or free.
     fn state(&self) -> AllocationMarker;
@@ -50,7 +50,7 @@ pub trait BeginTag: Debug + Copy + Eq + PartialEq {
 /// A trait that all possible sizes of end-tags implement.
 pub trait EndTag: Debug + Copy + Eq + PartialEq {
     /// The type used for storing the size of a chunks content.
-    type SizeT: Into<usize>;
+    type SizeT;
 
     /// How much memory the allocator must reserve at the start of a chunk for storing this tag type.
     const TAG_SIZE: usize;
@@ -58,7 +58,7 @@ pub trait EndTag: Debug + Copy + Eq + PartialEq {
     fn new(content_size: usize) -> Self;
 
     /// The size of the content that is stored in the chunk which is governed by this tag.
-    fn content_size(&self) -> Self::SizeT;
+    fn content_size(&self) -> usize;
 
     /// Read the tag from a chunk.
     /// The tag is expected to be located at the last few bytes of the chunk.
@@ -108,8 +108,8 @@ macro_rules! make_tag_type {
                 }
             }
 
-            fn content_size(&self) -> Self::SizeT {
-                self.content_size
+            fn content_size(&self) -> usize {
+                self.content_size as usize
             }
 
             fn state(&self) -> AllocationMarker {
@@ -165,8 +165,8 @@ macro_rules! make_tag_type {
                 }
             }
 
-            fn content_size(&self) -> Self::SizeT {
-                self.content_size
+            fn content_size(&self) -> usize {
+                self.content_size as usize
             }
 
             fn read_from_chunk(chunk: &[u8]) -> Self {
@@ -194,4 +194,6 @@ macro_rules! make_tag_type {
 
 make_tag_type!(BeginTagU8, EndTagU8, TagsU8, u8);
 make_tag_type!(BeginTagU16, EndTagU16, TagsU16, u16);
+make_tag_type!(BeginTagU32, EndTagu32, TagsU32, u32);
+make_tag_type!(BeginTagU64, EndTagU64, TagsU64, u64);
 make_tag_type!(BeginTagUsize, EndTagUsize, TagsUsize, usize);
