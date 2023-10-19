@@ -17,6 +17,7 @@
 - [ ] recursive caddr lookup
 - [x] update syscall_abi cap variants to include all caps
 - [x] implement copy for more caps
+- [ ] kernel should refuse to map addresses that have the 39th vaddress bit set to 1
 
 - [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
 - [ ] cspace: destroy slots
