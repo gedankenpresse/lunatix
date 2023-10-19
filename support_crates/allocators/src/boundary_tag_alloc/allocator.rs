@@ -137,7 +137,41 @@ where
 ///
 /// ## Allocate layouts with large alignments
 ///
-/// TODO Reuse large paddings as new chunks instead of effectively wasting bytes
+/// In the previous example, only a small amount of shifting was needed for the free chunk to reach its requested
+/// alignment.
+/// This is however not always the case, for example when allocating whole pages with 4096 byte alignment, the required
+/// shift may be very large.
+/// If the previously discussed method of padding the previous chunk were used in this case, many bytes would go to
+/// waste which would make the allocator very memory inefficient.
+///
+/// Let's assume the following memory state before an allocation is requested (total memory size = 200 bytes):
+///
+/// ```text
+/// ┌─────────────────────────────────┐ ┌───────────────────────────────────────┐
+/// │ "2", used, 2 content-bytes, "2" │ │ "192", free, 192 content-bytes, "192" │
+/// └─────────────────────────────────┘ └───────────────────────────────────────┘
+///  ^                               ^   ^      ^      ^
+///  └──── 5 bytes total length ─────┘   5      6      7
+/// ```
+///
+/// Now, if the user **requests 1 byte content with 128 byte alignment**, the free block must be shifted to the right
+/// by 121 bytes so that the content portion is at address 128.
+///
+/// The allocator now splits the free chunk into two so that the tail portion of the split has the required content
+/// alignment.
+///
+/// ```text
+/// ┌─────────────────────────────────┐ ┌───────────────────────────────────────┐ ┌────────────────────────────────────┐
+/// │ "2", used, 2 content-bytes, "2" │ │ "117", free, 117 content-bytes, "117" │ │ "62", free, 62 content-bytes, "62" │
+/// └─────────────────────────────────┘ └───────────────────────────────────────┘ └────────────────────────────────────┘
+///  ^                               ^   ^                                     ^   ^                                  ^
+///  └──── 5 bytes total length ─────┘   └─────── 120 bytes total length ──────┘   └────── 75 bytes total length ─────┘
+///                                                                                 ^     ^     ^
+///                                                                                126   127   128
+/// ```
+///
+/// After having split the free chunk so that the tails content fulfills the requested alignment, it can be handled
+/// as described in the first example.
 ///
 #[derive(Eq, PartialEq)]
 pub(super) struct AllocatorState<'mem, Tags: TagsBinding> {
@@ -321,34 +355,42 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
 
         let mem_start_addr = self.backing_mem.as_mut_ptr() as usize;
 
-        // update the tags of the previous chunk for its new size
-        let prev_chunk = self.get_prev_chunk(chunk).ok_or(())?;
-        let new_prev_content_size = prev_chunk.0.content_size().into() + n;
-        Tags::BeginTag::new(new_prev_content_size, prev_chunk.0.state()).write_to_chunk(
-            &mut self.backing_mem
-                [(prev_chunk.1 as usize - Tags::BeginTag::TAG_SIZE) - mem_start_addr..],
-        );
-        Tags::EndTag::new(new_prev_content_size).write_to_chunk(
-            &mut self.backing_mem[..(prev_chunk.1 as usize
-                + new_prev_content_size
-                + Tags::EndTag::TAG_SIZE)
-                - mem_start_addr],
-        );
+        // if the requested shift is very large, split the free chunk
+        if n > Tags::TAGS_SIZE {
+            let (_head, tail) = self.split_chunk(chunk, n - Tags::TAGS_SIZE);
+            Ok(tail)
+        }
+        // otherwise, add padding to the previous chunk
+        else {
+            // update the tags of the previous chunk for its new size
+            let prev_chunk = self.get_prev_chunk(chunk).ok_or(())?;
+            let new_prev_content_size = prev_chunk.0.content_size().into() + n;
+            Tags::BeginTag::new(new_prev_content_size, prev_chunk.0.state()).write_to_chunk(
+                &mut self.backing_mem
+                    [(prev_chunk.1 as usize - Tags::BeginTag::TAG_SIZE) - mem_start_addr..],
+            );
+            Tags::EndTag::new(new_prev_content_size).write_to_chunk(
+                &mut self.backing_mem[..(prev_chunk.1 as usize
+                    + new_prev_content_size
+                    + Tags::EndTag::TAG_SIZE)
+                    - mem_start_addr],
+            );
 
-        // write new tags for the shifted chunk
-        let new_content_size = chunk.0.content_size().into() - n;
-        let new_chunk_addr = chunk.1 as usize - Tags::BeginTag::TAG_SIZE + n;
-        Tags::BeginTag::new(new_content_size, AllocationMarker::Free)
-            .write_to_chunk(&mut self.backing_mem[new_chunk_addr - mem_start_addr..]);
-        Tags::EndTag::new(new_content_size).write_to_chunk(
-            &mut self.backing_mem
-                [..new_chunk_addr - mem_start_addr + new_content_size + Tags::TAGS_SIZE],
-        );
+            // write new tags for the shifted chunk
+            let new_content_size = chunk.0.content_size().into() - n;
+            let new_chunk_addr = chunk.1 as usize - Tags::BeginTag::TAG_SIZE + n;
+            Tags::BeginTag::new(new_content_size, AllocationMarker::Free)
+                .write_to_chunk(&mut self.backing_mem[new_chunk_addr - mem_start_addr..]);
+            Tags::EndTag::new(new_content_size).write_to_chunk(
+                &mut self.backing_mem
+                    [..new_chunk_addr - mem_start_addr + new_content_size + Tags::TAGS_SIZE],
+            );
 
-        // return a new handle to the now shifted chunk
-        Ok(self
-            .get_chunk_from_begin(new_chunk_addr as *mut Tags::BeginTag)
-            .unwrap())
+            // return a new handle to the now shifted chunk
+            Ok(self
+                .get_chunk_from_begin(new_chunk_addr as *mut Tags::BeginTag)
+                .unwrap())
+        }
     }
 
     /// Split the given chunk into `(head, tail)` with `head` having `head_content_size` available content bytes and

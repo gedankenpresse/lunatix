@@ -391,3 +391,33 @@ fn test_with_box() {
     assert_eq!(*b, 0x55u8);
     drop(b);
 }
+
+#[test]
+fn test_large_padding_is_reused() {
+    // arrange
+    let mut mem = [0u8; TagsU8::MAX_CONTENT_SIZE];
+    let alloc = BoundaryTagAllocator::<TagsU8>::new(&mut mem);
+    let _block1 = alloc
+        .allocate(Layout::new::<u8>(), AllocInit::Data(0x11))
+        .unwrap();
+    println!("After Setup: {:#?}", alloc.state.borrow());
+
+    // act
+    let block2 = alloc
+        .allocate(
+            Layout::from_size_align(1, 128).unwrap(),
+            AllocInit::Data(0x55),
+        )
+        .unwrap();
+    println!("After Allocation: {:#?}", alloc.state.borrow());
+
+    // assert
+    assert_eq!(block2.as_mut_ptr() as usize % 128, 0);
+    assert_eq!(block2[0], 0x55);
+    assert_eq!(&mem[0..4], [1, AllocationMarker::Allocated as u8, 0x11, 1,]);
+    assert_eq!(&mem[4..6], [7, AllocationMarker::Free as u8]);
+    assert_eq!(
+        &mem[14..18],
+        [1, AllocationMarker::Allocated as u8, 0x55, 1,]
+    )
+}
