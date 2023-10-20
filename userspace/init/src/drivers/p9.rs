@@ -474,6 +474,7 @@ impl TOpen {
         req.write_type(P9MsgType::TOpen);
         req.write_u16(self.tag);
         req.write_u8(self.mode as u8 | self.flags.bits());
+        req.finish();
     }
 }
 
