@@ -1,5 +1,6 @@
 use crate::drivers::p9::{
-    P9MsgType, P9RequestBuilder, RVersion, RWalk, Response, TAttach, TVersion, TWalk,
+    P9FileFlags, P9FileMode, P9MsgType, P9RequestBuilder, ROpen, RRead, RVersion, RWalk, Response,
+    TAttach, TOpen, TRead, TVersion, TWalk,
 };
 use crate::drivers::virtio::{
     self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
@@ -118,6 +119,7 @@ pub fn test() {
             &mut req_buf,
             &mut resp_buf,
         );
+
         let root_fid = 1;
         let root_qid = p9_attach(
             &device,
@@ -130,10 +132,9 @@ pub fn test() {
             "/",
             root_fid,
         );
+        println!("attached to file tree /: {root_qid:?}");
 
-        println!("root_qid={root_qid:?}");
-        let walk_fid = 2;
-        let walk_result = p9_walk(
+        let opened = p9_open(
             &device,
             &mut queue,
             irq_notif,
@@ -141,10 +142,23 @@ pub fn test() {
             &mut req_buf,
             &mut resp_buf,
             root_fid,
-            walk_fid,
-            &[".", "index.txt"],
+            P9FileMode::OREAD,
+            P9FileFlags::empty(),
         );
-        println!("{:#?}", walk_result.qids());
+        println!("opened root directory for reading: {opened:?}");
+
+        let root_info = p9_read(
+            &device,
+            &mut queue,
+            irq_notif,
+            irq,
+            &mut req_buf,
+            &mut resp_buf,
+            root_fid,
+            0,
+            1024,
+        );
+        println!("root_qid={root_qid:?} root_info={root_info:#?}");
 
         todo!()
     }
@@ -171,9 +185,7 @@ fn exchange_p9_virtio_msgs(
     }
 
     device.notify(0);
-    print!("waiting for virtio response...");
     librust::wait_on(irq_notif).unwrap();
-    println!("...done")
 }
 
 /// Perform a P9 handshake to introduce us to the server and negotiate a version
@@ -253,7 +265,7 @@ fn p9_attach(
     resp.qid
 }
 
-/// Walk the
+/// Walk the directory tree to a new directory (effectively chdir)
 fn p9_walk(
     device: &VirtDevice,
     queue: &mut VirtQ,
@@ -280,6 +292,65 @@ fn p9_walk(
 
     let Response::Walk(resp) = Response::deserialize(resp_buf.buf).unwrap() else {
         panic!()
+    };
+    librust::irq_complete(irq).unwrap();
+    resp
+}
+
+fn p9_open(
+    device: &VirtDevice,
+    queue: &mut VirtQ,
+    irq_notif: CAddr,
+    irq: CAddr,
+    req_buf: &mut VirtQMsgBuf,
+    resp_buf: &mut VirtQMsgBuf,
+    fid: u32,
+    mode: P9FileMode,
+    flags: P9FileFlags,
+) -> ROpen {
+    let msg = TOpen {
+        tag: !0,
+        fid,
+        mode,
+        flags,
+    };
+    msg.serialize(P9RequestBuilder::new(req_buf.buf));
+
+    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
+
+    let resp = Response::deserialize(resp_buf.buf).unwrap();
+    let Response::Open(resp) = resp else {
+        panic!("did not receive expected response but {resp:?} instead")
+    };
+
+    librust::irq_complete(irq).unwrap();
+    resp
+}
+
+fn p9_read<'resp>(
+    device: &VirtDevice,
+    queue: &mut VirtQ,
+    irq_notif: CAddr,
+    irq: CAddr,
+    req_buf: &mut VirtQMsgBuf,
+    resp_buf: &'resp mut VirtQMsgBuf,
+    fid: u32,
+    offset: u64,
+    count: u32,
+) -> RRead<'resp> {
+    let msg = TRead {
+        tag: !0,
+        fid,
+        offset,
+        count,
+    };
+    msg.serialize(P9RequestBuilder::new(req_buf.buf));
+
+    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
+
+    let resp = Response::deserialize(resp_buf.buf).unwrap();
+    let Response::Read(resp) = resp else {
+        panic!("did not receive expected response but {resp:?} instead")
     };
     librust::irq_complete(irq).unwrap();
     resp

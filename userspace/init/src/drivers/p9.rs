@@ -1,3 +1,5 @@
+use bitflags::{bitflags, Flags};
+use core::fmt::{Debug, Formatter};
 use core::mem;
 use core::mem::MaybeUninit;
 use core::ptr::{addr_of_mut, read};
@@ -196,12 +198,22 @@ impl<'a> ByteReader<'a> {
         self.buf = rest;
         return Some(a);
     }
+
+    pub fn read_str(&mut self) -> Option<&'a str> {
+        let len = self.read_u16()? as usize;
+        let s = self.read_slice(len)?;
+        Some(core::str::from_utf8(s).unwrap())
+    }
 }
 
+#[derive(Debug)]
 pub enum Response<'a> {
+    Error(RError<'a>),
     Version(RVersion<'a>),
     Attach(RAttach),
     Walk(RWalk),
+    Read(RRead<'a>),
+    Open(ROpen),
 }
 
 impl<'a> Response<'a> {
@@ -219,9 +231,7 @@ impl<'a> Response<'a> {
             P9MsgType::RVersion => {
                 let tag = reader.read_u16()?;
                 let msize = reader.read_u32()?;
-                let version_len = reader.read_u16()?;
-                let version = reader.read_slice(version_len as usize)?;
-                let version = core::str::from_utf8(version).unwrap();
+                let version = reader.read_str()?;
                 Some(Response::Version(RVersion {
                     msize,
                     version,
@@ -234,7 +244,11 @@ impl<'a> Response<'a> {
                 let qid = P9Qid::deserialize(&mut reader)?;
                 Some(Response::Attach(RAttach { tag, qid }))
             }
-            P9MsgType::RError => todo!(),
+            P9MsgType::RError => {
+                let tag = reader.read_u16()?;
+                let ename = reader.read_str()?;
+                Some(Response::Error(RError { tag, ename }))
+            }
             P9MsgType::RFlush => todo!(),
             P9MsgType::RWalk => {
                 let tag = reader.read_u16()?;
@@ -264,6 +278,12 @@ impl<'a> Response<'a> {
     }
 }
 
+#[derive(Debug)]
+pub struct RError<'a> {
+    pub tag: u16,
+    pub ename: &'a str,
+}
+
 pub struct TVersion<'a> {
     pub msize: u32,
     pub version: &'a str,
@@ -279,6 +299,7 @@ impl TVersion<'_> {
     }
 }
 
+#[derive(Debug)]
 pub struct RVersion<'a> {
     pub msize: u32,
     pub version: &'a str,
@@ -305,6 +326,7 @@ impl TAttach<'_> {
     }
 }
 
+#[derive(Debug)]
 pub struct RAttach {
     pub tag: u16,
     pub qid: P9Qid,
@@ -331,7 +353,6 @@ impl TWalk<'_> {
     }
 }
 
-#[derive(Debug)]
 pub struct RWalk {
     pub tag: u16,
     nwqids: u16,
@@ -342,4 +363,78 @@ impl RWalk {
     pub fn qids(&self) -> &[P9Qid] {
         &self.qids[..self.nwqids as usize]
     }
+}
+
+impl Debug for RWalk {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RWalk")
+            .field("tag", &self.tag)
+            .field("qids", &self.qids())
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct TRead {
+    pub tag: u16,
+    pub fid: u32,
+    pub offset: u64,
+    pub count: u32,
+}
+
+impl TRead {
+    pub fn serialize(&self, mut req: P9RequestBuilder) {
+        req.write_type(P9MsgType::TRead);
+        req.write_u16(self.tag);
+        req.write_u32(self.fid);
+        req.write_u64(self.offset);
+        req.write_u32(self.count);
+    }
+}
+
+#[derive(Debug)]
+pub struct RRead<'d> {
+    pub tag: u16,
+    pub count: u32,
+    pub data: &'d [u8],
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum P9FileMode {
+    OREAD = 0,
+    OWRITE = 1,
+    ORDWR = 2,
+    OEXEC = 3,
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    pub struct P9FileFlags: u8 {
+        const OTRUNC = 0x10;
+        const ORCLOSE = 0x40;
+    }
+}
+
+#[derive(Debug)]
+pub struct TOpen {
+    pub tag: u16,
+    pub fid: u32,
+    pub mode: P9FileMode,
+    pub flags: P9FileFlags,
+}
+
+impl TOpen {
+    pub fn serialize(&self, mut req: P9RequestBuilder) {
+        req.write_type(P9MsgType::TOpen);
+        req.write_u16(self.tag);
+        req.write_u8(self.mode as u8 | self.flags.bits());
+    }
+}
+
+#[derive(Debug)]
+pub struct ROpen {
+    pub tag: u16,
+    pub qid: P9Qid,
+    pub iounit: u32,
 }
