@@ -6,6 +6,9 @@ use core::ptr::{addr_of_mut, read};
 use librust::println;
 use regs::RW;
 
+/// Maximum number of walk elements in a single message
+const MAXWELEM: usize = 16;
+
 macro_rules! back_to_enum {
     ($(#[$meta:meta])* $vis:vis enum $name:ident {
         $($(#[$vmeta:meta])* $vname:ident $(= $val:expr)?,)*
@@ -207,13 +210,27 @@ impl<'a> ByteReader<'a> {
 }
 
 #[derive(Debug)]
+pub enum Request<'a> {
+    Version(TVersion<'a>),
+    Attach(TAttach<'a>),
+    Walk(TWalk<'a>),
+    Open(TOpen),
+    Read(TRead),
+}
+
+#[derive(Debug)]
 pub enum Response<'a> {
     Error(RError<'a>),
     Version(RVersion<'a>),
     Attach(RAttach),
-    Walk(RWalk),
-    Read(RRead<'a>),
     Open(ROpen),
+    Flush(RFlush),
+    // Create(RCreate<'a>),
+    Read(RRead<'a>),
+    Write(RWrite),
+    Clunk(RClunk),
+    Remove(RRemove),
+    Walk(RWalk),
 }
 
 impl<'a> Response<'a> {
@@ -238,7 +255,7 @@ impl<'a> Response<'a> {
                     tag,
                 }))
             }
-            P9MsgType::RAuth => todo!(),
+            P9MsgType::RAuth => todo!("9p RAuth"),
             P9MsgType::RAttach => {
                 let tag = reader.read_u16()?;
                 let qid = P9Qid::deserialize(&mut reader)?;
@@ -246,10 +263,15 @@ impl<'a> Response<'a> {
             }
             P9MsgType::RError => {
                 let tag = reader.read_u16()?;
-                let ename = reader.read_str()?;
+                let ename_len = reader.read_u16()?;
+                let ename = reader.read_slice(ename_len as usize)?;
+                let ename = core::str::from_utf8(ename).unwrap();
                 Some(Response::Error(RError { tag, ename }))
             }
-            P9MsgType::RFlush => todo!(),
+            P9MsgType::RFlush => {
+                let tag = reader.read_u16()?;
+                Some(Response::Flush(RFlush { tag }))
+            }
             P9MsgType::RWalk => {
                 let tag = reader.read_u16()?;
                 let nwqids = reader.read_u16()?;
@@ -265,14 +287,34 @@ impl<'a> Response<'a> {
                 }
                 Some(Response::Walk(RWalk { tag, nwqids, qids }))
             }
-            P9MsgType::ROpen => todo!(),
-            P9MsgType::RCreate => todo!(),
-            P9MsgType::RRead => todo!(),
-            P9MsgType::RWrite => todo!(),
-            P9MsgType::RClunk => todo!(),
-            P9MsgType::RRemove => todo!(),
-            P9MsgType::RStat => todo!(),
-            P9MsgType::RWStat => todo!(),
+            P9MsgType::ROpen => {
+                let tag = reader.read_u16()?;
+                let qid = P9Qid::deserialize(&mut reader)?;
+                let iounit = reader.read_u32()?;
+                Some(Response::Open(ROpen { tag, qid, iounit }))
+            }
+            P9MsgType::RCreate => todo!("9P RCreate"),
+            P9MsgType::RRead => {
+                let tag = reader.read_u16()?;
+                let count = reader.read_u32()?;
+                let data = reader.read_slice(count as usize)?;
+                Some(Response::Read(RRead { tag, data }))
+            }
+            P9MsgType::RWrite => {
+                let tag = reader.read_u16()?;
+                let count = reader.read_u32()?;
+                Some(Response::Write(RWrite { tag, count }))
+            }
+            P9MsgType::RClunk => {
+                let tag = reader.read_u16()?;
+                Some(Response::Clunk(RClunk { tag }))
+            }
+            P9MsgType::RRemove => {
+                let tag = reader.read_u16()?;
+                Some(Response::Remove(RRemove { tag }))
+            }
+            P9MsgType::RStat => todo!("9P RStat"),
+            P9MsgType::RWStat => todo!("9P RWStat"),
             _ => panic!("invalid message"),
         }
     }
@@ -284,6 +326,7 @@ pub struct RError<'a> {
     pub ename: &'a str,
 }
 
+#[derive(Debug)]
 pub struct TVersion<'a> {
     pub msize: u32,
     pub version: &'a str,
@@ -306,6 +349,7 @@ pub struct RVersion<'a> {
     pub tag: u16,
 }
 
+#[derive(Debug)]
 pub struct TAttach<'a> {
     pub tag: u16,
     pub fid: u32,
@@ -350,6 +394,7 @@ impl TWalk<'_> {
         for wname in self.wnames {
             req.write_str(wname);
         }
+        req.finish()
     }
 }
 
@@ -389,13 +434,13 @@ impl TRead {
         req.write_u32(self.fid);
         req.write_u64(self.offset);
         req.write_u32(self.count);
+        req.finish();
     }
 }
 
 #[derive(Debug)]
 pub struct RRead<'d> {
     pub tag: u16,
-    pub count: u32,
     pub data: &'d [u8],
 }
 
@@ -433,8 +478,29 @@ impl TOpen {
 }
 
 #[derive(Debug)]
+pub struct RFlush {
+    pub tag: u16,
+}
+
+#[derive(Debug)]
 pub struct ROpen {
     pub tag: u16,
     pub qid: P9Qid,
     pub iounit: u32,
+}
+
+#[derive(Debug)]
+pub struct RWrite {
+    pub tag: u16,
+    pub count: u32,
+}
+
+#[derive(Debug)]
+pub struct RClunk {
+    pub tag: u16,
+}
+
+#[derive(Debug)]
+pub struct RRemove {
+    pub tag: u16,
 }

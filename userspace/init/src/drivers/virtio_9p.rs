@@ -11,7 +11,7 @@ use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
 use librust::{print, println};
 
-use super::p9::P9Qid;
+use super::p9::{self, P9Qid};
 use super::virtio::{VirtQ, VirtQMsgBuf};
 
 const VIRTIO_DEVICE: usize = 0x10008000;
@@ -57,7 +57,7 @@ fn prepare_msg_bufs() -> (VirtQMsgBuf, VirtQMsgBuf) {
     )
 }
 
-pub fn test() {
+pub fn init_9p_driver() -> P9Driver<'static> {
     librust::devmem_map(
         CADDR_DEVMEM,
         CADDR_MEM,
@@ -104,119 +104,142 @@ pub fn test() {
         let irq = caddr_alloc::alloc_caddr();
         librust::irq_control_claim(CADDR_IRQ_CONTROL, 0x08, irq, irq_notif).unwrap();
 
-        let mut queue = virtio::queue_setup(device, 0).unwrap();
-        let (mut req_buf, mut resp_buf) = prepare_msg_bufs();
+        let queue = virtio::queue_setup(device, 0).unwrap();
+        let (req_buf, resp_buf) = prepare_msg_bufs();
 
         // finish device initialization
         device_status |= DeviceStatus::DRIVER_OK as u32;
         device.status.write(device_status);
-
-        p9_handshake(
-            &device,
-            &mut queue,
-            irq_notif,
+        return P9Driver {
+            device,
+            queue,
+            noti: irq_notif,
             irq,
-            &mut req_buf,
-            &mut resp_buf,
-        );
-
-        let root_fid = 1;
-        let root_qid = p9_attach(
-            &device,
-            &mut queue,
-            irq_notif,
-            irq,
-            &mut req_buf,
-            &mut resp_buf,
-            "lunatix",
-            "/",
-            root_fid,
-        );
-        println!("attached to file tree /: {root_qid:?}");
-
-        let opened = p9_open(
-            &device,
-            &mut queue,
-            irq_notif,
-            irq,
-            &mut req_buf,
-            &mut resp_buf,
-            root_fid,
-            P9FileMode::OREAD,
-            P9FileFlags::empty(),
-        );
-        println!("opened root directory for reading: {opened:?}");
-
-        let root_info = p9_read(
-            &device,
-            &mut queue,
-            irq_notif,
-            irq,
-            &mut req_buf,
-            &mut resp_buf,
-            root_fid,
-            0,
-            1024,
-        );
-        println!("root_qid={root_qid:?} root_info={root_info:#?}");
-
-        todo!()
+            req: req_buf,
+            res: resp_buf,
+        };
     }
 }
 
-/// Send the message in `req_buf` to the VirtIO device described by `device` and `queue` and wait until a response is
-/// sent by the device which should be written into `resp_buf`.
-fn exchange_p9_virtio_msgs(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    req_buf: &VirtQMsgBuf,
-    resp_buf: &VirtQMsgBuf,
-) {
-    let resp_idx = {
-        let (resp_idx, resp_descriptor) = queue.get_free_descriptor().unwrap();
-        resp_descriptor.describe_response(resp_buf);
-        resp_idx
-    };
-    {
-        let (req_idx, req_descriptor) = queue.get_free_descriptor().unwrap();
-        req_descriptor.describe_request(req_buf, resp_idx);
-        queue.avail.insert_request(req_idx as u16);
+pub fn test() {
+    let mut driver = init_9p_driver();
+    p9_handshake(&mut driver);
+
+    let attach_fid = 0;
+    let attach_qid = p9_attach(
+        &mut driver,
+        TAttach {
+            tag: !0,
+            fid: attach_fid,
+            afid: !0,
+            uname: "lunatix",
+            aname: "/",
+        },
+    );
+
+    println!("attach_qid={attach_qid:?}");
+
+    let walk_fid = 1;
+    let walk = p9_walk(
+        &mut driver,
+        TWalk {
+            tag: !0,
+            fid: attach_fid,
+            newfid: walk_fid,
+            wnames: &[],
+        },
+    );
+    //let root_qid = walk.qids()[0];
+    println!("walk: {walk:?}");
+
+    let root_fid = 2;
+    let opened = p9_open(
+        &mut driver,
+        TOpen {
+            tag: !0,
+            fid: root_fid,
+            mode: P9FileMode::OREAD,
+            flags: P9FileFlags::empty(),
+        },
+    );
+    println!("opened root directory for reading: {opened:?}");
+
+    let root_info = p9_read(
+        &mut driver,
+        TRead {
+            tag: !0,
+            fid: root_fid,
+            offset: 0,
+            count: 512,
+        },
+    );
+    //println!("root_qid={root_qid:?} root_info={root_info:#?}");
+
+    todo!()
+}
+
+pub struct P9Driver<'mm> {
+    device: &'mm VirtDevice,
+    queue: VirtQ,
+    noti: CAddr,
+    irq: CAddr,
+    req: VirtQMsgBuf,
+    res: VirtQMsgBuf,
+}
+
+impl<'mm> P9Driver<'mm> {
+    pub fn do_request(&mut self, req: p9::Request) -> Result<p9::Response, &'_ str> {
+        self.req.clear();
+        self.res.clear();
+
+        let req_builder = P9RequestBuilder::new(self.req.buf);
+        match req {
+            p9::Request::Version(msg) => msg.serialize(req_builder),
+            p9::Request::Attach(msg) => msg.serialize(req_builder),
+            p9::Request::Walk(msg) => msg.serialize(req_builder),
+            p9::Request::Read(msg) => msg.serialize(req_builder),
+            p9::Request::Open(msg) => msg.serialize(req_builder),
+        }
+
+        self.exchange_p9_virtio_msgs();
+
+        let res = Response::deserialize(self.res.buf).unwrap();
+        match res {
+            Response::Error(e) => Err(e.ename),
+            _ => Ok(res),
+        }
     }
 
-    device.notify(0);
-    librust::wait_on(irq_notif).unwrap();
+    /// Send the message in `req_buf` to the VirtIO device described by `device` and `queue` and wait until a response is
+    /// sent by the device which should be written into `resp_buf`.
+    fn exchange_p9_virtio_msgs(&mut self) {
+        let resp_idx = {
+            let (resp_idx, resp_descriptor) = self.queue.get_free_descriptor().unwrap();
+            resp_descriptor.describe_response(&self.res);
+            resp_idx
+        };
+        {
+            let (req_idx, req_descriptor) = self.queue.get_free_descriptor().unwrap();
+            req_descriptor.describe_request(&self.req, resp_idx);
+            self.queue.avail.insert_request(req_idx as u16);
+        }
+
+        self.device.notify(0);
+        print!("waiting for virtio response...");
+        librust::wait_on(self.noti).unwrap();
+        println!("...done")
+    }
 }
 
 /// Perform a P9 handshake to introduce us to the server and negotiate a version
-fn p9_handshake(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    irq: CAddr,
-    req_buf: &mut VirtQMsgBuf,
-    resp_buf: &mut VirtQMsgBuf,
-) {
-    req_buf.clear();
-    resp_buf.clear();
-
+fn p9_handshake(driver: &mut P9Driver) {
     let msg = TVersion {
         msize: 4096,
         version: "9P2000.u",
     };
-    msg.serialize(P9RequestBuilder::new(req_buf.buf));
-
-    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
-
-    let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Version(RVersion {
-        tag,
-        msize,
-        version,
-    }) = resp
-    else {
-        panic!()
-    };
+    let irq = driver.irq;
+    let res = driver.do_request(p9::Request::Version(msg)).unwrap();
+    let Response::Version(RVersion { tag, msize, version }) = res else { panic!() };
 
     assert_eq!(tag, !0);
     assert_eq!(msize, 4096);
@@ -231,127 +254,41 @@ fn p9_handshake(
 /// - uname describes the user
 /// - aname describes the file tree to access
 /// - fid is the file descriptor id to which the file tree is attached
-fn p9_attach(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    irq: CAddr,
-    req_buf: &mut VirtQMsgBuf,
-    resp_buf: &mut VirtQMsgBuf,
-    uname: &str,
-    aname: &str,
-    fid: u32,
-) -> P9Qid {
-    req_buf.clear();
-    resp_buf.clear();
+fn p9_attach(driver: &mut P9Driver, attach: TAttach) -> P9Qid {
+    let res = driver.do_request(p9::Request::Attach(attach)).unwrap();
+    let Response::Attach(resp) = res else { panic!() };
 
-    let msg = TAttach {
-        tag: !0,
-        fid,
-        afid: !0,
-        uname,
-        aname,
-    };
-    msg.serialize(P9RequestBuilder::new(req_buf.buf));
-
-    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
-
-    let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Attach(resp) = resp else {
-        panic!()
-    };
-
-    librust::irq_complete(irq).unwrap();
+    librust::irq_complete(driver.irq).unwrap();
     resp.qid
 }
 
 /// Walk the directory tree to a new directory (effectively chdir)
-fn p9_walk(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    irq: CAddr,
-    req_buf: &mut VirtQMsgBuf,
-    resp_buf: &mut VirtQMsgBuf,
-    fid: u32,
-    newfid: u32,
-    wnames: &[&str],
-) -> RWalk {
-    req_buf.clear();
-    resp_buf.clear();
-
-    let msg = TWalk {
-        tag: !0,
-        fid,
-        newfid,
-        wnames,
+fn p9_walk(driver: &mut P9Driver, walk: TWalk) -> RWalk {
+    let res = driver.do_request(p9::Request::Walk(walk)).unwrap();
+    let Response::Walk(resp) = res else {
+        panic!("did not receive expected response but {res:?} instead")
     };
-    msg.serialize(P9RequestBuilder::new(req_buf.buf));
-
-    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
-
-    let Response::Walk(resp) = Response::deserialize(resp_buf.buf).unwrap() else {
-        panic!()
-    };
-    librust::irq_complete(irq).unwrap();
+    librust::irq_complete(driver.irq).unwrap();
     resp
 }
 
-fn p9_open(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    irq: CAddr,
-    req_buf: &mut VirtQMsgBuf,
-    resp_buf: &mut VirtQMsgBuf,
-    fid: u32,
-    mode: P9FileMode,
-    flags: P9FileFlags,
-) -> ROpen {
-    let msg = TOpen {
-        tag: !0,
-        fid,
-        mode,
-        flags,
-    };
-    msg.serialize(P9RequestBuilder::new(req_buf.buf));
-
-    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
-
-    let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Open(resp) = resp else {
-        panic!("did not receive expected response but {resp:?} instead")
+fn p9_open(driver: &mut P9Driver, open: TOpen) -> ROpen {
+    let res = driver.do_request(p9::Request::Open(open)).unwrap();
+    let Response::Open(resp) = res else {
+        panic!("did not receive expected response but {res:?} instead")
     };
 
-    librust::irq_complete(irq).unwrap();
+    librust::irq_complete(driver.irq).unwrap();
     resp
 }
 
-fn p9_read<'resp>(
-    device: &VirtDevice,
-    queue: &mut VirtQ,
-    irq_notif: CAddr,
-    irq: CAddr,
-    req_buf: &mut VirtQMsgBuf,
-    resp_buf: &'resp mut VirtQMsgBuf,
-    fid: u32,
-    offset: u64,
-    count: u32,
-) -> RRead<'resp> {
-    let msg = TRead {
-        tag: !0,
-        fid,
-        offset,
-        count,
+fn p9_read<'resp>(driver: &'resp mut P9Driver, read: TRead) -> RRead<'resp> {
+    let irq = driver.irq;
+    let res = driver.do_request(p9::Request::Read(read)).unwrap();
+    let Response::Read(resp) = res else {
+        panic!("did not receive expected response but {res:?} instead")
     };
-    msg.serialize(P9RequestBuilder::new(req_buf.buf));
 
-    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
-
-    let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Read(resp) = resp else {
-        panic!("did not receive expected response but {resp:?} instead")
-    };
     librust::irq_complete(irq).unwrap();
     resp
 }
