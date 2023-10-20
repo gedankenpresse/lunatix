@@ -120,6 +120,7 @@ dependencies = [
 name = "init"
 version = "0.1.0"
 dependencies = [
+ "align-data",
  "bitflags 2.4.1",
  "cc",
  "elfloader 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",

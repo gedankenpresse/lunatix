@@ -7,12 +7,13 @@ mod drivers;
 mod elfloader;
 mod read;
 mod sifive_uart;
+mod static_vec;
 
 use crate::commands::Command;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
+use align_data::{include_aligned, Align16};
 use core::panic::PanicInfo;
-use core::sync::atomic::AtomicUsize;
 use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
@@ -22,8 +23,10 @@ use librust::{print, println};
 use sifive_uart::SifiveUart;
 use uart_driver::{MmUart, Uart};
 
-static HELLO_WORLD_BIN: &[u8] =
-    include_bytes!("../../../target/riscv64imac-unknown-none-elf/release/hello_world");
+static HELLO_WORLD_BIN: &[u8] = include_aligned!(
+    Align16,
+    "../../../target/riscv64imac-unknown-none-elf/release/hello_world"
+);
 
 #[no_mangle]
 fn _start() {
@@ -38,12 +41,6 @@ const CADDR_DEVMEM: CAddr = 5;
 const CADDR_ASID_CONTROL: CAddr = 6;
 const CADDR_UART_IRQ: CAddr = 7;
 const CADDR_UART_NOTIFICATION: CAddr = 8;
-
-const CADDR_CHILD_TASK: CAddr = 10;
-const CADDR_CHILD_CSPACE: CAddr = 11;
-const CADDR_CHILD_VSPACE: CAddr = 12;
-const CADDR_CHILD_STACK_PAGE: CAddr = 13;
-const CADDR_CHILD_PAGE_START: CAddr = 14;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -156,8 +153,8 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
 }
 
 fn main() {
-    drivers::virtio_9p::test();
-    panic!();
+    //drivers::virtio_9p::test();
+    //panic!();
 
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };

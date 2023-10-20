@@ -1,9 +1,11 @@
-use core::mem;
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
 use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
 use librust::syscall_abi::MapFlags;
+
+use crate::caddr_alloc;
+use crate::static_vec::StaticVec;
 
 const PAGESIZE: usize = 4096;
 
@@ -31,30 +33,17 @@ pub struct LunatixElfLoader<const MAX_NUM_PAGES: usize> {
     /// Address at which pages are mapped while content is loaded into them.
     interim_addr: usize,
 
-    free_pages: [Option<CAddr>; MAX_NUM_PAGES],
-    used_pages: [Option<Mapping>; MAX_NUM_PAGES],
+    used_pages: StaticVec<Mapping, MAX_NUM_PAGES>,
 }
 
 impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
-    pub fn new(
-        mem: CAddr,
-        own_vspace: CAddr,
-        target_vspace: CAddr,
-        caddr_page_start: usize,
-        interim_addr: usize,
-    ) -> Self {
-        let mut free_pages = [None; MAX_NUM_PAGES];
-        for i in 0..MAX_NUM_PAGES {
-            free_pages[i] = Some(caddr_page_start + i);
-        }
-
+    pub fn new(mem: CAddr, own_vspace: CAddr, target_vspace: CAddr, interim_addr: usize) -> Self {
         Self {
             mem,
             own_vspace,
             target_vspace,
-            free_pages,
             interim_addr,
-            used_pages: [None; MAX_NUM_PAGES],
+            used_pages: StaticVec::new(),
         }
     }
 
@@ -64,35 +53,27 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
         target_addr: usize,
         target_flags: MapFlags,
     ) -> Option<&Mapping> {
-        let free_page_ref = self.free_pages.iter_mut().find(|i| i.is_some())?;
-        let mut tmp = None;
-        mem::swap(free_page_ref, &mut tmp);
-
-        let mut tmp = Some(Mapping {
-            page: tmp.unwrap(),
+        let page = caddr_alloc::alloc_caddr();
+        let mapping = Mapping {
+            page,
             local_addr,
             target_addr,
             flags: target_flags,
-        });
-
-        let used_page_ref = self.used_pages.iter_mut().find(|i| i.is_none())?;
-        mem::swap(used_page_ref, &mut tmp);
-        used_page_ref.as_ref()
+        };
+        self.used_pages.push(mapping);
+        let mapping = &self.used_pages[self.used_pages.len() - 1];
+        Some(mapping)
     }
 
     fn find_mapping(&self, target_addr: usize) -> Option<&Mapping> {
         self.used_pages
             .iter()
-            .filter_map(|i| i.as_ref())
             .find(|i| i.target_addr <= target_addr && i.target_addr + PAGESIZE > target_addr)
     }
 
     pub fn remap_to_target_vspace(&mut self) {
         println!("remapping to target vspace");
-        for m in self.used_pages {
-            let Some(mapping) = m else {
-                continue;
-            };
+        for mapping in self.used_pages.iter() {
             librust::unmap_page(mapping.page).unwrap();
             librust::map_page(
                 mapping.page,
