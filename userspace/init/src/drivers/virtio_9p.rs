@@ -125,7 +125,7 @@ pub fn test() {
     let mut driver = init_9p_driver();
     p9_handshake(&mut driver);
 
-    let attach_fid = 0;
+    let attach_fid = 1;
     let attach_qid = p9_attach(
         &mut driver,
         TAttach {
@@ -139,25 +139,25 @@ pub fn test() {
 
     println!("attach_qid={attach_qid:?}");
 
-    let walk_fid = 1;
+    let walk_fid = 2;
     let walk = p9_walk(
         &mut driver,
         TWalk {
-            tag: !0,
+            tag: 1,
             fid: attach_fid,
             newfid: walk_fid,
-            wnames: &[],
+            wnames: &["index.txt"],
         },
     );
     //let root_qid = walk.qids()[0];
     println!("walk: {walk:?}");
 
-    let root_fid = 2;
+    let root_fid = 3;
     let opened = p9_open(
         &mut driver,
         TOpen {
-            tag: !0,
-            fid: root_fid,
+            tag: 2,
+            fid: walk_fid,
             mode: P9FileMode::OREAD,
             flags: P9FileFlags::empty(),
         },
@@ -168,12 +168,13 @@ pub fn test() {
         &mut driver,
         TRead {
             tag: !0,
-            fid: root_fid,
+            fid: walk_fid,
             offset: 0,
             count: 512,
         },
     );
-    //println!("root_qid={root_qid:?} root_info={root_info:#?}");
+    println!("root_info={root_info:?}");
+    println!("{}", core::str::from_utf8(root_info.data).unwrap());
 
     todo!()
 }
