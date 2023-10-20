@@ -1,10 +1,6 @@
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use core::fmt::{Debug, Formatter};
 use core::mem;
-use core::mem::MaybeUninit;
-use core::ptr::{addr_of_mut, read};
-use librust::println;
-use regs::RW;
 
 /// Maximum number of walk elements in a single message
 const MAXWELEM: usize = 16;
@@ -279,8 +275,8 @@ impl<'a> Response<'a> {
                     typ: P9QidType::File,
                     version: 0,
                     path: 0,
-                }; 16];
-                for i in 0..16 {
+                }; MAXWELEM];
+                for i in 0..MAXWELEM as u16 {
                     if i < nwqids {
                         qids[i as usize] = P9Qid::deserialize(&mut reader)?;
                     }
@@ -401,7 +397,7 @@ impl TWalk<'_> {
 pub struct RWalk {
     pub tag: u16,
     nwqids: u16,
-    qids: [P9Qid; 16],
+    qids: [P9Qid; MAXWELEM],
 }
 
 impl RWalk {
@@ -446,6 +442,7 @@ pub struct RRead<'d> {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
+#[allow(dead_code, non_camel_case_types)]
 pub enum P9FileMode {
     OREAD = 0,
     OWRITE = 1,
@@ -505,4 +502,51 @@ pub struct RClunk {
 #[derive(Debug)]
 pub struct RRemove {
     pub tag: u16,
+}
+
+#[derive(Debug)]
+pub struct Stat<'a> {
+    typ: u16,
+    dev: u32,
+    pub qid: P9Qid,
+    pub mode: u32,
+    pub atime: u32,
+    pub mtime: u32,
+    pub length: u64,
+    pub name: &'a str,
+    pub uid: &'a str,
+    pub gid: &'a str,
+    pub muid: &'a str,
+}
+
+impl<'a> Stat<'a> {
+    pub fn deserialize(reader: &'a mut ByteReader) -> Option<Self> {
+        let size = reader.read_u16()?;
+        let data = reader.read_slice(size as usize)?;
+        let mut reader = ByteReader::new(data);
+        let typ = reader.read_u16().unwrap();
+        let dev = reader.read_u32().unwrap();
+        let qid = P9Qid::deserialize(&mut reader).unwrap();
+        let mode = reader.read_u32().unwrap();
+        let atime = reader.read_u32().unwrap();
+        let mtime = reader.read_u32().unwrap();
+        let length = reader.read_u64().unwrap();
+        let name = reader.read_str().unwrap();
+        let uid = reader.read_str().unwrap();
+        let gid = reader.read_str().unwrap();
+        let muid = reader.read_str().unwrap();
+        Some(Self {
+            typ,
+            dev,
+            qid,
+            mode,
+            atime,
+            mtime,
+            length,
+            name,
+            uid,
+            gid,
+            muid,
+        })
+    }
 }

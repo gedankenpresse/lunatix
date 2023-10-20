@@ -1,5 +1,5 @@
 use crate::{caddr_alloc, CADDR_MEM, CADDR_VSPACE};
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use librust::syscall_abi::{identify::CapabilityVariant, CAddr, MapFlags};
 use regs::{RO, RW, WO};
 
@@ -7,6 +7,7 @@ pub const VIRTIO_MAGIC: u32 = 0x74726976;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
+#[allow(dead_code, non_camel_case_types)]
 pub enum DeviceId {
     INVALID = 0,
     NETWORK_CARD = 1,
@@ -35,6 +36,7 @@ pub enum DeviceId {
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
+#[allow(dead_code, non_camel_case_types)]
 pub enum DeviceStatus {
     /// Indicates that the guest OS has found the device and recognized it as a valid virtio device.
     ACKNOWLEDGE = 1,
@@ -111,6 +113,7 @@ impl VirtDevice {
 }
 
 #[repr(u16)]
+#[allow(dead_code)]
 pub enum DescriptorFlags {
     NEXT = 1,
     WRITE = 2,

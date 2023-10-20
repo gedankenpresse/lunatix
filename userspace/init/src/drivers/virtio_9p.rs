@@ -1,17 +1,19 @@
-use crate::drivers::p9::{
-    P9FileFlags, P9FileMode, P9MsgType, P9RequestBuilder, ROpen, RRead, RVersion, RWalk, Response,
-    TAttach, TOpen, TRead, TVersion, TWalk,
-};
+use core::panic;
+
+use crate::drivers::p9::ByteReader;
 use crate::drivers::virtio::{
     self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
 };
 use crate::{caddr_alloc, CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
 
+use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
-use librust::{print, println};
 
-use super::p9::{self, P9Qid};
+use super::p9::{
+    self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, ROpen, RRead, RVersion, RWalk,
+    Response, TAttach, TOpen, TRead, TVersion, TWalk,
+};
 use super::virtio::{VirtQ, VirtQMsgBuf};
 
 const VIRTIO_DEVICE: usize = 0x10008000;
@@ -126,7 +128,7 @@ pub fn test() {
     p9_handshake(&mut driver);
 
     let attach_fid = 1;
-    let attach_qid = p9_attach(
+    let _ = p9_attach(
         &mut driver,
         TAttach {
             tag: !0,
@@ -137,23 +139,19 @@ pub fn test() {
         },
     );
 
-    println!("attach_qid={attach_qid:?}");
-
-    let walk_fid = 2;
-    let walk = p9_walk(
+    let walk_fid = attach_fid;
+    /*
+    let _ = p9_walk(
         &mut driver,
         TWalk {
             tag: 1,
             fid: attach_fid,
             newfid: walk_fid,
-            wnames: &["index.txt"],
+            wnames: &[],
         },
     );
-    //let root_qid = walk.qids()[0];
-    println!("walk: {walk:?}");
-
-    let root_fid = 3;
-    let opened = p9_open(
+    */
+    let _ = p9_open(
         &mut driver,
         TOpen {
             tag: 2,
@@ -162,7 +160,6 @@ pub fn test() {
             flags: P9FileFlags::empty(),
         },
     );
-    println!("opened root directory for reading: {opened:?}");
 
     let root_info = p9_read(
         &mut driver,
@@ -173,8 +170,10 @@ pub fn test() {
             count: 512,
         },
     );
-    println!("root_info={root_info:?}");
-    println!("{}", core::str::from_utf8(root_info.data).unwrap());
+    let mut dir_entry_reader = ByteReader::new(root_info.data);
+
+    let stat = p9::Stat::deserialize(&mut dir_entry_reader).unwrap();
+    println!("{:#?}", stat);
 
     todo!()
 }
@@ -226,9 +225,7 @@ impl<'mm> P9Driver<'mm> {
         }
 
         self.device.notify(0);
-        print!("waiting for virtio response...");
         librust::wait_on(self.noti).unwrap();
-        println!("...done")
     }
 }
 
@@ -247,7 +244,6 @@ fn p9_handshake(driver: &mut P9Driver) {
     assert_eq!(version, "9P2000.u");
 
     librust::irq_complete(irq).unwrap();
-    println!("got 9p handshake response: msize={msize} version={version}");
 }
 
 /// Attach us to a servers file tree
@@ -266,18 +262,14 @@ fn p9_attach(driver: &mut P9Driver, attach: TAttach) -> P9Qid {
 /// Walk the directory tree to a new directory (effectively chdir)
 fn p9_walk(driver: &mut P9Driver, walk: TWalk) -> RWalk {
     let res = driver.do_request(p9::Request::Walk(walk)).unwrap();
-    let Response::Walk(resp) = res else {
-        panic!("did not receive expected response but {res:?} instead")
-    };
+    let Response::Walk(resp) = res else { panic!() };
     librust::irq_complete(driver.irq).unwrap();
     resp
 }
 
 fn p9_open(driver: &mut P9Driver, open: TOpen) -> ROpen {
     let res = driver.do_request(p9::Request::Open(open)).unwrap();
-    let Response::Open(resp) = res else {
-        panic!("did not receive expected response but {res:?} instead")
-    };
+    let Response::Open(resp) = res else { panic!() };
 
     librust::irq_complete(driver.irq).unwrap();
     resp
@@ -286,9 +278,7 @@ fn p9_open(driver: &mut P9Driver, open: TOpen) -> ROpen {
 fn p9_read<'resp>(driver: &'resp mut P9Driver, read: TRead) -> RRead<'resp> {
     let irq = driver.irq;
     let res = driver.do_request(p9::Request::Read(read)).unwrap();
-    let Response::Read(resp) = res else {
-        panic!("did not receive expected response but {res:?} instead")
-    };
+    let Response::Read(resp) = res else { panic!() };
 
     librust::irq_complete(irq).unwrap();
     resp
