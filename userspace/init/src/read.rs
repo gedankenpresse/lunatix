@@ -18,6 +18,6 @@ impl<R: ByteReader> ByteReader for EchoingByteReader<R> {
     }
 }
 
-trait Reader {
+pub trait Reader {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()>;
 }

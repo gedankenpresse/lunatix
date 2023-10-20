@@ -4,6 +4,7 @@ use crate::drivers::p9::ByteReader;
 use crate::drivers::virtio::{
     self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
 };
+use crate::read::Reader;
 use crate::{caddr_alloc, CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
 
 use librust::println;
@@ -68,7 +69,7 @@ pub fn init_9p_driver() -> P9Driver<'static> {
         VIRTIO_DEVICE_LEN,
     )
     .unwrap();
-    unsafe {
+    let mut driver = unsafe {
         let device = &mut *(VIRTIO_DEVICE as *mut VirtDevice);
         assert_eq!(device.magic.read(), VIRTIO_MAGIC);
         assert_eq!(device.version.read(), 0x1);
@@ -112,22 +113,19 @@ pub fn init_9p_driver() -> P9Driver<'static> {
         // finish device initialization
         device_status |= DeviceStatus::DRIVER_OK as u32;
         device.status.write(device_status);
-        return P9Driver {
+        P9Driver {
             device,
             queue,
             noti: irq_notif,
             irq,
             req: req_buf,
             res: resp_buf,
-        };
-    }
-}
+        }
+    };
 
-pub fn test() {
-    let mut driver = init_9p_driver();
     p9_handshake(&mut driver);
 
-    let attach_fid = 1;
+    let attach_fid = 0;
     let _ = p9_attach(
         &mut driver,
         TAttach {
@@ -138,44 +136,7 @@ pub fn test() {
             aname: "/",
         },
     );
-
-    let walk_fid = attach_fid;
-    /*
-    let _ = p9_walk(
-        &mut driver,
-        TWalk {
-            tag: 1,
-            fid: attach_fid,
-            newfid: walk_fid,
-            wnames: &[],
-        },
-    );
-    */
-    let _ = p9_open(
-        &mut driver,
-        TOpen {
-            tag: 2,
-            fid: walk_fid,
-            mode: P9FileMode::OREAD,
-            flags: P9FileFlags::empty(),
-        },
-    );
-
-    let root_info = p9_read(
-        &mut driver,
-        TRead {
-            tag: !0,
-            fid: walk_fid,
-            offset: 0,
-            count: 512,
-        },
-    );
-    let mut dir_entry_reader = ByteReader::new(root_info.data);
-
-    let stat = p9::Stat::deserialize(&mut dir_entry_reader).unwrap();
-    println!("{:#?}", stat);
-
-    todo!()
+    return driver;
 }
 
 pub struct P9Driver<'mm> {
@@ -226,6 +187,59 @@ impl<'mm> P9Driver<'mm> {
 
         self.device.notify(0);
         librust::wait_on(self.noti).unwrap();
+    }
+
+    pub fn read_file<'a>(&'a mut self, path: &str) -> Result<FileReader<'a, 'mm>, &'a str> {
+        let fid = 123;
+        let _ = p9_walk(
+            self,
+            TWalk {
+                tag: 1,
+                fid: 0,
+                newfid: fid,
+                wnames: &[path],
+            },
+        );
+        let open_res = p9_open(
+            self,
+            TOpen {
+                tag: 1,
+                fid,
+                mode: P9FileMode::OREAD,
+                flags: P9FileFlags::empty(),
+            },
+        );
+
+        Ok(FileReader {
+            driver: self,
+            fid,
+            pos: 0,
+        })
+    }
+}
+
+pub struct FileReader<'a, 'mm> {
+    driver: &'a mut P9Driver<'mm>,
+    fid: u32,
+    pos: u64,
+}
+
+impl<'a, 'mm> Reader for FileReader<'a, 'mm> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
+        let len = core::cmp::min(buf.len(), 4000) as u32; // Choose best size here that fits in req buff
+        let res = p9_read(
+            self.driver,
+            TRead {
+                tag: 1,
+                fid: self.fid,
+                offset: self.pos,
+                count: len,
+            },
+        );
+        let data = res.data;
+        buf[0..data.len()].copy_from_slice(data);
+        self.pos += data.len() as u64;
+        Ok(data.len())
     }
 }
 

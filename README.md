@@ -18,7 +18,8 @@
 - [x] update syscall_abi cap variants to include all caps
 - [x] implement copy for more caps
 - [ ] kernel should refuse to map addresses that have the 39th vaddress bit set to 1
-- [ ] fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
+- [ ] BUG: fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
+- [ ] BUG: virtio: free descriptors after usage
 
 - [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
 - [ ] cspace: destroy slots
