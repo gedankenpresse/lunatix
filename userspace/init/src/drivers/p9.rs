@@ -1,4 +1,8 @@
 use core::mem;
+use core::mem::MaybeUninit;
+use core::ptr::{addr_of_mut, read};
+use librust::println;
+use regs::RW;
 
 macro_rules! back_to_enum {
     ($(#[$meta:meta])* $vis:vis enum $name:ident {
@@ -74,7 +78,7 @@ back_to_enum! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct P9Qid {
     pub typ: P9QidType,
     pub version: u32,
@@ -197,6 +201,7 @@ impl<'a> ByteReader<'a> {
 pub enum Response<'a> {
     Version(RVersion<'a>),
     Attach(RAttach),
+    Walk(RWalk),
 }
 
 impl<'a> Response<'a> {
@@ -231,7 +236,21 @@ impl<'a> Response<'a> {
             }
             P9MsgType::RError => todo!(),
             P9MsgType::RFlush => todo!(),
-            P9MsgType::RWalk => todo!(),
+            P9MsgType::RWalk => {
+                let tag = reader.read_u16()?;
+                let nwqids = reader.read_u16()?;
+                let mut qids = [P9Qid {
+                    typ: P9QidType::File,
+                    version: 0,
+                    path: 0,
+                }; 16];
+                for i in 0..16 {
+                    if i < nwqids {
+                        qids[i as usize] = P9Qid::deserialize(&mut reader)?;
+                    }
+                }
+                Some(Response::Walk(RWalk { tag, nwqids, qids }))
+            }
             P9MsgType::ROpen => todo!(),
             P9MsgType::RCreate => todo!(),
             P9MsgType::RRead => todo!(),
@@ -289,4 +308,38 @@ impl TAttach<'_> {
 pub struct RAttach {
     pub tag: u16,
     pub qid: P9Qid,
+}
+
+#[derive(Debug)]
+pub struct TWalk<'a> {
+    pub tag: u16,
+    pub fid: u32,
+    pub newfid: u32,
+    pub wnames: &'a [&'a str],
+}
+
+impl TWalk<'_> {
+    pub fn serialize(&self, mut req: P9RequestBuilder) {
+        req.write_type(P9MsgType::TWalk);
+        req.write_u16(self.tag);
+        req.write_u32(self.fid);
+        req.write_u32(self.newfid);
+        req.write_u16(self.wnames.len() as u16);
+        for wname in self.wnames {
+            req.write_str(wname);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RWalk {
+    pub tag: u16,
+    nwqids: u16,
+    qids: [P9Qid; 16],
+}
+
+impl RWalk {
+    pub fn qids(&self) -> &[P9Qid] {
+        &self.qids[..self.nwqids as usize]
+    }
 }

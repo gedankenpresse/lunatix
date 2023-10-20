@@ -1,4 +1,6 @@
-use crate::drivers::p9::{P9MsgType, P9RequestBuilder, RVersion, Response, TAttach, TVersion};
+use crate::drivers::p9::{
+    P9MsgType, P9RequestBuilder, RVersion, RWalk, Response, TAttach, TVersion, TWalk,
+};
 use crate::drivers::virtio::{
     self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
 };
@@ -130,6 +132,19 @@ pub fn test() {
         );
 
         println!("root_qid={root_qid:?}");
+        let walk_fid = 2;
+        let walk_result = p9_walk(
+            &device,
+            &mut queue,
+            irq_notif,
+            irq,
+            &mut req_buf,
+            &mut resp_buf,
+            root_fid,
+            walk_fid,
+            &[".", "index.txt"],
+        );
+        println!("{:#?}", walk_result.qids());
 
         todo!()
     }
@@ -182,7 +197,14 @@ fn p9_handshake(
     exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
 
     let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Version(RVersion { tag, msize, version }) = resp else { panic!() };
+    let Response::Version(RVersion {
+        tag,
+        msize,
+        version,
+    }) = resp
+    else {
+        panic!()
+    };
 
     assert_eq!(tag, !0);
     assert_eq!(msize, 4096);
@@ -223,8 +245,42 @@ fn p9_attach(
     exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
 
     let resp = Response::deserialize(resp_buf.buf).unwrap();
-    let Response::Attach(resp) = resp else { panic!() };
+    let Response::Attach(resp) = resp else {
+        panic!()
+    };
 
     librust::irq_complete(irq).unwrap();
     resp.qid
+}
+
+/// Walk the
+fn p9_walk(
+    device: &VirtDevice,
+    queue: &mut VirtQ,
+    irq_notif: CAddr,
+    irq: CAddr,
+    req_buf: &mut VirtQMsgBuf,
+    resp_buf: &mut VirtQMsgBuf,
+    fid: u32,
+    newfid: u32,
+    wnames: &[&str],
+) -> RWalk {
+    req_buf.clear();
+    resp_buf.clear();
+
+    let msg = TWalk {
+        tag: !0,
+        fid,
+        newfid,
+        wnames,
+    };
+    msg.serialize(P9RequestBuilder::new(req_buf.buf));
+
+    exchange_p9_virtio_msgs(device, queue, irq_notif, req_buf, resp_buf);
+
+    let Response::Walk(resp) = Response::deserialize(resp_buf.buf).unwrap() else {
+        panic!()
+    };
+    librust::irq_complete(irq).unwrap();
+    resp
 }
