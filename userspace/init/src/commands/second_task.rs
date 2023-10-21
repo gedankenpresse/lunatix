@@ -63,7 +63,7 @@ fn run_second_task() {
     let elf_binary = ElfBinary::new(HELLO_WORLD_BIN).unwrap();
     println!("calling elf loader new");
     let mut elf_loader =
-        LunatixElfLoader::<4>::new(CADDR_MEM, CADDR_VSPACE, vspace, 0x0000003000000000);
+        LunatixElfLoader::<4>::new(CADDR_MEM, CADDR_VSPACE, vspace, 0x31_0000_0000);
     println!("calling elf loader");
     elf_binary.load(&mut elf_loader).unwrap();
     librust::task_assign_control_registers(

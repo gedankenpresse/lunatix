@@ -18,8 +18,7 @@
 - [x] update syscall_abi cap variants to include all caps
 - [x] implement copy for more caps
 - [ ] kernel should refuse to map addresses that have the 39th vaddress bit set to 1
-- [ ] BUG: fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
-- [ ] BUG: virtio: free descriptors after usage
+- [x] BUG: fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
 
 - [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
 - [ ] cspace: destroy slots
@@ -37,3 +36,4 @@
 - [ ] add simple virtio file system driver
 - [ ] load binaries from files
 - [ ] render to screen (pci?)
+- [ ] BUG: virtio: free descriptors after usage
