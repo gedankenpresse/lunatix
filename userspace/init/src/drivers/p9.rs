@@ -520,7 +520,7 @@ pub struct Stat<'a> {
 }
 
 impl<'a> Stat<'a> {
-    pub fn deserialize(reader: &'a mut ByteReader) -> Option<Self> {
+    pub fn deserialize(reader: &mut ByteReader<'a>) -> Option<Self> {
         let size = reader.read_u16()?;
         let data = reader.read_slice(size as usize)?;
         let mut reader = ByteReader::new(data);

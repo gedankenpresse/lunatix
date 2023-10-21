@@ -7,13 +7,12 @@ use crate::drivers::virtio::{
 use crate::read::Reader;
 use crate::{caddr_alloc, CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
 
-use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
 
 use super::p9::{
     self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, ROpen, RRead, RVersion, RWalk,
-    Response, TAttach, TOpen, TRead, TVersion, TWalk,
+    Response, Stat, TAttach, TOpen, TRead, TVersion, TWalk,
 };
 use super::virtio::{VirtQ, VirtQMsgBuf};
 
@@ -215,6 +214,66 @@ impl<'mm> P9Driver<'mm> {
             fid,
             pos: 0,
         })
+    }
+
+    pub(crate) fn read_dir<'a>(&'a mut self) -> Result<DirReader<'a, 'mm>, &'a str> {
+        let fid = 1234;
+        let _ = p9_walk(
+            self,
+            TWalk {
+                tag: 1,
+                fid: 0,
+                newfid: fid,
+                wnames: &[],
+            },
+        );
+        let open_res = p9_open(
+            self,
+            TOpen {
+                tag: 1,
+                fid,
+                mode: P9FileMode::OREAD,
+                flags: P9FileFlags::empty(),
+            },
+        );
+
+        Ok(DirReader {
+            driver: self,
+            fid,
+            pos: 0,
+        })
+    }
+}
+
+pub struct DirReader<'a, 'mm> {
+    driver: &'a mut P9Driver<'mm>,
+    fid: u32,
+    pos: u64,
+}
+
+impl<'a, 'mm> DirReader<'a, 'mm> {
+    pub fn read_entry<'b: 's, 's>(&'b mut self) -> Option<Stat<'s>> {
+        let res = p9_read(
+            self.driver,
+            TRead {
+                tag: 1,
+                fid: self.fid,
+                offset: self.pos,
+                count: 512,
+            },
+        );
+        if res.data.len() == 0 {
+            return None;
+        }
+        // NOTE: this is a hack to advance exactly one directory entry...
+        let size = {
+            let mut reader = ByteReader::new(res.data);
+            reader.read_u16()?
+        };
+
+        let stat = Stat::deserialize(&mut ByteReader::new(res.data))?;
+        self.pos += size as u64;
+        Some(stat)
     }
 }
 

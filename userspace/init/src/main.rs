@@ -278,6 +278,7 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Destroy,
     &commands::Copy,
     &commands::Cat,
+    &commands::Ls,
 ];
 
 fn process_cmd(input: &str) {
