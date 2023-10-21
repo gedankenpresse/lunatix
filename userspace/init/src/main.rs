@@ -14,7 +14,9 @@ use crate::drivers::virtio_9p::init_9p_driver;
 use crate::read::{ByteReader, EchoingByteReader, Reader};
 use crate::sifive_uart::SifiveUartMM;
 use align_data::{include_aligned, Align16};
+use core::cell::RefCell;
 use core::panic::PanicInfo;
+use drivers::virtio_9p::P9Driver;
 use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
@@ -187,6 +189,11 @@ fn init_stdin(stdio: &FdtNode) -> Result<impl ByteReader, &'static str> {
     return Err("could not init uart");
 }
 
+unsafe impl Send for FileSystem {}
+unsafe impl Sync for FileSystem {}
+pub struct FileSystem(RefCell<Option<P9Driver<'static>>>);
+pub static FS: FileSystem = FileSystem(RefCell::new(None));
+
 fn main() {
     //drivers::virtio_9p::test();
     //panic!();
@@ -195,19 +202,8 @@ fn main() {
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
 
-    let mut p9 = init_9p_driver();
-    {
-        let mut buf = [0u8; 128];
-        let mut file = p9.read_file("index.txt").unwrap();
-        while let Ok(bytes) = file.read(&mut buf) {
-            if bytes == 0 {
-                break;
-            }
-            for &b in &buf[0..bytes] {
-                print!("{}", b as char);
-            }
-        }
-    }
+    let p9 = init_9p_driver();
+    let _ = FS.0.borrow_mut().insert(p9);
 
     shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");
@@ -281,6 +277,7 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Identify,
     &commands::Destroy,
     &commands::Copy,
+    &commands::Cat,
 ];
 
 fn process_cmd(input: &str) {

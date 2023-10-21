@@ -1,3 +1,4 @@
+mod cat;
 mod copy;
 mod destroy;
 mod echo;
@@ -5,6 +6,7 @@ mod identify;
 mod second_task;
 mod shutdown;
 
+pub use cat::Cat;
 pub use copy::Copy;
 pub use destroy::Destroy;
 pub use echo::Echo;
