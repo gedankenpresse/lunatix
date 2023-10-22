@@ -135,6 +135,11 @@ impl Descriptor {
         self.length == 0 && self.address == 0
     }
 
+    pub fn free(&mut self) {
+        self.length = 0;
+        self.address = 0;
+    }
+
     pub fn describe_response(&mut self, resp_buf: &VirtQMsgBuf) {
         self.address = resp_buf.paddr as u64;
         self.length = 4096;

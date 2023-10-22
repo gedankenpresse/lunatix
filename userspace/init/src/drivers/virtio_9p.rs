@@ -179,14 +179,17 @@ impl<'mm> P9Driver<'mm> {
             resp_descriptor.describe_response(&self.res);
             resp_idx
         };
-        {
+        let req_idx = {
             let (req_idx, req_descriptor) = self.queue.get_free_descriptor().unwrap();
             req_descriptor.describe_request(&self.req, resp_idx);
             self.queue.avail.insert_request(req_idx as u16);
-        }
+            req_idx
+        };
 
         self.device.notify(0);
         librust::wait_on(self.noti).unwrap();
+        self.queue.descriptor_table[resp_idx].free();
+        self.queue.descriptor_table[req_idx].free();
     }
 
     pub fn read_file<'a>(&'a mut self, path: &str) -> Result<FileReader<'a, 'mm>, &'a str> {
