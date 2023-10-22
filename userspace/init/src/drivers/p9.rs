@@ -169,23 +169,20 @@ impl<'a> ByteReader<'a> {
         return Some(val);
     }
     pub fn read_u16(&mut self) -> Option<u16> {
-        let (a, rest) = self.buf.split_at(mem::size_of::<u16>());
+        let a = self.read_slice(mem::size_of::<u16>())?;
         let v = u16::from_le_bytes(a.try_into().unwrap());
-        self.buf = rest;
         return Some(v);
     }
 
     pub fn read_u32(&mut self) -> Option<u32> {
-        let (a, rest) = self.buf.split_at(mem::size_of::<u32>());
+        let a = self.read_slice(mem::size_of::<u32>())?;
         let v = u32::from_le_bytes(a.try_into().unwrap());
-        self.buf = rest;
         return Some(v);
     }
 
     pub fn read_u64(&mut self) -> Option<u64> {
-        let (a, rest) = self.buf.split_at(mem::size_of::<u64>());
+        let a = self.read_slice(mem::size_of::<u64>())?;
         let v = u64::from_le_bytes(a.try_into().unwrap());
-        self.buf = rest;
         return Some(v);
     }
 
@@ -202,6 +199,10 @@ impl<'a> ByteReader<'a> {
         let len = self.read_u16()? as usize;
         let s = self.read_slice(len)?;
         Some(core::str::from_utf8(s).unwrap())
+    }
+
+    pub(crate) fn remaining_data(self) -> &'a [u8] {
+        self.buf
     }
 }
 

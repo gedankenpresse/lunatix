@@ -1,6 +1,5 @@
 use core::panic;
 
-use crate::drivers::p9::ByteReader;
 use crate::drivers::virtio::{
     self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
 };
@@ -192,7 +191,7 @@ impl<'mm> P9Driver<'mm> {
         self.queue.descriptor_table[req_idx].free();
     }
 
-    pub fn read_file<'a>(&'a mut self, path: &str) -> Result<FileReader<'a, 'mm>, &'a str> {
+    pub fn read_file<'a>(&'a mut self, path: &[&str]) -> Result<FileReader<'a, 'mm>, &'a str> {
         let fid = 123;
         let _ = p9_walk(
             self,
@@ -200,7 +199,7 @@ impl<'mm> P9Driver<'mm> {
                 tag: 1,
                 fid: 0,
                 newfid: fid,
-                wnames: &[path],
+                wnames: path,
             },
         );
         let open_res = p9_open(
@@ -264,32 +263,6 @@ impl<'a, 'mm> Drop for DirReader<'a, 'mm> {
                 fid: self.fid,
             },
         );
-    }
-}
-
-impl<'a, 'mm> DirReader<'a, 'mm> {
-    pub fn read_entry<'b: 's, 's>(&'b mut self) -> Option<Stat<'s>> {
-        let res = p9_read(
-            self.driver,
-            TRead {
-                tag: 1,
-                fid: self.fid,
-                offset: self.pos,
-                count: 512,
-            },
-        );
-        if res.data.len() == 0 {
-            return None;
-        }
-        // NOTE: this is a hack to advance exactly one directory entry...
-        let size = {
-            let mut reader = ByteReader::new(res.data);
-            reader.read_u16()?
-        };
-
-        let stat = Stat::deserialize(&mut ByteReader::new(res.data))?;
-        self.pos += size as u64;
-        Some(stat)
     }
 }
 
