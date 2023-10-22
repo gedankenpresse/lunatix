@@ -11,8 +11,8 @@ use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
 
 use super::p9::{
-    self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, ROpen, RRead, RVersion, RWalk,
-    Response, Stat, TAttach, TOpen, TRead, TVersion, TWalk,
+    self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
+    Response, Stat, TAttach, TClunk, TOpen, TRead, TVersion, TWalk,
 };
 use super::virtio::{VirtQ, VirtQMsgBuf};
 
@@ -159,6 +159,7 @@ impl<'mm> P9Driver<'mm> {
             p9::Request::Walk(msg) => msg.serialize(req_builder),
             p9::Request::Read(msg) => msg.serialize(req_builder),
             p9::Request::Open(msg) => msg.serialize(req_builder),
+            p9::Request::Clunk(msg) => msg.serialize(req_builder),
         }
 
         self.exchange_p9_virtio_msgs();
@@ -251,6 +252,18 @@ pub struct DirReader<'a, 'mm> {
     pos: u64,
 }
 
+impl<'a, 'mm> Drop for DirReader<'a, 'mm> {
+    fn drop(&mut self) {
+        p9_clunk(
+            &mut self.driver,
+            TClunk {
+                tag: !0,
+                fid: self.fid,
+            },
+        );
+    }
+}
+
 impl<'a, 'mm> DirReader<'a, 'mm> {
     pub fn read_entry<'b: 's, 's>(&'b mut self) -> Option<Stat<'s>> {
         let res = p9_read(
@@ -281,6 +294,18 @@ pub struct FileReader<'a, 'mm> {
     driver: &'a mut P9Driver<'mm>,
     fid: u32,
     pos: u64,
+}
+
+impl<'a, 'mm> Drop for FileReader<'a, 'mm> {
+    fn drop(&mut self) {
+        p9_clunk(
+            &mut self.driver,
+            TClunk {
+                tag: !0,
+                fid: self.fid,
+            },
+        );
+    }
 }
 
 impl<'a, 'mm> Reader for FileReader<'a, 'mm> {
@@ -343,6 +368,14 @@ fn p9_walk(driver: &mut P9Driver, walk: TWalk) -> RWalk {
 fn p9_open(driver: &mut P9Driver, open: TOpen) -> ROpen {
     let res = driver.do_request(p9::Request::Open(open)).unwrap();
     let Response::Open(resp) = res else { panic!() };
+
+    librust::irq_complete(driver.irq).unwrap();
+    resp
+}
+
+fn p9_clunk(driver: &mut P9Driver, clunk: TClunk) -> RClunk {
+    let res = driver.do_request(p9::Request::Clunk(clunk)).unwrap();
+    let Response::Clunk(resp) = res else { panic!() };
 
     librust::irq_complete(driver.irq).unwrap();
     resp

@@ -212,6 +212,7 @@ pub enum Request<'a> {
     Walk(TWalk<'a>),
     Open(TOpen),
     Read(TRead),
+    Clunk(TClunk),
 }
 
 #[derive(Debug)]
@@ -492,6 +493,20 @@ pub struct ROpen {
 pub struct RWrite {
     pub tag: u16,
     pub count: u32,
+}
+
+#[derive(Debug)]
+pub struct TClunk {
+    pub tag: u16,
+    pub fid: u32,
+}
+impl TClunk {
+    pub(crate) fn serialize(&self, mut req: P9RequestBuilder) {
+        req.write_type(P9MsgType::TClunk);
+        req.write_u16(self.tag);
+        req.write_u32(self.fid);
+        req.finish();
+    }
 }
 
 #[derive(Debug)]
