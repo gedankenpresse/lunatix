@@ -311,7 +311,14 @@ fn p9_handshake(driver: &mut P9Driver) {
     };
     let irq = driver.irq;
     let res = driver.do_request(p9::Request::Version(msg)).unwrap();
-    let Response::Version(RVersion { tag, msize, version }) = res else { panic!() };
+    let Response::Version(RVersion {
+        tag,
+        msize,
+        version,
+    }) = res
+    else {
+        panic!()
+    };
 
     assert_eq!(tag, !0);
     assert_eq!(msize, 4096);
@@ -327,7 +334,9 @@ fn p9_handshake(driver: &mut P9Driver) {
 /// - fid is the file descriptor id to which the file tree is attached
 fn p9_attach(driver: &mut P9Driver, attach: TAttach) -> P9Qid {
     let res = driver.do_request(p9::Request::Attach(attach)).unwrap();
-    let Response::Attach(resp) = res else { panic!() };
+    let Response::Attach(resp) = res else {
+        panic!()
+    };
 
     librust::irq_complete(driver.irq).unwrap();
     resp.qid

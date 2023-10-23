@@ -1,17 +1,20 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
+
 mod caddr_alloc;
 mod commands;
 mod drivers;
 mod elfloader;
 mod read;
 mod sifive_uart;
+mod static_once_cell;
 mod static_vec;
 
 use crate::commands::Command;
 use crate::drivers::virtio_9p::init_9p_driver;
-use crate::read::{ByteReader, EchoingByteReader, Reader};
+use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use align_data::{include_aligned, Align16};
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU16};
@@ -22,9 +25,10 @@ use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::system_reset::{ResetReason, ResetType};
-use librust::syscall_abi::CAddr;
+use librust::syscall_abi::{CAddr, MapFlags};
 use librust::{print, println};
 use sifive_uart::SifiveUart;
+use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
 
 static HELLO_WORLD_BIN: &[u8] = include_aligned!(
@@ -195,10 +199,35 @@ unsafe impl Sync for FileSystem {}
 pub struct FileSystem(RefCell<Option<P9Driver<'static>>>);
 pub static FS: FileSystem = FileSystem(RefCell::new(None));
 
-fn main() {
-    //drivers::virtio_9p::test();
-    //panic!();
+pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'static, TagsU16> {
+    const PAGESIZE: usize = 4096;
+    for i in 0..pages {
+        let page = caddr_alloc::alloc_caddr();
+        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        librust::map_page(
+            page,
+            CADDR_VSPACE,
+            CADDR_MEM,
+            addr as usize + i * PAGESIZE,
+            MapFlags::READ | MapFlags::WRITE,
+        )
+        .unwrap();
+    }
 
+    let mem = unsafe { core::slice::from_raw_parts_mut(addr, pages * PAGESIZE) };
+    mem.fill(0);
+    let alloc: BoundaryTagAllocator<TagsU16> = BoundaryTagAllocator::new(mem);
+    return alloc;
+}
+
+#[global_allocator]
+pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU16>> = StaticOnceCell::new();
+
+fn main() {
+    ALLOC.get_or_init(|| unsafe { alloc_init(4, 0x10_0000 as *mut u8) });
+
+    let v = alloc::boxed::Box::new([1, 2, 4, 6, 4, 6]);
+    println!("{:?}", v);
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();

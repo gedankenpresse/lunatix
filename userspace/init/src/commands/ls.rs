@@ -96,7 +96,9 @@ impl Command for Ls {
             buf_range: 0..0,
         };
         loop {
-            let Some(stat) = dir_reader.read_entry(&mut stat_buf) else { break };
+            let Some(stat) = dir_reader.read_entry(&mut stat_buf) else {
+                break;
+            };
             let stat = Stat::deserialize(&mut ByteReader::new(&stat_buf)).unwrap();
             println!("{}", stat.name);
         }
