@@ -2,6 +2,10 @@
 
 ### Kernel
 
+
+- [x] update syscall_abi cap variants to include all caps
+- [x] implement copy for more caps
+- [x] BUG: fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
 - [ ] Change Memory Allocator to use Page Alloc.
       Currently, we use the bump allocator, so creating and destroying a single page repeatedly will consume all memory.
 - [ ] Don't map intermediate page tables automatically.
@@ -15,10 +19,8 @@
 - [ ] cleanup documentation of syscalls
 - [ ] use unique syscall labels for capabilities (maybe add some simple name hashing?)
 - [ ] recursive caddr lookup
-- [x] update syscall_abi cap variants to include all caps
-- [x] implement copy for more caps
-- [ ] kernel should refuse to map addresses that have the 39th vaddress bit set to 1
-- [x] BUG: fix kernel allocator. Somehow, we have a huge range in kernel loader (0x80040000 .. 0xc0000000), but in kernel there's not much left: (0x80040000..0x80099000)
+- [ ] BUG: kernel should refuse to map addresses that have the 39th vaddress bit set to 1
+- [ ] BUG: kernel loader can't load debug kernel: panicked at 'range end index 8636784 out of range for slice of length 8388608', /3/xmas-elf-0.8.0/src/sections.rs:38:57
 
 - [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
 - [ ] cspace: destroy slots
@@ -31,9 +33,9 @@
 - [ ] task: signal waitset on destroy
 
 ### Userspace
+- [x] add simple virtio file system driver
+- [x] BUG: virtio: free descriptors after usage
 - [ ] add global alloc
 - [ ] flesh out scheduler so that a process is executed multiple times
-- [ ] add simple virtio file system driver
 - [ ] load binaries from files
 - [ ] render to screen (pci?)
-- [ ] BUG: virtio: free descriptors after usage
