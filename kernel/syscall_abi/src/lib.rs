@@ -112,6 +112,7 @@ pub trait IntoRawSysRepsonse {
 }
 
 pub type SyscallResult<T> = Result<T, Error>;
+
 impl<T> IntoRawSysRepsonse for SyscallResult<T>
 where
     T: Into<usize>,

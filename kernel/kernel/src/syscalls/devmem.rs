@@ -31,7 +31,9 @@ fn devmem_map(
         let r = entry.borrow();
         let Some(e) = *r else { return false };
         return e.base == base && e.len == len;
-    }) else { return Err(Error::InvalidArg) };
+    }) else {
+        return Err(Error::InvalidArg);
+    };
     let entry = entry.borrow().unwrap();
 
     for offset in (0..len).step_by(PAGESIZE) {

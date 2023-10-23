@@ -125,7 +125,9 @@ impl<'mem> BumpAllocator<'mem> for BackwardBumpingAllocator<'mem> {
         let mut dummy = [0u8; 0].as_mut_slice();
         mem::swap(&mut dummy, &mut state.backing_mem);
 
-        let mut split = dummy.split_at_mut(state.bytes_allocated);
+        // NOTE: if some allocation issue arises, look at this split in more depth.
+        // Because we allocate from the end, we should also split at the end marker, instead of the start.
+        let mut split = dummy.split_at_mut(dummy.len() - state.bytes_allocated);
         mem::swap(&mut split.1, &mut state.backing_mem);
         split.0
     }

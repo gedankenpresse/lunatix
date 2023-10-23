@@ -173,6 +173,15 @@ pub fn handle_syscall(
             };
             (response.into_response(), Schedule::Keep)
         }
+        /* Get Page PADDR SYSCALL */
+        21 => {
+            let result = page::page_paddr(ctx, task, &args);
+            let response = match result {
+                Ok(addr) => Ok(addr),
+                Err(e) => Err(e),
+            };
+            (response.into_response(), Schedule::Keep)
+        }
         no => {
             log::warn!(
                 "received unknown syscall {} with args {:x?}",

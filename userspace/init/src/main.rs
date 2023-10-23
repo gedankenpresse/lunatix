@@ -1,26 +1,36 @@
 #![no_std]
 #![no_main]
 
+mod caddr_alloc;
 mod commands;
+mod drivers;
 mod elfloader;
 mod read;
 mod sifive_uart;
+mod static_vec;
 
 use crate::commands::Command;
-use crate::read::{ByteReader, EchoingByteReader};
+use crate::drivers::virtio_9p::init_9p_driver;
+use crate::read::{ByteReader, EchoingByteReader, Reader};
 use crate::sifive_uart::SifiveUartMM;
+use align_data::{include_aligned, Align16};
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU16};
+use core::cell::RefCell;
 use core::panic::PanicInfo;
+use drivers::virtio_9p::P9Driver;
 use fdt::node::FdtNode;
 use fdt::Fdt;
 use librust::syscall_abi::identify::CapabilityVariant;
+use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::CAddr;
 use librust::{print, println};
 use sifive_uart::SifiveUart;
 use uart_driver::{MmUart, Uart};
 
-static HELLO_WORLD_BIN: &[u8] =
-    include_bytes!("../../../target/riscv64imac-unknown-none-elf/release/hello_world");
+static HELLO_WORLD_BIN: &[u8] = include_aligned!(
+    Align16,
+    "../../../target/riscv64imac-unknown-none-elf/release/hello_world"
+);
 
 #[no_mangle]
 fn _start() {
@@ -36,16 +46,10 @@ const CADDR_ASID_CONTROL: CAddr = 6;
 const CADDR_UART_IRQ: CAddr = 7;
 const CADDR_UART_NOTIFICATION: CAddr = 8;
 
-const CADDR_CHILD_TASK: CAddr = 10;
-const CADDR_CHILD_CSPACE: CAddr = 11;
-const CADDR_CHILD_VSPACE: CAddr = 12;
-const CADDR_CHILD_STACK_PAGE: CAddr = 13;
-const CADDR_CHILD_PAGE_START: CAddr = 14;
-
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     println!("panic {}", info);
-    loop {}
+    librust::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
 }
 
 fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static str> {
@@ -57,10 +61,18 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
     {
         return Err("not compatible");
     }
-    let Some(mut reg) = node.reg() else { return Err("no reg")};
-    let Some(region) = reg.next() else { return Err("no memory region") };
-    let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
-    let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
+    let Some(mut reg) = node.reg() else {
+        return Err("no reg");
+    };
+    let Some(region) = reg.next() else {
+        return Err("no memory region");
+    };
+    let Some(mut interrupts) = node.interrupts() else {
+        return Err("no interrupts");
+    };
+    let Some(interrupt) = interrupts.next() else {
+        return Err("no interrupt");
+    };
 
     librust::derive(
         CADDR_MEM,
@@ -99,10 +111,18 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     if compatible != "sifive,uart0" {
         return Err("not compatible");
     }
-    let Some(mut reg) = node.reg() else { return Err("no reg")};
-    let Some(region) = reg.next() else { return Err("no memory region") };
-    let Some(mut interrupts) = node.interrupts() else { return Err("no interrupts") };
-    let Some(interrupt) = interrupts.next() else { return Err("no interrupt") };
+    let Some(mut reg) = node.reg() else {
+        return Err("no reg");
+    };
+    let Some(region) = reg.next() else {
+        return Err("no memory region");
+    };
+    let Some(mut interrupts) = node.interrupts() else {
+        return Err("no interrupts");
+    };
+    let Some(interrupt) = interrupts.next() else {
+        return Err("no interrupt");
+    };
 
     librust::derive(
         CADDR_MEM,
@@ -136,53 +156,61 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     Ok(uart)
 }
 
-fn main() {
-    let dev_tree_address: usize = 0x20_0000_0000;
-    let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
-    let stdout = dt.chosen().stdout().expect("no stdout found");
-    if let Ok(uart) = init_uart(&stdout) {
-        fn read_char_blocking(uart: &Uart) -> u8 {
-            let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
-            let c = unsafe { uart.read_data() };
-            librust::irq_complete(CADDR_UART_IRQ).unwrap();
-            return c;
-        }
-        struct R<'a> {
-            uart: Uart<'a>,
-        }
-        impl ByteReader for R<'_> {
-            fn read_byte(&mut self) -> Result<u8, ()> {
-                Ok(read_char_blocking(&mut self.uart))
-            }
-        }
-        shell(&mut EchoingByteReader(R { uart }));
-    } else if let Ok(uart) = init_sifive_uart(&stdout) {
-        fn read_char_blocking(uart: &mut SifiveUart) -> u8 {
-            let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
-            let c = uart.read_data();
-            librust::irq_complete(CADDR_UART_IRQ).unwrap();
-            return c;
-        }
-        struct R<'a> {
-            uart: SifiveUart<'a>,
-        }
-        impl ByteReader for R<'_> {
-            fn read_byte(&mut self) -> Result<u8, ()> {
-                Ok(read_char_blocking(&mut self.uart))
-            }
-        }
-        shell(&mut EchoingByteReader(R { uart }));
+fn init_stdin(stdio: &FdtNode) -> Result<impl ByteReader, &'static str> {
+    enum Reader<'a> {
+        Uart(Uart<'a>),
+        Sifive(SifiveUart<'a>),
     }
 
+    impl ByteReader for Reader<'_> {
+        fn read_byte(&mut self) -> Result<u8, ()> {
+            match self {
+                Reader::Uart(uart) => {
+                    let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
+                    let c = unsafe { uart.read_data() };
+                    librust::irq_complete(CADDR_UART_IRQ).unwrap();
+                    return Ok(c);
+                }
+                Reader::Sifive(uart) => {
+                    let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
+                    let c = uart.read_data();
+                    librust::irq_complete(CADDR_UART_IRQ).unwrap();
+                    return Ok(c);
+                }
+            }
+        }
+    }
+    if let Ok(uart) = init_uart(stdio) {
+        return Ok(Reader::Uart(uart));
+    }
+
+    if let Ok(uart) = init_sifive_uart(&stdio) {
+        return Ok(Reader::Sifive(uart));
+    }
+    return Err("could not init uart");
+}
+
+unsafe impl Send for FileSystem {}
+unsafe impl Sync for FileSystem {}
+pub struct FileSystem(RefCell<Option<P9Driver<'static>>>);
+pub static FS: FileSystem = FileSystem(RefCell::new(None));
+
+fn main() {
+    //drivers::virtio_9p::test();
+    //panic!();
+
+    let dev_tree_address: usize = 0x20_0000_0000;
+    let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
+    let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
+
+    let p9 = init_9p_driver();
+    let _ = FS.0.borrow_mut().insert(p9);
+
+    shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");
 }
 
 fn shell(reader: &mut dyn ByteReader) {
-    assert_eq!(
-        librust::identify(CADDR_IRQ_CONTROL).unwrap(),
-        CapabilityVariant::IrqControl
-    );
-
     let mut buf = [0u8; 256];
     loop {
         let cmd = read_cmd(reader, &mut buf);
@@ -250,6 +278,8 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Identify,
     &commands::Destroy,
     &commands::Copy,
+    &commands::Cat,
+    &commands::Ls,
 ];
 
 fn process_cmd(input: &str) {
@@ -261,8 +291,10 @@ fn process_cmd(input: &str) {
     else {
         println!(
             "Unknown command {:?}. Enter 'help' for a list of commands",
-            input);
-            return };
+            input
+        );
+        return;
+    };
     match cmd.execute(input.strip_prefix(cmd.get_name()).unwrap().trim_start()) {
         Ok(()) => {}
         Err(e) => println!("error: {}", e),

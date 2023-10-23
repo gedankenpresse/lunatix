@@ -42,6 +42,12 @@ pub fn init_kernel_allocator(
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) -> &'static KernelAlloc {
+    log::info!(
+        "Kernel Alloc init: {:x} - {:x}, {:x}",
+        phys_mem_start.raw() as usize,
+        phys_mem_end.raw() as usize,
+        phys_mem_end.raw() as usize - phys_mem_start.raw() as usize
+    );
     unsafe { KERNEL_ALLOCATOR = Some(init_alloc(phys_mem_start, phys_mem_end)) };
     let allocator: &'static KernelAlloc = unsafe { (&mut KERNEL_ALLOCATOR).as_mut().unwrap() };
     allocator

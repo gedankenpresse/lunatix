@@ -1,15 +1,19 @@
+mod cat;
 mod copy;
 mod destroy;
 mod echo;
 mod identify;
+mod ls;
 mod second_task;
 mod shutdown;
 
+pub use cat::Cat;
 pub use copy::Copy;
 pub use destroy::Destroy;
 pub use echo::Echo;
 pub use identify::Identify;
 use librust::syscall_abi::CAddr;
+pub use ls::Ls;
 pub use second_task::SecondTask;
 pub use shutdown::Shutdown;
 
