@@ -7,6 +7,7 @@ mod caddr_alloc;
 mod commands;
 mod drivers;
 mod elfloader;
+mod logger;
 mod read;
 mod sifive_uart;
 mod static_once_cell;
@@ -27,6 +28,8 @@ use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::{CAddr, MapFlags};
 use librust::{print, println};
+use log::Level;
+use logger::Logger;
 use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
@@ -36,8 +39,11 @@ static HELLO_WORLD_BIN: &[u8] = include_aligned!(
     "../../../target/riscv64imac-unknown-none-elf/release/hello_world"
 );
 
+static LOGGER: Logger = Logger::new(Level::Debug);
+
 #[no_mangle]
 fn _start() {
+    LOGGER.install().expect("could not install logger");
     main();
 }
 
@@ -52,7 +58,7 @@ const CADDR_UART_NOTIFICATION: CAddr = 8;
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
-    println!("panic {}", info);
+    log::error!("panic {}", info);
     librust::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
 }
 
@@ -216,8 +222,7 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 
     let mem = unsafe { core::slice::from_raw_parts_mut(addr, pages * PAGESIZE) };
     mem.fill(0);
-    let alloc: BoundaryTagAllocator<TagsU16> = BoundaryTagAllocator::new(mem);
-    return alloc;
+    BoundaryTagAllocator::new(mem)
 }
 
 #[global_allocator]
@@ -226,7 +231,7 @@ pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU16>> = Stati
 fn main() {
     ALLOC.get_or_init(|| unsafe { alloc_init(4, 0x10_0000 as *mut u8) });
 
-    let v = alloc::boxed::Box::new([1, 2, 4, 6, 4, 6]);
+    let v = alloc::boxed::Box::new(1);
     println!("{:?}", v);
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };

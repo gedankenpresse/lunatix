@@ -13,6 +13,7 @@ bitflags = "2.4.1"
 elfloader = "0.16.0"
 fdt = "0.1.5"
 librust = { version = "0.1.0", path = "../librust" }
+log = "0.4.20"
 regs = { version = "0.1.0", path = "../../support_crates/regs" }
 uart_driver = { version = "0.1.0", path = "../../support_crates/uart_driver" }
 
