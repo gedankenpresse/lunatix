@@ -24,7 +24,7 @@ impl<Tags: TagsBinding> Debug for AllocatorState<'_, Tags> {
                 let block_reprs: Vec<_> = self
                     .block_iter()
                     .map(|block| {
-                        let begin_tag = Tags::BeginTag::read_from_chunk(block);
+                        let begin_tag = Tags::BeginTag::read_from_chunk(block).unwrap();
                         let end_tag = Tags::EndTag::read_from_chunk(block);
                         format!(
                             "[<{} {}> ... <{}>]",

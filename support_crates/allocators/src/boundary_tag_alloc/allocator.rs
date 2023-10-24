@@ -195,7 +195,7 @@ impl<'state, 'mem, Tags: TagsBinding> Iterator for BlockIterator<'state, 'mem, T
             return None;
         }
 
-        let tag = Tags::BeginTag::read_from_chunk(&self.state.backing_mem[self.i..]);
+        let tag = Tags::BeginTag::read_from_chunk(&self.state.backing_mem[self.i..]).unwrap();
         let block_start = self.i;
         let block_size = Tags::TAGS_SIZE + tag.content_size();
         self.i += block_size;
@@ -218,7 +218,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
 
     /// Get the first chunk of the backing memory
     pub(crate) fn get_first_chunk(&mut self) -> Chunk<Tags> {
-        let begin_tag = Tags::BeginTag::read_from_chunk(self.backing_mem);
+        let begin_tag = Tags::BeginTag::read_from_chunk(self.backing_mem).unwrap();
         let chunk = &mut self.backing_mem[..begin_tag.content_size() + Tags::TAGS_SIZE];
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
@@ -242,7 +242,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         }
 
         let chunk = &mut self.backing_mem[begin_tag_addr - mem_start_addr..];
-        let begin_tag = Tags::BeginTag::read_from_chunk(chunk);
+        let begin_tag = Tags::BeginTag::read_from_chunk(chunk)?;
         let chunk = &mut chunk[..Tags::TAGS_SIZE + begin_tag.content_size()];
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
@@ -283,7 +283,7 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
         let chunk_len = chunk.len();
         let end_tag = Tags::EndTag::read_from_chunk(chunk);
         let chunk = &mut chunk[chunk_len - end_tag.content_size() - Tags::BeginTag::TAG_SIZE..];
-        let begin_tag = Tags::BeginTag::read_from_chunk(chunk);
+        let begin_tag = Tags::BeginTag::read_from_chunk(chunk)?;
         let content = unsafe { chunk.as_mut_ptr().add(Tags::BeginTag::TAG_SIZE) };
 
         assert_eq!(begin_tag.content_size(), end_tag.content_size().into());
@@ -613,6 +613,12 @@ impl<'mem, Tags: TagsBinding> BoundaryTagAllocator<'mem, Tags> {
             "backing memory is too small to small"
         );
 
+        log::trace!(
+            "creating allocator with {} bytes capacity and using {} bytes for bookkeeping",
+            backing_mem.len(),
+            Tags::EndTag::TAG_SIZE
+        );
+
         // write initial tags into the backing memory
         let usable_len = backing_mem.len() - Tags::TAGS_SIZE;
         Tags::BeginTag::new(usable_len, AllocationMarker::Free).write_to_chunk(backing_mem);
@@ -660,12 +666,30 @@ impl<'mem, Tags: TagsBinding> Allocator<'mem> for BoundaryTagAllocator<'mem, Tag
 unsafe impl<'mem, T: TagsBinding> core::alloc::GlobalAlloc for BoundaryTagAllocator<'mem, T> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         match self.allocate(layout, AllocInit::Uninitialized) {
-            Ok(slice) => slice.as_mut_ptr(),
-            Err(_) => core::ptr::null_mut(),
+            Ok(slice) => {
+                log::trace!(
+                    "allocated size={} and alignment={} at {:p}",
+                    layout.size(),
+                    layout.align(),
+                    slice.as_mut_ptr()
+                );
+                slice.as_mut_ptr()
+            }
+            Err(e) => {
+                log::error!(
+                    "could not allocate for size={} and alignemnt={}: {:?}",
+                    layout.size(),
+                    layout.align(),
+                    e
+                );
+                core::ptr::null_mut()
+            }
         }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        log::trace!("deallocating {} bytes at {:p}", layout.size(), ptr);
+
         self.deallocate(ptr, layout)
     }
 }

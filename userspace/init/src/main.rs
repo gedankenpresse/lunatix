@@ -18,7 +18,7 @@ use crate::drivers::virtio_9p::init_9p_driver;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use align_data::{include_aligned, Align16};
-use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU16};
+use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU16, TagsU32};
 use core::cell::RefCell;
 use core::panic::PanicInfo;
 use drivers::virtio_9p::P9Driver;
@@ -34,7 +34,7 @@ use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
 
-static LOGGER: Logger = Logger::new(Level::Debug);
+static LOGGER: Logger = Logger::new(Level::Trace);
 
 #[no_mangle]
 fn _start() {
@@ -200,7 +200,7 @@ unsafe impl Sync for FileSystem {}
 pub struct FileSystem(RefCell<Option<P9Driver<'static>>>);
 pub static FS: FileSystem = FileSystem(RefCell::new(None));
 
-pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'static, TagsU16> {
+pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'static, TagsU32> {
     const PAGESIZE: usize = 4096;
     for i in 0..pages {
         let page = caddr_alloc::alloc_caddr();
@@ -221,10 +221,10 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 }
 
 #[global_allocator]
-pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU16>> = StaticOnceCell::new();
+pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU32>> = StaticOnceCell::new();
 
 fn main() {
-    ALLOC.get_or_init(|| unsafe { alloc_init(8, 0x10_0000 as *mut u8) });
+    ALLOC.get_or_init(|| unsafe { alloc_init(12, 0x10_0000 as *mut u8) });
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
@@ -297,7 +297,6 @@ impl Command for Help {
 }
 
 const KNOWN_COMMANDS: &[&'static dyn Command] = &[
-    &commands::SecondTask,
     &commands::Echo,
     &commands::Shutdown,
     &Help,

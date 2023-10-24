@@ -5,7 +5,6 @@ mod echo;
 mod exec;
 mod identify;
 mod ls;
-mod second_task;
 mod shutdown;
 
 pub use cat::Cat;
@@ -16,7 +15,6 @@ pub use exec::Exec;
 pub use identify::Identify;
 use librust::syscall_abi::CAddr;
 pub use ls::Ls;
-pub use second_task::SecondTask;
 pub use shutdown::Shutdown;
 
 pub trait Command {

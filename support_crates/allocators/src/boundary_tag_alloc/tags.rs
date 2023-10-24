@@ -41,7 +41,7 @@ pub trait BeginTag: Debug + Copy + Eq + PartialEq {
 
     /// Read the tag from a chunk.
     /// The tag is expected to be located at the first few bytes of the chunk.
-    fn read_from_chunk(chunk: &[u8]) -> Self;
+    fn read_from_chunk(chunk: &[u8]) -> Result<Self, ()>;
 
     /// Write the tag data into the first few bytes of the chunk.
     fn write_to_chunk(&self, chunk: &mut [u8]);
@@ -116,7 +116,7 @@ macro_rules! make_tag_type {
                 self.state
             }
 
-            fn read_from_chunk(chunk: &[u8]) -> Self {
+            fn read_from_chunk(chunk: &[u8]) -> Result<Self, ()> {
                 assert!(
                     chunk.len() >= Self::TAG_SIZE,
                     "chunk is not large enough to contain a begin-tag"
@@ -126,16 +126,17 @@ macro_rules! make_tag_type {
                 const ALLOCATED: u8 = AllocationMarker::Allocated as u8;
 
                 // Safety: We have already verified that the chunk is large enough and that the stored tag is valid.
-                Self {
+                let result = Self {
                     content_size: <$size_t>::from_ne_bytes(
                         (&chunk[0..Self::TAG_SIZE - 1]).try_into().unwrap(),
                     ),
                     state: match chunk[Self::TAG_SIZE - 1] {
                         FREE => AllocationMarker::Free,
                         ALLOCATED => AllocationMarker::Allocated,
-                        _ => panic!("chunk does not contain a valid allocation marker"),
+                        _ => return Err(()),
                     },
-                }
+                };
+                Ok(result)
             }
 
             fn write_to_chunk(&self, chunk: &mut [u8]) {

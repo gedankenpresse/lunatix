@@ -20,15 +20,13 @@ impl Command for Exec {
         let path = args;
         let mut p9 = FS.0.borrow_mut();
         let p9 = p9.as_mut().unwrap();
-        let mut v = vec![];
-        let mut buf = [0u8; 256];
         let mut reader = p9.read_file(&[path]).unwrap();
-        while let Ok(bytes) = reader.read(buf.as_mut()) {
-            println!("read {}", bytes);
-            let read = &buf[0..bytes];
-            v.extend_from_slice(read);
-        }
-        println!("{:?}", &v);
+        let file_bin = reader.read_to_vec().unwrap();
+
+        log::info!("successfully read binary from filesystem");
+
+        todo!("actually run the second task");
+
         Ok(())
     }
 }
