@@ -34,11 +34,6 @@ use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
 
-static HELLO_WORLD_BIN: &[u8] = include_aligned!(
-    Align16,
-    "../../../target/riscv64imac-unknown-none-elf/release/hello_world"
-);
-
 static LOGGER: Logger = Logger::new(Level::Debug);
 
 #[no_mangle]
@@ -229,10 +224,7 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU16>> = StaticOnceCell::new();
 
 fn main() {
-    ALLOC.get_or_init(|| unsafe { alloc_init(4, 0x10_0000 as *mut u8) });
-    let _v = alloc::boxed::Box::new(0u8);
-    let v = alloc::boxed::Box::new(1);
-    println!("{:?}", v);
+    ALLOC.get_or_init(|| unsafe { alloc_init(8, 0x10_0000 as *mut u8) });
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();

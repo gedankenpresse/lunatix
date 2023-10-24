@@ -1,12 +1,14 @@
+use alloc::vec::Vec;
 use elfloader::ElfBinary;
 use librust::{
     prelude::*,
     syscall_abi::{identify::CapabilityVariant, MapFlags},
 };
 
+use crate::read::Reader;
 use crate::{
     caddr_alloc, commands::Command, elfloader::LunatixElfLoader, CADDR_ASID_CONTROL, CADDR_MEM,
-    CADDR_VSPACE, HELLO_WORLD_BIN,
+    CADDR_VSPACE, FS,
 };
 
 pub struct SecondTask;
@@ -43,8 +45,6 @@ fn run_second_task() {
     librust::asid_assign(CADDR_ASID_CONTROL, vspace).unwrap();
     librust::task_assign_vspace(vspace, task).unwrap();
 
-    println!("loading HelloWorld binary");
-
     // load a stack for the child task
     let stack_page = caddr_alloc::alloc_caddr();
     const CHILD_STACK_LOW: usize = 0x5_0000_0000;
@@ -58,13 +58,19 @@ fn run_second_task() {
     )
     .unwrap();
 
-    println!("load binary elf code");
+    log::info!("loading HelloWorld binary from filesystem");
+    let mut fs = FS.0.borrow_mut();
+    let mut fs = fs.as_mut().unwrap();
+    let mut file_reader = fs.read_file(&["hello_world"]).unwrap();
+    let file_bin = file_reader.read_to_vec().unwrap();
+
+    log::info!("load binary elf code");
     // load binary elf code
-    let elf_binary = ElfBinary::new(HELLO_WORLD_BIN).unwrap();
-    println!("calling elf loader new");
+    let elf_binary = ElfBinary::new(&file_bin).unwrap();
+    log::info!("calling elf loader new");
     let mut elf_loader =
         LunatixElfLoader::<4>::new(CADDR_MEM, CADDR_VSPACE, vspace, 0x31_0000_0000);
-    println!("calling elf loader");
+    log::info!("calling elf loader");
     elf_binary.load(&mut elf_loader).unwrap();
     librust::task_assign_control_registers(
         task,
