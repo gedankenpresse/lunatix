@@ -60,7 +60,6 @@ fn irq_control_claim(
     let notification_addr = args[0];
     let irq_addr = args[1];
     let interrupt_line = args[2];
-    log::info!("{notification_addr} {irq_addr} {interrupt_line}");
     // get valid notification cap from task
     let notification_cap =
         unsafe { utils::lookup_cap(cspace, notification_addr, Tag::Notification) }.unwrap();
