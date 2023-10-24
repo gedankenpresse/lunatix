@@ -66,36 +66,14 @@ pub fn init_9p_driver(
 ) -> P9Driver<'static> {
     librust::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN).unwrap();
     let mut driver = unsafe {
-        let device = &mut *(VIRTIO_DEVICE as *mut VirtDevice);
-        assert_eq!(device.magic.read(), VIRTIO_MAGIC);
-        assert_eq!(device.version.read(), 0x1);
+        let device = VirtDevice::at(VIRTIO_DEVICE as *mut VirtDevice);
         assert_eq!(device.device_id.read(), DeviceId::NINEP_TRANSPORT);
 
         // init device according to the docs
         // see https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html#x1-920001
 
-        // properly acknowledge the device presence
-        device.status.write(0x0);
-        let mut device_status = device.status.read();
-        device_status |= DeviceStatus::ACKNOWLEDGE as u32;
-        device.status.write(device_status);
-        device_status |= DeviceStatus::DRIVER as u32;
-        device.status.write(device_status);
-
-        // negotiate features
-        device.host_feauture_sel.write(0);
-        let features_low = DeviceFeaturesLow::from_bits_retain(device.host_features.read());
-        assert!(features_low.intersects(DeviceFeaturesLow::NINEP_TAGGED));
-        device.guest_feauture_sel.write(0);
-        device
-            .guest_feautures
-            .write(DeviceFeaturesLow::NINEP_TAGGED.bits());
-        device_status |= DeviceStatus::FEATURES_OK as u32;
-        device.status.write(device_status);
-        assert_eq!(
-            device.status.read() & DeviceStatus::FEATURES_OK as u32,
-            DeviceStatus::FEATURES_OK as u32
-        );
+        let mut status = device.init();
+        status = device.negotiate_features(status, DeviceFeaturesLow::NINEP_TAGGED.bits() as u64);
 
         // setup an irq handler for the virtio device
         let irq_notif = caddr_alloc::alloc_caddr();
@@ -106,9 +84,7 @@ pub fn init_9p_driver(
         let queue = virtio::queue_setup(device, 0, mem, vspace).unwrap();
         let (req_buf, resp_buf) = prepare_msg_bufs(mem, vspace);
 
-        // finish device initialization
-        device_status |= DeviceStatus::DRIVER_OK as u32;
-        device.status.write(device_status);
+        device.finish_setup(status);
         P9Driver {
             device,
             queue,

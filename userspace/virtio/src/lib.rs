@@ -117,15 +117,7 @@ impl VirtDevice {
         device
     }
 
-    pub unsafe fn init(
-        &mut self,
-        wanted_features: u64,
-        memory: CAddr,
-        irq: CAddr,
-        irq_notification: CAddr,
-        interrupt_line: usize,
-        setup_queues: impl FnOnce(&mut Self) -> VirtQ,
-    ) {
+    pub unsafe fn init(&mut self) -> u32 {
         // properly acknowledge the device presence
         self.status.write(0x0);
         let mut device_status = self.status.read();
@@ -133,7 +125,14 @@ impl VirtDevice {
         self.status.write(device_status);
         device_status |= DeviceStatus::DRIVER as u32;
         self.status.write(device_status);
+        return device_status;
+    }
 
+    pub unsafe fn negotiate_features(
+        &mut self,
+        mut device_status: u32,
+        wanted_features: u64,
+    ) -> u32 {
         // negotiate features (low)
         self.host_feauture_sel.write(0);
         let features_low = self.host_features.read();
@@ -159,22 +158,13 @@ impl VirtDevice {
             self.status.read() & DeviceStatus::FEATURES_OK as u32,
             DeviceStatus::FEATURES_OK as u32
         );
+        return device_status;
+    }
 
-        // setup an irq handler for the device
-        librust::derive(
-            memory,
-            irq_notification,
-            CapabilityVariant::Notification,
-            None,
-        )
-        .unwrap();
-        librust::irq_control_claim(irq, interrupt_line, irq, irq_notification).unwrap();
-
-        // setup virtio queues
-        let queue = setup_queues(self);
-        //let (req_buf, resp_buf) = prepare_msg_bufs();
-
-        todo!()
+    pub unsafe fn finish_setup(&mut self, mut device_status: u32) {
+        // finish device initialization
+        device_status |= DeviceStatus::DRIVER_OK as u32;
+        self.status.write(device_status);
     }
 
     pub fn notify(&self, queue_num: usize) {
