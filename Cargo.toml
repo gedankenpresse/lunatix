@@ -3,9 +3,7 @@ resolver = "2"
 members = [
     "kernel/*",
     "support_crates/*",
-    "userspace/librust",
-    "userspace/init",
-    "userspace/hello_world",
+    "userspace/*",
 ]
 
 [profile.dev]
