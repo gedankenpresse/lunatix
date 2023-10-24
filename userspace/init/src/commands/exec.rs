@@ -27,7 +27,7 @@ impl Command for Exec {
     }
 
     fn get_summary(&self) -> &'static str {
-        "execute a binary (currently only loads a binary)"
+        "execute a binary (currently only for one timeslice)"
     }
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
