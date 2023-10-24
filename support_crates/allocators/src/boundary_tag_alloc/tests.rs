@@ -506,3 +506,13 @@ fn test_large_padding_is_reused() {
     chunk = state.get_next_chunk(chunk).unwrap();
     assert_eq!(chunk.0.state, AllocationMarker::Free);
 }
+
+#[test]
+fn test_aligned_initial_alloc_with_large_tags() {
+    let mut mem = [0u8; 32];
+    let alloc = BoundaryTagAllocator::<TagsU16>::new(&mut mem);
+    let layout = Layout::new::<u32>();
+    let block = alloc.allocate(layout, AllocInit::Data(0x55));
+    assert!(block.is_ok());
+    assert_eq!(block.unwrap().as_mut_ptr() as usize % layout.align(), 0);
+}

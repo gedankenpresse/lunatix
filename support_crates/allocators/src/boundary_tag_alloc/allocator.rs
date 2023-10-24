@@ -505,9 +505,12 @@ impl<'mem, Tags: TagsBinding> AllocatorState<'mem, Tags> {
                         // large that it can hold enough padding to reach the next aligned address, split it in two
                         // so that the tail part is padded correctly to that next aligned address
                         else if chunk.0.content_size() > padding + layout.align() {
-                            let (_head, tail) = unsafe {
-                                self.split_chunk(chunk, padding + layout.align() - Tags::TAGS_SIZE)
+                            let new_head_size = if padding + layout.align() > Tags::TAGS_SIZE {
+                                padding + layout.align() - Tags::TAGS_SIZE
+                            } else {
+                                layout.align()
                             };
+                            let (_head, tail) = unsafe { self.split_chunk(chunk, new_head_size) };
                             chunk = tail
                         }
                         // the chunk is not able to hold the layout so we try the next one
