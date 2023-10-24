@@ -1,12 +1,9 @@
 [package]
-name = "virtio"
+name = "caddr_alloc"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitflags = "2.4.1"
-caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
 librust = { version = "0.1.0", path = "../librust" }
-regs = { version = "0.1.0", path = "../../support_crates/regs" }

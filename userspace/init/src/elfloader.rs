@@ -4,8 +4,8 @@ use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
 use librust::syscall_abi::MapFlags;
 
-use crate::caddr_alloc;
 use crate::static_vec::StaticVec;
+use caddr_alloc;
 
 const PAGESIZE: usize = 4096;
 

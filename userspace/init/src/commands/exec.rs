@@ -1,16 +1,13 @@
-use alloc::vec;
 use alloc::vec::Vec;
 use elfloader::ElfBinary;
 use librust::prelude::CAddr;
-use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
-use librust::syscall_abi::yield_to::TaskStatus;
 use librust::syscall_abi::MapFlags;
 
-use crate::caddr_alloc::alloc_caddr;
 use crate::elfloader::LunatixElfLoader;
 use crate::sched::Scheduler;
 use crate::{read::Reader, CADDR_ASID_CONTROL, CADDR_MEM, CADDR_VSPACE, FS};
+use caddr_alloc::alloc_caddr;
 
 use super::Command;
 

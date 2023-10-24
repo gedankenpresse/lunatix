@@ -3,7 +3,6 @@
 
 extern crate alloc;
 
-mod caddr_alloc;
 mod commands;
 mod drivers;
 mod elfloader;
@@ -19,8 +18,10 @@ use crate::drivers::virtio_9p::init_9p_driver;
 use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
+use caddr_alloc::CAddrAlloc;
 use core::cell::RefCell;
 use core::panic::PanicInfo;
+use core::sync::atomic::AtomicUsize;
 use drivers::virtio_9p::P9Driver;
 use fdt::node::FdtNode;
 use fdt::Fdt;
@@ -223,7 +224,13 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 #[global_allocator]
 pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU32>> = StaticOnceCell::new();
 
+pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
+    max: AtomicUsize::new(64),
+    cur: AtomicUsize::new(10),
+};
+
 fn main() {
+    unsafe { caddr_alloc::set_global_caddr_allocator(&CADDR_ALLOC) };
     ALLOC.get_or_init(|| unsafe { alloc_init(32, 0x10_0000 as *mut u8) });
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };

@@ -1,7 +1,7 @@
 #![no_std]
 
-use crate::{caddr_alloc, CADDR_MEM, CADDR_VSPACE};
 use bitflags::bitflags;
+use caddr_alloc;
 use librust::syscall_abi::{identify::CapabilityVariant, CAddr, MapFlags};
 use regs::{RO, RW, WO};
 
@@ -273,7 +273,7 @@ impl VirtQ {
     }
 }
 
-fn queue_alloc(queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
+fn queue_alloc(mem: CAddr, vspace: CAddr, queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
     const PAGESIZE: usize = 4096;
     assert_eq!(queue_bytes & (PAGESIZE - 1), 0);
     let pages = queue_bytes / PAGESIZE;
@@ -286,11 +286,11 @@ fn queue_alloc(queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
     // and we can't guarantee that, because mapping in a vspace uses pages..
     {
         let page = caddr_alloc::alloc_caddr();
-        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        librust::derive(mem, page, CapabilityVariant::Page, None).unwrap();
         librust::map_page(
             page,
-            CADDR_VSPACE,
-            CADDR_MEM,
+            vspace,
+            mem,
             addr as usize,
             MapFlags::READ | MapFlags::WRITE,
         )
@@ -300,7 +300,7 @@ fn queue_alloc(queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
     let mut paddr = None;
     for i in 0..pages {
         let page = caddr_alloc::alloc_caddr();
-        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        librust::derive(mem, page, CapabilityVariant::Page, None).unwrap();
         let this_paddr = librust::page_paddr(page).unwrap();
         paddr.get_or_insert(this_paddr);
         assert_eq!(
@@ -310,8 +310,8 @@ fn queue_alloc(queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
         );
         librust::map_page(
             page,
-            CADDR_VSPACE,
-            CADDR_MEM,
+            vspace,
+            mem,
             addr as usize + i * PAGESIZE,
             MapFlags::READ | MapFlags::WRITE,
         )
@@ -320,7 +320,12 @@ fn queue_alloc(queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
     return Ok((addr, paddr.unwrap()));
 }
 
-pub fn queue_setup(dev: &mut VirtDevice, queue_num: u32) -> Result<VirtQ, ()> {
+pub fn queue_setup(
+    dev: &mut VirtDevice,
+    queue_num: u32,
+    mem: CAddr,
+    vspace: CAddr,
+) -> Result<VirtQ, ()> {
     unsafe {
         dev.queue_sel.write(queue_num);
         assert_eq!(dev.queue_pfn.read(), 0);
@@ -352,7 +357,7 @@ pub fn queue_setup(dev: &mut VirtDevice, queue_num: u32) -> Result<VirtQ, ()> {
         return pages * PAGESIZE;
     }
     let queue_bytes = align(desc_sz + avail_sz) + align(used_sz);
-    let (queue_buf, paddr) = queue_alloc(queue_bytes)?;
+    let (queue_buf, paddr) = queue_alloc(mem, vspace, queue_bytes)?;
 
     assert_eq!(paddr % PAGESIZE, 0);
     unsafe {

@@ -1,11 +1,10 @@
 use core::panic;
 
-use crate::drivers::virtio::{
-    self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC,
-};
 use crate::read::Reader;
-use crate::{caddr_alloc, CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
+use crate::{CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
+use virtio::{self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC};
 
+use caddr_alloc;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
 
@@ -13,7 +12,7 @@ use super::p9::{
     self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
     Response, Stat, TAttach, TClunk, TOpen, TRead, TVersion, TWalk,
 };
-use super::virtio::{VirtQ, VirtQMsgBuf};
+use virtio::{VirtQ, VirtQMsgBuf};
 
 const VIRTIO_DEVICE: usize = 0x10008000;
 const VIRTIO_DEVICE_LEN: usize = 0x1000;
@@ -105,7 +104,7 @@ pub fn init_9p_driver() -> P9Driver<'static> {
         let irq = caddr_alloc::alloc_caddr();
         librust::irq_control_claim(CADDR_IRQ_CONTROL, 0x08, irq, irq_notif).unwrap();
 
-        let queue = virtio::queue_setup(device, 0).unwrap();
+        let queue = virtio::queue_setup(device, 0, CADDR_MEM, CADDR_VSPACE).unwrap();
         let (req_buf, resp_buf) = prepare_msg_bufs();
 
         // finish device initialization

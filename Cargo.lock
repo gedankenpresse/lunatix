@@ -42,6 +42,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
 
 [[package]]
+name = "caddr_alloc"
+version = "0.1.0"
+dependencies = [
+ "librust",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,6 +136,7 @@ dependencies = [
  "aligned-vec",
  "allocators",
  "bitflags 2.4.1",
+ "caddr_alloc",
  "cc",
  "elfloader 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fdt",
@@ -137,6 +145,7 @@ dependencies = [
  "log",
  "regs",
  "uart_driver",
+ "virtio",
 ]
 
 [[package]]
@@ -393,6 +402,8 @@ checksum = "1230ec65f13e0f9b28d789da20d2d419511893ea9dac2c1f4ef67b8b14e5da80"
 name = "virtio"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.4.1",
+ "caddr_alloc",
  "librust",
  "regs",
 ]
