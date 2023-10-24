@@ -224,7 +224,7 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU32>> = StaticOnceCell::new();
 
 fn main() {
-    ALLOC.get_or_init(|| unsafe { alloc_init(12, 0x10_0000 as *mut u8) });
+    ALLOC.get_or_init(|| unsafe { alloc_init(16, 0x10_0000 as *mut u8) });
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();

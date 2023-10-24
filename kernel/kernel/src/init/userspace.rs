@@ -215,7 +215,7 @@ pub fn create_init_caps<'dt>(
     VSpaceIface.derive(&mem_cap, &mut task_state.vspace);
 
     log::debug!("initializing cspace for the init task");
-    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 32);
+    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 64);
 
     {
         let target_slot = unsafe {
