@@ -230,7 +230,7 @@ pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU16>> = Stati
 
 fn main() {
     ALLOC.get_or_init(|| unsafe { alloc_init(4, 0x10_0000 as *mut u8) });
-
+    let _v = alloc::boxed::Box::new(0u8);
     let v = alloc::boxed::Box::new(1);
     println!("{:?}", v);
     let dev_tree_address: usize = 0x20_0000_0000;
@@ -314,6 +314,7 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Copy,
     &commands::Cat,
     &commands::Ls,
+    &commands::Exec,
 ];
 
 fn process_cmd(input: &str) {
