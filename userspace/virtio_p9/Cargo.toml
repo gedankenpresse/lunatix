@@ -1,0 +1,13 @@
+[package]
+name = "virtio_p9"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
+io = { version = "0.1.0", path = "../io" }
+librust = { version = "0.1.0", path = "../librust" }
+p9 = { version = "0.1.0", path = "../p9" }
+virtio = { version = "0.1.0", path = "../virtio" }

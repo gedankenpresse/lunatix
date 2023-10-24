@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use aligned_vec::AVec;
 use alloc::vec;
 use alloc::vec::Vec;

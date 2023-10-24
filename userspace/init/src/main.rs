@@ -4,27 +4,23 @@
 extern crate alloc;
 
 mod commands;
-mod drivers;
 mod elfloader;
 mod logger;
-mod read;
 mod sched;
 mod sifive_uart;
 mod static_once_cell;
 mod static_vec;
 
 use crate::commands::Command;
-use crate::drivers::virtio_9p::init_9p_driver;
-use crate::read::{ByteReader, EchoingByteReader};
 use crate::sifive_uart::SifiveUartMM;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
 use core::cell::RefCell;
 use core::panic::PanicInfo;
 use core::sync::atomic::AtomicUsize;
-use drivers::virtio_9p::P9Driver;
 use fdt::node::FdtNode;
 use fdt::Fdt;
+use io::read::{ByteReader, EchoingByteReader};
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::system_reset::{ResetReason, ResetType};
 use librust::syscall_abi::{CAddr, MapFlags};
@@ -34,6 +30,7 @@ use logger::Logger;
 use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
+use virtio_p9::{init_9p_driver, P9Driver};
 
 static LOGGER: Logger = Logger::new(Level::Info);
 
@@ -236,7 +233,7 @@ fn main() {
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
 
-    let p9 = init_9p_driver();
+    let p9 = init_9p_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
     let _ = FS.0.borrow_mut().insert(p9);
 
     shell(&mut EchoingByteReader(stdin));

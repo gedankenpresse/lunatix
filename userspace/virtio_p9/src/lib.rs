@@ -1,8 +1,9 @@
+#![no_std]
+
 use core::panic;
 
-use crate::read::Reader;
-use crate::{CADDR_DEVMEM, CADDR_IRQ_CONTROL, CADDR_MEM, CADDR_VSPACE};
-use virtio::{self, DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC};
+use io::read::Reader;
+use virtio::{DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC};
 
 use caddr_alloc;
 use librust::syscall_abi::identify::CapabilityVariant;
@@ -18,14 +19,14 @@ const VIRTIO_DEVICE: usize = 0x10008000;
 const VIRTIO_DEVICE_LEN: usize = 0x1000;
 
 /// Allocate two buffers from the memory capability that are used for storing the actual P9 messages
-fn prepare_msg_bufs() -> (VirtQMsgBuf, VirtQMsgBuf) {
+fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
     const BUF1: *mut u8 = 0x30_0000_0000usize as *mut u8;
     let page1 = caddr_alloc::alloc_caddr();
-    librust::derive(CADDR_MEM, page1, CapabilityVariant::Page, None).unwrap();
+    librust::derive(mem, page1, CapabilityVariant::Page, None).unwrap();
     librust::map_page(
         page1,
-        CADDR_VSPACE,
-        CADDR_MEM,
+        vspace,
+        mem,
         BUF1 as usize,
         MapFlags::READ | MapFlags::WRITE,
     )
@@ -33,11 +34,11 @@ fn prepare_msg_bufs() -> (VirtQMsgBuf, VirtQMsgBuf) {
 
     const BUF2: *mut u8 = (0x30_0000_0000usize + 4096usize) as *mut u8;
     let page2 = caddr_alloc::alloc_caddr();
-    librust::derive(CADDR_MEM, page2, CapabilityVariant::Page, None).unwrap();
+    librust::derive(mem, page2, CapabilityVariant::Page, None).unwrap();
     librust::map_page(
         page2,
-        CADDR_VSPACE,
-        CADDR_MEM,
+        vspace,
+        mem,
         BUF2 as usize,
         MapFlags::READ | MapFlags::WRITE,
     )
@@ -57,15 +58,13 @@ fn prepare_msg_bufs() -> (VirtQMsgBuf, VirtQMsgBuf) {
     )
 }
 
-pub fn init_9p_driver() -> P9Driver<'static> {
-    librust::devmem_map(
-        CADDR_DEVMEM,
-        CADDR_MEM,
-        CADDR_VSPACE,
-        VIRTIO_DEVICE,
-        VIRTIO_DEVICE_LEN,
-    )
-    .unwrap();
+pub fn init_9p_driver(
+    mem: CAddr,
+    vspace: CAddr,
+    devmem: CAddr,
+    irq_control: CAddr,
+) -> P9Driver<'static> {
+    librust::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN).unwrap();
     let mut driver = unsafe {
         let device = &mut *(VIRTIO_DEVICE as *mut VirtDevice);
         assert_eq!(device.magic.read(), VIRTIO_MAGIC);
@@ -100,12 +99,12 @@ pub fn init_9p_driver() -> P9Driver<'static> {
 
         // setup an irq handler for the virtio device
         let irq_notif = caddr_alloc::alloc_caddr();
-        librust::derive(CADDR_MEM, irq_notif, CapabilityVariant::Notification, None).unwrap();
+        librust::derive(mem, irq_notif, CapabilityVariant::Notification, None).unwrap();
         let irq = caddr_alloc::alloc_caddr();
-        librust::irq_control_claim(CADDR_IRQ_CONTROL, 0x08, irq, irq_notif).unwrap();
+        librust::irq_control_claim(irq_control, 0x08, irq, irq_notif).unwrap();
 
-        let queue = virtio::queue_setup(device, 0, CADDR_MEM, CADDR_VSPACE).unwrap();
-        let (req_buf, resp_buf) = prepare_msg_bufs();
+        let queue = virtio::queue_setup(device, 0, mem, vspace).unwrap();
+        let (req_buf, resp_buf) = prepare_msg_bufs(mem, vspace);
 
         // finish device initialization
         device_status |= DeviceStatus::DRIVER_OK as u32;

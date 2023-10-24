@@ -1,8 +1,9 @@
 use core::ops::Range;
 
+use io::read::Reader;
 use librust::println;
 
-use crate::{read::Reader, FS};
+use crate::FS;
 use p9::{ByteReader, Stat};
 
 use super::Command;
