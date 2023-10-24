@@ -126,7 +126,6 @@ dependencies = [
 name = "init"
 version = "0.1.0"
 dependencies = [
- "align-data",
  "aligned-vec",
  "allocators",
  "bitflags 2.4.1",
