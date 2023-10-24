@@ -2,11 +2,8 @@ use core::ops::Range;
 
 use librust::println;
 
-use crate::{
-    drivers::p9::{ByteReader, Stat},
-    read::Reader,
-    FS,
-};
+use crate::{read::Reader, FS};
+use p9::{ByteReader, Stat};
 
 use super::Command;
 

@@ -1,3 +1,5 @@
+#![no_std]
+
 use bitflags::bitflags;
 use core::fmt::{Debug, Formatter};
 use core::mem;
@@ -201,7 +203,7 @@ impl<'a> ByteReader<'a> {
         Some(core::str::from_utf8(s).unwrap())
     }
 
-    pub(crate) fn remaining_data(self) -> &'a [u8] {
+    pub fn remaining_data(self) -> &'a [u8] {
         self.buf
     }
 }
@@ -502,7 +504,7 @@ pub struct TClunk {
     pub fid: u32,
 }
 impl TClunk {
-    pub(crate) fn serialize(&self, mut req: P9RequestBuilder) {
+    pub fn serialize(&self, mut req: P9RequestBuilder) {
         req.write_type(P9MsgType::TClunk);
         req.write_u16(self.tag);
         req.write_u32(self.fid);

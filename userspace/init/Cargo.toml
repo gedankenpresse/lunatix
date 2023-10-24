@@ -16,6 +16,7 @@ fdt = "0.1.5"
 ksync = { version = "0.1.0", path = "../../support_crates/ksync" }
 librust = { version = "0.1.0", path = "../librust" }
 log = "0.4.20"
+p9 = { version = "0.1.0", path = "../p9" }
 regs = { version = "0.1.0", path = "../../support_crates/regs" }
 uart_driver = { version = "0.1.0", path = "../../support_crates/uart_driver" }
 virtio = { version = "0.1.0", path = "../virtio" }

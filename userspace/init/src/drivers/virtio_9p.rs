@@ -8,8 +8,8 @@ use caddr_alloc;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::{prelude::CAddr, syscall_abi::MapFlags};
 
-use super::p9::{
-    self, P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
+use p9::{
+    P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
     Response, Stat, TAttach, TClunk, TOpen, TRead, TVersion, TWalk,
 };
 use virtio::{VirtQ, VirtQMsgBuf};
