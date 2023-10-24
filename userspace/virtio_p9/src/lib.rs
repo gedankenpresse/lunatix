@@ -63,6 +63,7 @@ pub fn init_9p_driver(
     vspace: CAddr,
     devmem: CAddr,
     irq_control: CAddr,
+    queue_base_ptr: *mut u8,
 ) -> P9Driver<'static> {
     librust::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN).unwrap();
     let mut driver = unsafe {
@@ -81,7 +82,7 @@ pub fn init_9p_driver(
         let irq = caddr_alloc::alloc_caddr();
         librust::irq_control_claim(irq_control, 0x08, irq, irq_notif).unwrap();
 
-        let queue = virtio::queue_setup(device, 0, mem, vspace).unwrap();
+        let queue = virtio::queue_setup(device, 0, mem, vspace, queue_base_ptr).unwrap();
         let (req_buf, resp_buf) = prepare_msg_bufs(mem, vspace);
 
         device.finish_setup(status);

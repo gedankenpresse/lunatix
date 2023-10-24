@@ -229,7 +229,13 @@ fn main() {
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
     let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
 
-    let p9 = init_9p_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
+    let p9 = init_9p_driver(
+        CADDR_MEM,
+        CADDR_VSPACE,
+        CADDR_DEVMEM,
+        CADDR_IRQ_CONTROL,
+        0x33_0000_0000 as *mut u8,
+    );
     let _ = FS.0.borrow_mut().insert(p9);
 
     shell::shell(&mut EchoingByteReader(stdin));

@@ -263,7 +263,12 @@ impl VirtQ {
     }
 }
 
-fn queue_alloc(mem: CAddr, vspace: CAddr, queue_bytes: usize) -> Result<(*mut u8, usize), ()> {
+fn queue_alloc(
+    mem: CAddr,
+    vspace: CAddr,
+    base_ptr: *mut u8,
+    queue_bytes: usize,
+) -> Result<(*mut u8, usize), ()> {
     const PAGESIZE: usize = 4096;
     assert_eq!(queue_bytes & (PAGESIZE - 1), 0);
     let pages = queue_bytes / PAGESIZE;
@@ -271,7 +276,7 @@ fn queue_alloc(mem: CAddr, vspace: CAddr, queue_bytes: usize) -> Result<(*mut u8
     // choose an arbitrary address to store the queue in...
     // Because this is hardcoded, we can only alloc one queue
 
-    let addr = 0x32_0000_0000 as *mut u8;
+    let addr = base_ptr;
     // map one page as buffer because virtqueue pages have to be physically contigious
     // and we can't guarantee that, because mapping in a vspace uses pages..
     {
@@ -315,6 +320,7 @@ pub fn queue_setup(
     queue_num: u32,
     mem: CAddr,
     vspace: CAddr,
+    base_ptr: *mut u8,
 ) -> Result<VirtQ, ()> {
     unsafe {
         dev.queue_sel.write(queue_num);
@@ -347,7 +353,7 @@ pub fn queue_setup(
         return pages * PAGESIZE;
     }
     let queue_bytes = align(desc_sz + avail_sz) + align(used_sz);
-    let (queue_buf, paddr) = queue_alloc(mem, vspace, queue_bytes)?;
+    let (queue_buf, paddr) = queue_alloc(mem, vspace, base_ptr, queue_bytes)?;
 
     assert_eq!(paddr % PAGESIZE, 0);
     unsafe {
