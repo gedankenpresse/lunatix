@@ -3,8 +3,6 @@ use core::{
     ptr::{addr_of, addr_of_mut},
 };
 
-use librust::println;
-
 pub struct StaticVec<T, const N: usize> {
     data: MaybeUninit<[T; N]>,
     length: usize,
@@ -31,6 +29,7 @@ impl<T, const N: usize> StaticVec<T, N> {
         unsafe { core::slice::from_raw_parts(self.data.as_ptr().cast(), self.length) }
     }
 
+    #[allow(unused)]
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { core::slice::from_raw_parts_mut(self.data.as_mut_ptr().cast(), self.length) }
     }

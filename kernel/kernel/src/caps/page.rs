@@ -121,7 +121,7 @@ impl CapabilityIface<Capability> for PageIface {
 
 impl Page {
     pub fn unmap(&mut self) {
-        let mut page = self;
+        let page = self;
         if page.asid == ASID_NONE {
             return;
         }

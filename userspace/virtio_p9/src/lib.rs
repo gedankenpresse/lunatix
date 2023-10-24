@@ -200,7 +200,7 @@ impl<'mm> P9Driver<'mm> {
                 wnames: path,
             },
         );
-        let open_res = p9_open(
+        let _open_res = p9_open(
             self,
             TOpen {
                 tag: 1,
@@ -217,6 +217,7 @@ impl<'mm> P9Driver<'mm> {
         })
     }
 
+    // TODO: fix dir reader
     pub(crate) fn read_dir<'a>(&'a mut self) -> Result<DirReader<'a, 'mm>, &'a str> {
         let fid = 1234;
         let _ = p9_walk(
@@ -228,7 +229,7 @@ impl<'mm> P9Driver<'mm> {
                 wnames: &[],
             },
         );
-        let open_res = p9_open(
+        let _open_res = p9_open(
             self,
             TOpen {
                 tag: 1,

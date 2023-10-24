@@ -82,7 +82,7 @@ impl Command for Ls {
         "list directory"
     }
 
-    fn execute(&self, args: &str) -> Result<(), &'static str> {
+    fn execute(&self, _args: &str) -> Result<(), &'static str> {
         let mut p9 = FS.0.borrow_mut();
         let p9 = p9.as_mut().unwrap();
         // TODO: remove this intermediate buffer, this should be the p9 protocol buffer
@@ -94,7 +94,7 @@ impl Command for Ls {
             buf_range: 0..0,
         };
         loop {
-            let Some(stat) = dir_reader.read_entry(&mut stat_buf) else {
+            let Some(_stat) = dir_reader.read_entry(&mut stat_buf) else {
                 break;
             };
             let stat = Stat::deserialize(&mut ByteReader::new(&stat_buf)).unwrap();

@@ -1,6 +1,7 @@
 use librust::println;
 use regs::RW;
 
+#[allow(unused)]
 pub struct SifiveUartMM {
     txdata: RW<u32>,
     rxdata: RW<u32>,
@@ -16,6 +17,7 @@ pub struct SifiveUart<'a> {
 }
 
 impl<'a> SifiveUart<'a> {
+    #[allow(unused)]
     pub fn log_settings(&self) {
         unsafe {
             let txdata = self.mm.txctrl.read();

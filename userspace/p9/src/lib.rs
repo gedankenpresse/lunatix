@@ -523,6 +523,7 @@ pub struct RRemove {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct Stat<'a> {
     typ: u16,
     dev: u32,
