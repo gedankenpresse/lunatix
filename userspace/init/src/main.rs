@@ -34,7 +34,7 @@ use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
 
-static LOGGER: Logger = Logger::new(Level::Trace);
+static LOGGER: Logger = Logger::new(Level::Debug);
 
 #[no_mangle]
 fn _start() {

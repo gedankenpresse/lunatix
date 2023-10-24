@@ -9,6 +9,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1926655ba000b19e21f0402be09a1d52d318c8a8a68622870bfb7af2a71315cd"
 
 [[package]]
+name = "aligned-vec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aa90d7ce82d4be67b64039a3d588d38dbcc6736577de4a847025ce5b0c468d1"
+
+[[package]]
 name = "allocators"
 version = "0.1.0"
 dependencies = [
@@ -121,6 +127,7 @@ name = "init"
 version = "0.1.0"
 dependencies = [
  "align-data",
+ "aligned-vec",
  "allocators",
  "bitflags 2.4.1",
  "cc",

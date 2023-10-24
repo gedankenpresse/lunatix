@@ -30,20 +30,20 @@ impl Command for Exec {
     }
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
-        log::info!("reading binary from filesystem");
+        log::debug!("reading binary from filesystem");
         let path = args;
         let mut p9 = FS.0.borrow_mut();
         let p9 = p9.as_mut().unwrap();
         let mut reader = p9.read_file(&[path]).unwrap();
-        let file_bin = reader.read_to_vec().unwrap();
+        let file_bin = reader.read_to_vec(16).unwrap();
 
         // load the elf content into the task
-        log::info!("preparing capabilities for the new task");
+        log::debug!("preparing capabilities for the new task");
         let task_caps = self.make_task_caps();
         librust::asid_assign(CADDR_ASID_CONTROL, task_caps.vspace).unwrap();
 
         // load a stack for the child task
-        log::info!("mapping stack space for the new task");
+        log::debug!("mapping stack space for the new task");
         const TASK_STACK_LOW: usize = 0x5_0000_0000;
         librust::map_page(
             task_caps.stack_page,
@@ -55,7 +55,7 @@ impl Command for Exec {
         .unwrap();
 
         // load the elf content
-        log::info!("loading {} elf code", path);
+        log::debug!("loading {} elf code", path);
         let elf_binary = ElfBinary::new(&file_bin).unwrap();
         let mut elf_loader =
             LunatixElfLoader::<4>::new(CADDR_MEM, CADDR_VSPACE, task_caps.vspace, 0x31_0000_0000);
@@ -72,10 +72,11 @@ impl Command for Exec {
         )
         .unwrap();
 
-        log::info!("Yielding to child task");
+        // execute the task
+        log::debug!("yielding to {}", path);
         librust::yield_to(task_caps.task).unwrap();
 
-        todo!("cleanup the child task");
+        //self.destroy_task_caps(task_caps); TODO
 
         Ok(())
     }
@@ -103,5 +104,12 @@ impl Exec {
             vspace,
             stack_page,
         }
+    }
+
+    fn destroy_task_caps(&self, caps: TaskCaps) {
+        librust::destroy(caps.stack_page).unwrap();
+        librust::destroy(caps.cspace).unwrap();
+        librust::destroy(caps.task).unwrap();
+        librust::destroy(caps.vspace).unwrap();
     }
 }

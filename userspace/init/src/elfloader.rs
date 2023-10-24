@@ -1,5 +1,4 @@
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
-use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
 use librust::syscall_abi::MapFlags;
@@ -72,7 +71,6 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
     }
 
     pub fn remap_to_target_vspace(&mut self) {
-        println!("remapping to target vspace");
         for mapping in self.used_pages.iter() {
             librust::unmap_page(mapping.page).unwrap();
             librust::map_page(
@@ -111,7 +109,7 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                         flags,
                     )
                     .unwrap();
-                println!(
+                log::trace!(
                     "allocating region {:x?} from elf-offset={:x}",
                     mapping,
                     load_header.offset()
@@ -119,7 +117,7 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
                 self.interim_addr += PAGESIZE;
                 librust::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
                 // map page for us so we can load content into it later
-                println!("mapping page {} {:x}", mapping.page, mapping.local_addr);
+                log::trace!("mapping page {} {:x}", mapping.page, mapping.local_addr);
                 librust::map_page(
                     mapping.page,
                     self.own_vspace,
@@ -137,7 +135,7 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
     fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             let mapping = self.find_mapping(base as usize + i * PAGESIZE).unwrap();
-            println!("loading content of region {:?}", mapping);
+            log::trace!("loading content of region {:?}", mapping);
             unsafe {
                 core::intrinsics::copy_nonoverlapping(
                     chunk.as_ptr(),
