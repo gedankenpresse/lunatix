@@ -132,6 +132,7 @@ impl Page {
         riscv::pt::unmap(KernelMapper, pt, page.vaddr as usize, unsafe {
             KernelMapper.mapped_to_phys(page.kernel_addr) as usize
         });
+        unsafe { asm!("sfence.vma") };
         page.asid = ASID_NONE;
         page.vaddr = core::ptr::null_mut();
     }

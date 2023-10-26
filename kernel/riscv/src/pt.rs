@@ -282,7 +282,7 @@ pub fn unmap(trans: impl crate::PhysMapper, root: &mut PageTable, vaddr: usize, 
         return;
     }
     unsafe {
-        v.set(0 as u64, EntryFlags::empty());
+        v.clear();
     }
 }
 
