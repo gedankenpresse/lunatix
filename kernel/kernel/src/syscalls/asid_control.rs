@@ -1,16 +1,16 @@
 use crate::caps::{asid::asid_control_assign, AsidControl, CSpace, Error};
+use syscall_abi::send::SendArgs;
 
 pub fn asid_control_send(
     cspace: &CSpace,
     asid_control: &AsidControl,
-    op: u16,
-    args: &[usize],
+    args: &SendArgs,
 ) -> Result<(), Error> {
     const ASSIGN: u16 = 1234;
-    match op {
+    match args.op {
         ASSIGN => asid_control_assign(asid_control, unsafe {
             cspace
-                .lookup_raw(args[0])
+                .lookup_raw(args.data_args()[0])
                 .ok_or(Error::InvalidCAddr)?
                 .as_mut()
                 .unwrap()

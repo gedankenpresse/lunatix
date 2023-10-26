@@ -1,16 +1,24 @@
 use core::arch::asm;
 use libkernel::mem::PAGESIZE;
 use riscv::pt::EntryFlags;
+use syscall_abi::send::SendArgs;
 
 use crate::{
     caps::{CSpace, Devmem, Error, Tag},
     syscalls::utils,
 };
 
-pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, op: u16, args: &[usize]) -> Result<(), Error> {
+pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<(), Error> {
     const MAP: u16 = 1;
-    match op {
-        MAP => devmem_map(cspace, devmem, args[0], args[1], args[2], args[3]),
+    match args.op {
+        MAP => devmem_map(
+            cspace,
+            devmem,
+            args.data_args()[0],
+            args.data_args()[1],
+            args.data_args()[2],
+            args.data_args()[3],
+        ),
         _ => Err(Error::Unsupported),
     }
 }

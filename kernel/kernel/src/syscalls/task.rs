@@ -1,18 +1,19 @@
 use derivation_tree::caps::CapabilityIface;
+use syscall_abi::send::SendArgs;
 
 use crate::{
     caps::{CSpace, CSpaceIface, Error, Tag, Task, VSpaceIface},
     syscalls::utils,
 };
 
-pub fn task_send(cspace: &CSpace, task: &Task, op: u16, args: &[usize]) -> Result<(), Error> {
+pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Error> {
     const ASSIGN_REGS: u16 = 1;
     const ASSIGN_VSPACE: u16 = 2;
     const ASSIGN_CSPACE: u16 = 3;
-    match op {
-        ASSIGN_REGS => task_assign_control_registers(task, args),
-        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args[0]),
-        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args[0]),
+    match args.op {
+        ASSIGN_REGS => task_assign_control_registers(task, args.data_args()),
+        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args.data_args()[0]),
+        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args.data_args()[0]),
         _ => Err(Error::Unsupported),
     }
 }

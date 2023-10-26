@@ -26,8 +26,24 @@ pub struct SendArgs {
     /// The remainder of `args` is interpreted to be plain old data though.
     pub num_caps: u16,
 
-    /// Arguments to this RPC
-    pub args: [usize; NUM_DATA_REGS],
+    /// Raw arguments to this RPC.
+    ///
+    /// These should not be interpreted directly because they may contain sent capabilities as well as inline data.
+    /// Instead either [`cap_args()`](SendArgs::cap_args) or [`data_args()`](SendArgs::data_args) should be called
+    /// to retrieve the expected types of arguments.
+    pub raw_args: [usize; NUM_DATA_REGS],
+}
+
+impl SendArgs {
+    /// Return the capabilities that are included as arguments to this send call
+    pub fn cap_args(&self) -> &[CAddr] {
+        &self.raw_args[..self.num_caps as usize]
+    }
+
+    /// Return the inline data that is included as argument to this send call
+    pub fn data_args(&self) -> &[CAddr] {
+        &self.raw_args[self.num_caps as usize..]
+    }
 }
 
 impl SyscallBinding for Send {
@@ -44,7 +60,7 @@ impl From<RawSyscallArgs> for SendArgs {
             op: (value[1] >> 16) as u16,
             // mask out and take the last 16 bits of value[1]
             num_caps: (value[1] & (!0u16 as usize)) as u16,
-            args: [value[2], value[3], value[4], value[5], value[6]],
+            raw_args: [value[2], value[3], value[4], value[5], value[6]],
         }
     }
 }
@@ -54,11 +70,11 @@ impl From<SendArgs> for RawSyscallArgs {
         [
             value.target,
             ((value.op as usize) << 16) | (value.num_caps as usize),
-            value.args[0],
-            value.args[1],
-            value.args[2],
-            value.args[3],
-            value.args[4],
+            value.raw_args[0],
+            value.raw_args[1],
+            value.raw_args[2],
+            value.raw_args[3],
+            value.raw_args[4],
         ]
     }
 }

@@ -17,7 +17,7 @@ pub fn send(
         target: cap,
         op: label,
         num_caps: 0,
-        args: [a1, a2, a3, a4, a5],
+        raw_args: [a1, a2, a3, a4, a5],
     })
 }
 

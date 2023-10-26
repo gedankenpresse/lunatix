@@ -3,18 +3,19 @@ use crate::caps::{
     VSpaceIface,
 };
 use syscall_abi::identify::CapabilityVariant;
+use syscall_abi::send::SendArgs;
 
 use super::utils;
 
-pub fn mem_send(cspace: &CSpace, mem: &Capability, op: u16, args: &[usize]) -> Result<(), Error> {
+pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<(), Error> {
     const DERIVE: u16 = 1;
-    match op {
+    match args.op {
         DERIVE => mem_derive(
             cspace,
             mem,
-            args[0],
-            CapabilityVariant::try_from(args[1]).map_err(|_| Error::InvalidArg)?,
-            args[2],
+            args.data_args()[0],
+            CapabilityVariant::try_from(args.data_args()[1]).map_err(|_| Error::InvalidArg)?,
+            args.data_args()[2],
         ),
         _ => Err(Error::Unsupported),
     }

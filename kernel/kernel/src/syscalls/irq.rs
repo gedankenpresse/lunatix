@@ -1,4 +1,5 @@
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps};
+use syscall_abi::send::SendArgs;
 
 use crate::{
     arch_specific::plic::PLIC,
@@ -12,11 +13,10 @@ pub fn irq_send(
     ctx: &mut SyscallContext,
     cspace: &CSpace,
     irq: &Irq,
-    op: u16,
-    args: &[usize],
+    args: &SendArgs,
 ) -> Result<(), caps::Error> {
     const COMPLETE: u16 = 0;
-    match op {
+    match args.op {
         COMPLETE => sys_irq_complete(cspace, irq, ctx.plic),
         _ => Err(caps::Error::Unsupported),
     }
@@ -42,12 +42,11 @@ pub fn irq_control_send(
     ctx: &mut SyscallContext,
     cspace: &CSpace,
     irq_control: &mut Capability,
-    op: u16,
-    args: &[usize],
+    args: &SendArgs,
 ) -> Result<(), caps::Error> {
     const REGISTER_IRQ: u16 = 0;
-    match op {
-        REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args),
+    match args.op {
+        REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args.data_args()),
         _ => Err(caps::Error::Unsupported),
     }
 }

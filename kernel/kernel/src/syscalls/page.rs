@@ -1,5 +1,6 @@
 use derivation_tree::tree::CursorRefMut;
 use libkernel::mem::ptrs::MappedConstPtr;
+use syscall_abi::send::SendArgs;
 use syscall_abi::MapFlags;
 
 use crate::{
@@ -7,25 +8,25 @@ use crate::{
     syscalls::utils,
 };
 
-pub fn page_send(cspace: &CSpace, page: &mut Page, op: u16, args: &[usize]) -> Result<(), Error> {
+pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<(), Error> {
     const MAP: u16 = 0;
     const UNMAP: u16 = 1;
     const PADDR: u16 = 2;
 
-    match op {
+    match args.op {
         MAP => {
-            let [mem, vspace, addr, flags, _] = args[..] else {
+            let [mem, vspace, addr, flags, _] = args.data_args() else {
                 panic!("not enough arguments")
             };
-            let mem_cap = unsafe { utils::lookup_cap(cspace, mem, Tag::Memory) }?;
-            let vspace_cap = unsafe { utils::lookup_cap(cspace, vspace, Tag::VSpace) }?;
-            let flags = MapFlags::from_bits(flags).ok_or(Error::InvalidArg)?;
+            let mem_cap = unsafe { utils::lookup_cap(cspace, *mem, Tag::Memory) }?;
+            let vspace_cap = unsafe { utils::lookup_cap(cspace, *vspace, Tag::VSpace) }?;
+            let flags = MapFlags::from_bits(*flags).ok_or(Error::InvalidArg)?;
             map_page(
                 page,
                 mem_cap.get_inner_memory().unwrap(),
                 vspace_cap.get_inner_vspace().unwrap(),
                 flags,
-                addr,
+                *addr,
             )
         }
         UNMAP => {
