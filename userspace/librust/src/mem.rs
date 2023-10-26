@@ -8,7 +8,6 @@ pub fn derive(
     variant: CapabilityVariant,
     size: Option<usize>,
 ) -> SyscallResult<NoValue> {
-    const DERIVE: usize = 1;
-    let res = send(mem, DERIVE, target, variant.into(), size.unwrap_or(0), 0, 0);
-    SyscallResult::from_response(res)
+    const DERIVE: u16 = 1;
+    send(mem, DERIVE, target, variant.into(), size.unwrap_or(0), 0, 0)
 }

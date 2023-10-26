@@ -7,10 +7,10 @@ use crate::{
     syscalls::utils,
 };
 
-pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &[usize]) -> Result<(), Error> {
-    const MAP: usize = 1;
-    match args[0] {
-        MAP => devmem_map(cspace, devmem, args[1], args[2], args[3], args[4]),
+pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, op: u16, args: &[usize]) -> Result<(), Error> {
+    const MAP: u16 = 1;
+    match op {
+        MAP => devmem_map(cspace, devmem, args[0], args[1], args[2], args[3]),
         _ => Err(Error::Unsupported),
     }
 }

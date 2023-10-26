@@ -35,6 +35,7 @@ pub mod debug;
 mod errors;
 pub mod identify;
 pub mod inspect_derivation_tree;
+pub mod send;
 pub mod system_reset;
 pub mod wait_on;
 pub mod r#yield;

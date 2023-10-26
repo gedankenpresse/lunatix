@@ -6,15 +6,15 @@ use syscall_abi::identify::CapabilityVariant;
 
 use super::utils;
 
-pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &[usize]) -> Result<(), Error> {
-    const DERIVE: usize = 1;
-    match args[0] {
+pub fn mem_send(cspace: &CSpace, mem: &Capability, op: u16, args: &[usize]) -> Result<(), Error> {
+    const DERIVE: u16 = 1;
+    match op {
         DERIVE => mem_derive(
             cspace,
             mem,
-            args[1],
-            CapabilityVariant::try_from(args[2]).map_err(|_| Error::InvalidArg)?,
-            args[3],
+            args[0],
+            CapabilityVariant::try_from(args[1]).map_err(|_| Error::InvalidArg)?,
+            args[2],
         ),
         _ => Err(Error::Unsupported),
     }

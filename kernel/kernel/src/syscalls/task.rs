@@ -5,15 +5,14 @@ use crate::{
     syscalls::utils,
 };
 
-pub fn task_send(cspace: &CSpace, task: &Task, args: &[usize]) -> Result<(), Error> {
-    log::debug!("{:?}", args);
-    const ASSIGN_REGS: usize = 1;
-    const ASSIGN_VSPACE: usize = 2;
-    const ASSIGN_CSPACE: usize = 3;
-    match args[0] {
-        ASSIGN_REGS => task_assign_control_registers(task, &args[1..]),
-        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args[1]),
-        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args[1]),
+pub fn task_send(cspace: &CSpace, task: &Task, op: u16, args: &[usize]) -> Result<(), Error> {
+    const ASSIGN_REGS: u16 = 1;
+    const ASSIGN_VSPACE: u16 = 2;
+    const ASSIGN_CSPACE: u16 = 3;
+    match op {
+        ASSIGN_REGS => task_assign_control_registers(task, args),
+        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args[0]),
+        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args[0]),
         _ => Err(Error::Unsupported),
     }
 }

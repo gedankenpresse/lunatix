@@ -7,14 +7,14 @@ use crate::{
     syscalls::utils,
 };
 
-pub fn page_send(cspace: &CSpace, page: &mut Page, args: &[usize]) -> Result<(), Error> {
-    const MAP: usize = 0;
-    const UNMAP: usize = 1;
-    const PADDR: usize = 2;
+pub fn page_send(cspace: &CSpace, page: &mut Page, op: u16, args: &[usize]) -> Result<(), Error> {
+    const MAP: u16 = 0;
+    const UNMAP: u16 = 1;
+    const PADDR: u16 = 2;
 
-    match args[0] {
+    match op {
         MAP => {
-            let [mem, vspace, addr, flags, _] = args[1..] else {
+            let [mem, vspace, addr, flags, _] = args[..] else {
                 panic!("not enough arguments")
             };
             let mem_cap = unsafe { utils::lookup_cap(cspace, mem, Tag::Memory) }?;

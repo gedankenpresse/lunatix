@@ -1,19 +1,24 @@
 use core::arch::asm;
-use syscall_abi::CAddr;
-use syscall_abi::FromRawSysResponse;
+use syscall_abi::send::{Send, SendArgs};
 use syscall_abi::SyscallBinding;
+use syscall_abi::{CAddr, NoValue};
+use syscall_abi::{FromRawSysResponse, SyscallResult};
 
 pub fn send(
     cap: CAddr,
-    label: usize,
+    label: u16,
     a1: usize,
     a2: usize,
     a3: usize,
     a4: usize,
     a5: usize,
-) -> [usize; 2] {
-    const SEND: usize = 18;
-    return raw_syscall(SEND, cap, label, a1, a2, a3, a4, a5);
+) -> SyscallResult<NoValue> {
+    syscall::<Send>(SendArgs {
+        target: cap,
+        op: label,
+        num_caps: 0,
+        args: [a1, a2, a3, a4, a5],
+    })
 }
 
 #[inline(always)]

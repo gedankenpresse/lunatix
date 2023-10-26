@@ -37,6 +37,7 @@ use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 
+use syscall_abi::send::SendArgs;
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
@@ -145,8 +146,9 @@ pub fn handle_syscall(
         }
 
         /* SEND SYSCALL */
-        18 => {
-            let result = send::sys_send(ctx, task, &args);
+        syscall_abi::send::Send::SYSCALL_NO => {
+            let args = SendArgs::from(args);
+            let result = send::sys_send(ctx, task, args);
             let response = match result {
                 Ok(()) => Ok(NoValue),
                 Err(e) => Err(e),

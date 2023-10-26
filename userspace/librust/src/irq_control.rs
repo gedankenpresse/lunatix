@@ -8,8 +8,8 @@ pub fn irq_control_claim(
     irq_addr: CAddr,
     notification_addr: CAddr,
 ) -> SyscallResult<NoValue> {
-    const CLAIM: usize = 0;
-    SyscallResult::from_response(send(
+    const CLAIM: u16 = 0;
+    send(
         irq_control_addr,
         CLAIM,
         notification_addr,
@@ -17,5 +17,5 @@ pub fn irq_control_claim(
         interrupt_line,
         0,
         0,
-    ))
+    )
 }
