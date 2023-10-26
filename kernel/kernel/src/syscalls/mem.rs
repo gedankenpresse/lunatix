@@ -16,7 +16,7 @@ pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<()
             mem,
             args.cap_args()[0],
             CapabilityVariant::try_from(args.data_args()[0]).map_err(|_| Error::InvalidArg)?,
-            args.data_args()[2],
+            args.data_args()[1],
         ),
         _ => Err(Error::Unsupported),
     }

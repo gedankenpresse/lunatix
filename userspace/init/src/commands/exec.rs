@@ -3,6 +3,7 @@ use elfloader::ElfBinary;
 use librust::prelude::CAddr;
 use librust::println;
 use librust::syscall_abi::identify::CapabilityVariant;
+use librust::syscall_abi::yield_to::TaskStatus;
 use librust::syscall_abi::MapFlags;
 
 use crate::caddr_alloc::alloc_caddr;
@@ -73,8 +74,17 @@ impl Command for Exec {
         .unwrap();
 
         // execute the task
-        log::debug!("yielding to {}", path);
-        librust::yield_to(task_caps.task).unwrap();
+        loop {
+            log::debug!("yielding to {}", path);
+            let yielded = librust::yield_to(task_caps.task).unwrap();
+            log::debug!("yielded with result {yielded:?}");
+            match yielded {
+                TaskStatus::DidExecute => continue,
+                TaskStatus::Blocked => panic!("child task is blocked. this is not handled by init"),
+                TaskStatus::Exited => break,
+                TaskStatus::AlreadyRunning => panic!("child task is already running. wtf."),
+            }
+        }
 
         //self.destroy_task_caps(task_caps); TODO
 

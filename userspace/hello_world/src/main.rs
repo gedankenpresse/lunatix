@@ -7,17 +7,18 @@ use librust::println;
 #[no_mangle]
 fn _start() {
     main();
+    librust::exit();
 }
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     println!("hello_world panicked {}", info);
-    loop {}
+    librust::exit();
 }
 
 fn main() {
-    println!("Hello World");
-    loop {
+    for i in 0..3 {
+        println!("Hello World {i:}");
         librust::r#yield().unwrap();
     }
 }

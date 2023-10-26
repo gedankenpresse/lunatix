@@ -15,6 +15,7 @@ mod mem;
 mod page;
 mod task;
 
+mod exit;
 pub mod print;
 mod system_reset;
 mod wait_on;
@@ -26,6 +27,7 @@ pub use assign_ipc_buffer::assign_ipc_buffer;
 pub use copy::copy;
 pub use destroy::destroy;
 pub use devmem::devmem_map;
+pub use exit::exit;
 pub use identify::identify;
 pub use irq::irq_complete;
 pub use irq_control::irq_control_claim;

@@ -13,6 +13,7 @@ mod page;
 mod task;
 
 mod devmem;
+mod exit;
 mod send;
 mod system_reset;
 mod utils;
@@ -37,6 +38,8 @@ use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::r#yield::{Yield, YieldArgs};
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 
+use crate::syscalls::exit::sys_exit;
+use syscall_abi::exit::Exit;
 use syscall_abi::send::SendArgs;
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
@@ -186,6 +189,14 @@ pub fn handle_syscall(
             };
             (response.into_response(), Schedule::Keep)
         }
+
+        Exit::SYSCALL_NO => {
+            log::debug!("handling exit syscall");
+            let task = task.get_inner_task().unwrap();
+            sys_exit(task);
+            (Default::default(), Schedule::RunInit)
+        }
+
         no => {
             log::warn!(
                 "received unknown syscall {} with args {:x?}",

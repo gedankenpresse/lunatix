@@ -22,6 +22,7 @@ pub enum TaskExecutionState {
     Running,
     Waiting,
     Idle,
+    Exited,
 }
 
 pub struct TaskState {

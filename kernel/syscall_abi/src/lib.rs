@@ -24,6 +24,10 @@
 //! | [system_reset](system_reset::SystemReset) | *16* | [SystemResetArgs](system_reset::SystemResetArgs) | [NoValue](NoValue) | Schedule a hardware reset |
 //! | [map_devmem](map_devmem::MapDevmem) | *17* | [MapDevmemArgs](map_devmem::MapDevmemArgs) | [NoValue](NoValue) | Map Device Memory
 //! | [send] | *18* |
+//! | [destroy] | *19* |
+//! | [copy] | *20* |
+//! | [get_page_paddr] | *21* |
+//! | [exit] | *22* |
 
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
@@ -33,6 +37,7 @@ use core::usize;
 pub mod assign_ipc_buffer;
 pub mod debug;
 mod errors;
+pub mod exit;
 pub mod identify;
 pub mod inspect_derivation_tree;
 pub mod send;
