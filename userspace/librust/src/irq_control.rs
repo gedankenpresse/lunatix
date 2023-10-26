@@ -12,10 +12,7 @@ pub fn irq_control_claim(
     send(
         irq_control_addr,
         CLAIM,
-        notification_addr,
-        irq_addr,
-        interrupt_line,
-        0,
-        0,
+        &[notification_addr, irq_addr],
+        &[interrupt_line, 0, 0],
     )
 }

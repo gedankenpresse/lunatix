@@ -5,13 +5,13 @@
 //! inter process communication.
 
 use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
-use core::mem;
+use core::fmt::{Debug, Formatter};
 
-const NUM_DATA_REGS: usize = 5;
+pub const NUM_DATA_REGS: usize = 5;
 
 pub struct Send;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct SendArgs {
     /// The object on which a send is performed.
     pub target: CAddr,
@@ -32,6 +32,17 @@ pub struct SendArgs {
     /// Instead either [`cap_args()`](SendArgs::cap_args) or [`data_args()`](SendArgs::data_args) should be called
     /// to retrieve the expected types of arguments.
     pub raw_args: [usize; NUM_DATA_REGS],
+}
+
+impl Debug for SendArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SendArgs")
+            .field("target", &self.target)
+            .field("op", &self.op)
+            .field("cap_args", &self.cap_args())
+            .field("data_args", &self.data_args())
+            .finish()
+    }
 }
 
 impl SendArgs {

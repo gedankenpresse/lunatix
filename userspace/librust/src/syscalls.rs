@@ -1,23 +1,25 @@
 use core::arch::asm;
-use syscall_abi::send::{Send, SendArgs};
+use syscall_abi::send::{Send, SendArgs, NUM_DATA_REGS};
 use syscall_abi::SyscallBinding;
 use syscall_abi::{CAddr, NoValue};
 use syscall_abi::{FromRawSysResponse, SyscallResult};
 
-pub fn send(
-    cap: CAddr,
-    label: u16,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-    a5: usize,
-) -> SyscallResult<NoValue> {
+pub fn send(cap: CAddr, label: u16, caps: &[CAddr], data: &[usize]) -> SyscallResult<NoValue> {
+    assert_eq!(caps.len() + data.len(), NUM_DATA_REGS);
+
+    let arg = |i: usize| {
+        if i < caps.len() {
+            caps[i]
+        } else {
+            data[i - caps.len()]
+        }
+    };
+
     syscall::<Send>(SendArgs {
         target: cap,
         op: label,
-        num_caps: 0,
-        raw_args: [a1, a2, a3, a4, a5],
+        num_caps: caps.len() as u16,
+        raw_args: [arg(0), arg(1), arg(2), arg(3), arg(4)],
     })
 }
 

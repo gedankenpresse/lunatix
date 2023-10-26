@@ -9,12 +9,12 @@ pub fn map_page(
     flags: MapFlags,
 ) -> SyscallResult<NoValue> {
     const MAP: u16 = 0;
-    send(page, MAP, mem, vspace, addr, flags.bits(), 0)
+    send(page, MAP, &[mem, vspace], &[addr, flags.bits(), 0])
 }
 
 pub fn unmap_page(page: CAddr) -> SyscallResult<NoValue> {
     const UNMAP: u16 = 1;
-    send(page, UNMAP, 0, 0, 0, 0, 0)
+    send(page, UNMAP, &[], &[0, 0, 0, 0, 0])
 }
 
 pub fn page_paddr(page: CAddr) -> SyscallResult<usize> {

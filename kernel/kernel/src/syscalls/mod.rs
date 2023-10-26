@@ -148,7 +148,9 @@ pub fn handle_syscall(
         /* SEND SYSCALL */
         syscall_abi::send::Send::SYSCALL_NO => {
             let args = SendArgs::from(args);
+            log::debug!("handling send syscall with args {:?}", args);
             let result = send::sys_send(ctx, task, args);
+            log::debug!("send result is {:?}", result);
             let response = match result {
                 Ok(()) => Ok(NoValue),
                 Err(e) => Err(e),

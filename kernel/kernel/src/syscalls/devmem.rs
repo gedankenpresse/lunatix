@@ -2,6 +2,7 @@ use core::arch::asm;
 use libkernel::mem::PAGESIZE;
 use riscv::pt::EntryFlags;
 use syscall_abi::send::SendArgs;
+use syscall_abi::CAddr;
 
 use crate::{
     caps::{CSpace, Devmem, Error, Tag},
@@ -14,10 +15,10 @@ pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<
         MAP => devmem_map(
             cspace,
             devmem,
+            args.cap_args()[0],
+            args.cap_args()[1],
             args.data_args()[0],
             args.data_args()[1],
-            args.data_args()[2],
-            args.data_args()[3],
         ),
         _ => Err(Error::Unsupported),
     }
@@ -26,8 +27,8 @@ pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<
 fn devmem_map(
     cspace: &CSpace,
     devmem: &Devmem,
-    mem_addr: usize,
-    vspace_addr: usize,
+    mem_addr: CAddr,
+    vspace_addr: CAddr,
     base: usize,
     len: usize,
 ) -> Result<(), Error> {

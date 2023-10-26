@@ -10,7 +10,7 @@ pub fn asid_control_send(
     match args.op {
         ASSIGN => asid_control_assign(asid_control, unsafe {
             cspace
-                .lookup_raw(args.data_args()[0])
+                .lookup_raw(args.cap_args()[0])
                 .ok_or(Error::InvalidCAddr)?
                 .as_mut()
                 .unwrap()

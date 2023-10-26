@@ -4,6 +4,7 @@ use crate::caps::{
 };
 use syscall_abi::identify::CapabilityVariant;
 use syscall_abi::send::SendArgs;
+use syscall_abi::CAddr;
 
 use super::utils;
 
@@ -13,8 +14,8 @@ pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<()
         DERIVE => mem_derive(
             cspace,
             mem,
-            args.data_args()[0],
-            CapabilityVariant::try_from(args.data_args()[1]).map_err(|_| Error::InvalidArg)?,
+            args.cap_args()[0],
+            CapabilityVariant::try_from(args.data_args()[0]).map_err(|_| Error::InvalidArg)?,
             args.data_args()[2],
         ),
         _ => Err(Error::Unsupported),
@@ -24,11 +25,12 @@ pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<()
 fn mem_derive(
     cspace: &CSpace,
     mem: &Capability,
-    target: usize,
+    target: CAddr,
     variant: CapabilityVariant,
     size: usize,
 ) -> Result<(), Error> {
     let target_cap = unsafe { utils::lookup_cap_mut(cspace, target, Tag::Uninit)? };
+
     // derive the correct capability
     match variant {
         CapabilityVariant::Uninit => return Err(Error::InvalidArg),

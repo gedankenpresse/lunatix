@@ -46,7 +46,7 @@ pub fn irq_control_send(
 ) -> Result<(), caps::Error> {
     const REGISTER_IRQ: u16 = 0;
     match args.op {
-        REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args.data_args()),
+        REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args),
         _ => Err(caps::Error::Unsupported),
     }
 }
@@ -56,17 +56,19 @@ fn irq_control_claim(
     cspace: &CSpace,
     irq_control: &mut Capability,
     plic: &mut PLIC,
-    args: &[usize],
+    args: &SendArgs,
 ) -> Result<(), caps::Error> {
-    let notification_addr = args[0];
-    let irq_addr = args[1];
-    let interrupt_line = args[2];
+    let [notification_addr, irq_addr] = args.cap_args() else {
+        panic!("not enough cap args")
+    };
+
+    let interrupt_line = args.data_args()[0];
     // get valid notification cap from task
     let notification_cap =
-        unsafe { utils::lookup_cap(cspace, notification_addr, Tag::Notification) }.unwrap();
+        unsafe { utils::lookup_cap(cspace, *notification_addr, Tag::Notification) }.unwrap();
 
     // get valid uninitialized target cap from task
-    let irq_cap = unsafe { utils::lookup_cap_mut(cspace, irq_addr, Tag::Uninit) }.unwrap();
+    let irq_cap = unsafe { utils::lookup_cap_mut(cspace, *irq_addr, Tag::Uninit) }.unwrap();
 
     // try to claim the given interrupt line
     match IrqControlIface.try_get_unclaimed(irq_control, interrupt_line) {

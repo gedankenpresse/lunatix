@@ -9,5 +9,10 @@ pub fn derive(
     size: Option<usize>,
 ) -> SyscallResult<NoValue> {
     const DERIVE: u16 = 1;
-    send(mem, DERIVE, target, variant.into(), size.unwrap_or(0), 0, 0)
+    send(
+        mem,
+        DERIVE,
+        &[target],
+        &[variant.into(), size.unwrap_or(0), 0, 0],
+    )
 }

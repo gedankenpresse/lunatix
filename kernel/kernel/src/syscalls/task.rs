@@ -12,8 +12,8 @@ pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Er
     const ASSIGN_CSPACE: u16 = 3;
     match args.op {
         ASSIGN_REGS => task_assign_control_registers(task, args.data_args()),
-        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args.data_args()[0]),
-        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args.data_args()[0]),
+        ASSIGN_VSPACE => task_assign_vspace(cspace, task, args.cap_args()[0]),
+        ASSIGN_CSPACE => task_assign_cspace(cspace, task, args.cap_args()[0]),
         _ => Err(Error::Unsupported),
     }
 }
