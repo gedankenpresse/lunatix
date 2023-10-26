@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
 use librust::syscall_abi::identify::CapabilityVariant;
 use librust::syscall_abi::CAddr;
@@ -20,7 +21,7 @@ struct Mapping {
 
 /// An Elfloader implementation that uses lunatix kernel capabilities to allocate pages, map them
 /// and then load content into them from the elf binary.
-pub struct LunatixElfLoader<const MAX_NUM_PAGES: usize> {
+pub struct LunatixElfLoader {
     /// The memory capability from which pages are allocated
     mem: CAddr,
     /// The vspace capability that is mapped to the currently active task.
@@ -32,17 +33,17 @@ pub struct LunatixElfLoader<const MAX_NUM_PAGES: usize> {
     /// Address at which pages are mapped while content is loaded into them.
     interim_addr: usize,
 
-    used_pages: StaticVec<Mapping, MAX_NUM_PAGES>,
+    used_pages: Vec<Mapping>,
 }
 
-impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
+impl LunatixElfLoader {
     pub fn new(mem: CAddr, own_vspace: CAddr, target_vspace: CAddr, interim_addr: usize) -> Self {
         Self {
             mem,
             own_vspace,
             target_vspace,
             interim_addr,
-            used_pages: StaticVec::new(),
+            used_pages: Vec::with_capacity(8),
         }
     }
 
@@ -72,6 +73,7 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
 
     pub fn remap_to_target_vspace(&mut self) {
         for mapping in self.used_pages.iter() {
+            log::trace!("remapping {mapping:x?} to target vspace");
             librust::unmap_page(mapping.page).unwrap();
             librust::map_page(
                 mapping.page,
@@ -85,7 +87,7 @@ impl<const MAX_NUM_PAGES: usize> LunatixElfLoader<MAX_NUM_PAGES> {
     }
 }
 
-impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
+impl ElfLoader for LunatixElfLoader {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for load_header in load_headers {
             for page_offset in (0..load_header.mem_size() as usize).step_by(PAGESIZE) {
@@ -135,7 +137,7 @@ impl<const MAX_NUM_PAGES: usize> ElfLoader for LunatixElfLoader<MAX_NUM_PAGES> {
     fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             let mapping = self.find_mapping(base as usize + i * PAGESIZE).unwrap();
-            log::trace!("loading content of region {:?}", mapping);
+            log::trace!("loading content of region {mapping:x?}");
             unsafe {
                 core::intrinsics::copy_nonoverlapping(
                     chunk.as_ptr(),

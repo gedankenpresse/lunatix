@@ -215,7 +215,7 @@ pub fn create_init_caps<'dt>(
     VSpaceIface.derive(&mem_cap, &mut task_state.vspace);
 
     log::debug!("initializing cspace for the init task");
-    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 64);
+    CSpaceIface.derive(&mem_cap, &mut task_state.cspace, 128);
 
     {
         let target_slot = unsafe {
@@ -332,7 +332,7 @@ pub fn load_init_binary(task_cap: &mut Capability, mem_cap: &mut Capability) {
 
     log::debug!("creating a stack for the init binary and mapping it for the init task");
     let stack_start = StackLoader {
-        stack_bytes: 0x1000,
+        stack_bytes: 0x1_0000,
         vbase: 0x10_0000_0000,
         mem: mem_cap,
         vspace: &mut task_state.vspace,

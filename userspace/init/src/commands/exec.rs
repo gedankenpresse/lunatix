@@ -33,59 +33,54 @@ impl Command for Exec {
     }
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
-        let mut tasks: Vec<_> = args
-            .split(" ")
-            .map(|path| {
-                log::debug!("reading binary from filesystem");
-                let path = args;
-                let mut p9 = FS.0.borrow_mut();
-                let p9 = p9.as_mut().unwrap();
-                let mut reader = p9.read_file(&[path]).unwrap();
-                let file_bin = reader.read_to_vec(16).unwrap();
+        let mut tasks = Vec::new();
+        for path in args.split(" ") {
+            log::debug!("reading binary {path:?} from filesystem");
+            let mut p9 = FS.0.borrow_mut();
+            let p9 = p9.as_mut().unwrap();
+            let mut reader = p9.read_file(&[path]).unwrap();
+            let file_bin = reader.read_to_vec(16).unwrap();
 
-                // load the elf content into the task
-                log::debug!("preparing capabilities for the new task");
-                let task_caps = self.make_task_caps();
-                librust::asid_assign(CADDR_ASID_CONTROL, task_caps.vspace).unwrap();
+            // load the elf content into the task
+            log::debug!("preparing capabilities for the new task");
+            let task_caps = self.make_task_caps();
+            librust::asid_assign(CADDR_ASID_CONTROL, task_caps.vspace).unwrap();
 
-                // load a stack for the child task
-                log::debug!("mapping stack space for the new task");
-                const TASK_STACK_LOW: usize = 0x5_0000_0000;
-                librust::map_page(
-                    task_caps.stack_page,
-                    task_caps.vspace,
-                    CADDR_MEM,
-                    TASK_STACK_LOW,
-                    MapFlags::READ | MapFlags::WRITE,
-                )
-                .unwrap();
+            // load a stack for the child task
+            log::debug!("mapping stack space for the new task");
+            const TASK_STACK_LOW: usize = 0x5_0000_0000;
+            librust::map_page(
+                task_caps.stack_page,
+                task_caps.vspace,
+                CADDR_MEM,
+                TASK_STACK_LOW,
+                MapFlags::READ | MapFlags::WRITE,
+            )
+            .unwrap();
 
-                // load the elf content
-                log::debug!("loading {} elf code", path);
-                let elf_binary = ElfBinary::new(&file_bin).unwrap();
-                let mut elf_loader = LunatixElfLoader::<4>::new(
-                    CADDR_MEM,
-                    CADDR_VSPACE,
-                    task_caps.vspace,
-                    0x31_0000_0000,
-                );
-                elf_binary.load(&mut elf_loader).unwrap();
-                elf_loader.remap_to_target_vspace();
+            // load the elf content
+            log::debug!("loading {} elf code", path);
+            let elf_binary = ElfBinary::new(&file_bin).unwrap();
+            let mut elf_loader =
+                LunatixElfLoader::new(CADDR_MEM, CADDR_VSPACE, task_caps.vspace, 0x31_0000_0000);
+            elf_binary.load(&mut elf_loader).unwrap();
+            log::debug!("3");
+            elf_loader.remap_to_target_vspace();
 
-                // setting task start params
-                librust::task_assign_control_registers(
-                    task_caps.task,
-                    elf_binary.entry_point() as usize,
-                    TASK_STACK_LOW + 4096,
-                    0x0,
-                    0x0,
-                )
-                .unwrap();
+            // setting task start params
+            librust::task_assign_control_registers(
+                task_caps.task,
+                elf_binary.entry_point() as usize,
+                TASK_STACK_LOW + 4096,
+                0x0,
+                0x0,
+            )
+            .unwrap();
 
-                task_caps
-            })
-            .collect();
+            tasks.push(task_caps);
+        }
 
+        // run the tasks
         let mut sched = Scheduler::new(tasks.iter().map(|caps| caps.task));
         sched.run_schedule();
 
