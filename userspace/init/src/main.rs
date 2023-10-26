@@ -9,6 +9,7 @@ mod drivers;
 mod elfloader;
 mod logger;
 mod read;
+mod sched;
 mod sifive_uart;
 mod static_once_cell;
 mod static_vec;

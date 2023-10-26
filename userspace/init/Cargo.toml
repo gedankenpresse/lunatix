@@ -12,6 +12,7 @@ allocators = { version = "0.1.0", path = "../../support_crates/allocators" }
 bitflags = "2.4.1"
 elfloader = "0.16.0"
 fdt = "0.1.5"
+ksync = { version = "0.1.0", path = "../../support_crates/ksync" }
 librust = { version = "0.1.0", path = "../librust" }
 log = "0.4.20"
 regs = { version = "0.1.0", path = "../../support_crates/regs" }
