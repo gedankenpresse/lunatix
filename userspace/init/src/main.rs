@@ -218,7 +218,7 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU32>> = StaticOnceCell::new();
 
 pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
-    max: AtomicUsize::new(64),
+    max: AtomicUsize::new(128),
     cur: AtomicUsize::new(10),
 };
 
