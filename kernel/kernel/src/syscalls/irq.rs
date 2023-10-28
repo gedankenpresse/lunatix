@@ -15,8 +15,8 @@ pub fn irq_send(
     irq: &Irq,
     args: &SendArgs,
 ) -> Result<(), caps::Error> {
-    const COMPLETE: u16 = 0;
-    match args.op {
+    const COMPLETE: usize = 0;
+    match args.label() {
         COMPLETE => sys_irq_complete(cspace, irq, ctx.plic),
         _ => Err(caps::Error::Unsupported),
     }
@@ -44,8 +44,8 @@ pub fn irq_control_send(
     irq_control: &mut Capability,
     args: &SendArgs,
 ) -> Result<(), caps::Error> {
-    const REGISTER_IRQ: u16 = 0;
-    match args.op {
+    const REGISTER_IRQ: usize = 0;
+    match args.label() {
         REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args),
         _ => Err(caps::Error::Unsupported),
     }

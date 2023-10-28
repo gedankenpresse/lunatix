@@ -6,8 +6,8 @@ pub fn asid_control_send(
     asid_control: &AsidControl,
     args: &SendArgs,
 ) -> Result<(), Error> {
-    const ASSIGN: u16 = 1234;
-    match args.op {
+    const ASSIGN: usize = 1234;
+    match args.label() {
         ASSIGN => asid_control_assign(asid_control, unsafe {
             cspace
                 .lookup_raw(args.cap_args()[0])

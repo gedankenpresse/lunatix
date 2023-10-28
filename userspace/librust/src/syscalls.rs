@@ -1,10 +1,11 @@
+use crate::println;
 use core::arch::asm;
 use syscall_abi::send::{Send, SendArgs, NUM_DATA_REGS};
-use syscall_abi::SyscallBinding;
 use syscall_abi::{CAddr, NoValue};
 use syscall_abi::{FromRawSysResponse, SyscallResult};
+use syscall_abi::{IpcTag, SyscallBinding};
 
-pub fn send(cap: CAddr, label: u16, caps: &[CAddr], data: &[usize]) -> SyscallResult<NoValue> {
+pub fn send(cap: CAddr, label: usize, caps: &[CAddr], data: &[usize]) -> SyscallResult<NoValue> {
     assert_eq!(caps.len() + data.len(), NUM_DATA_REGS);
 
     let arg = |i: usize| {
@@ -17,8 +18,7 @@ pub fn send(cap: CAddr, label: u16, caps: &[CAddr], data: &[usize]) -> SyscallRe
 
     syscall::<Send>(SendArgs {
         target: cap,
-        op: label,
-        num_caps: caps.len() as u16,
+        tag: IpcTag::from_parts(label, caps.len() as u8, data.len() as u8),
         raw_args: [arg(0), arg(1), arg(2), arg(3), arg(4)],
     })
 }

@@ -4,27 +4,21 @@
 //! It is implemented for performing actions on some builtin kernel objects but is also used for
 //! inter process communication.
 
+use crate::ipc_tag::IpcTag;
 use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
-use core::fmt::{Debug, Formatter};
+use core::fmt::Debug;
 
 pub const NUM_DATA_REGS: usize = 5;
 
 pub struct Send;
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SendArgs {
     /// The object on which a send is performed.
     pub target: CAddr,
 
-    /// The operation that should be performed.
-    pub op: u16,
-
-    /// How many of the arguments are capabilities.
-    ///
-    /// This is necessary to encode because the kernel needs to handle sent capabilities differently from plain old
-    /// data.
-    /// The remainder of `args` is interpreted to be plain old data though.
-    pub num_caps: u16,
+    /// A tag containing the metadata of this send
+    pub tag: IpcTag,
 
     /// Raw arguments to this RPC.
     ///
@@ -34,26 +28,22 @@ pub struct SendArgs {
     pub raw_args: [usize; NUM_DATA_REGS],
 }
 
-impl Debug for SendArgs {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("SendArgs")
-            .field("target", &self.target)
-            .field("op", &self.op)
-            .field("cap_args", &self.cap_args())
-            .field("data_args", &self.data_args())
-            .finish()
-    }
-}
-
 impl SendArgs {
     /// Return the capabilities that are included as arguments to this send call
     pub fn cap_args(&self) -> &[CAddr] {
-        &self.raw_args[..self.num_caps as usize]
+        &self.raw_args[..self.tag.ncaps() as usize]
     }
 
     /// Return the inline data that is included as argument to this send call
     pub fn data_args(&self) -> &[CAddr] {
-        &self.raw_args[self.num_caps as usize..]
+        &self.raw_args[self.tag.ncaps() as usize..(self.tag.ncaps() + self.tag.nparams()) as usize]
+    }
+
+    /// The label of this IPC operation.
+    ///
+    /// Often used to communicate what should be done and can be though of serving a similar purpose to a syscall number.
+    pub fn label(&self) -> usize {
+        self.tag.label()
     }
 }
 
@@ -67,10 +57,7 @@ impl From<RawSyscallArgs> for SendArgs {
     fn from(value: RawSyscallArgs) -> Self {
         Self {
             target: value[0],
-            // take the first 16 bits of value[1]
-            op: (value[1] >> 16) as u16,
-            // mask out and take the last 16 bits of value[1]
-            num_caps: (value[1] & (!0u16 as usize)) as u16,
+            tag: IpcTag::from_raw(value[1]),
             raw_args: [value[2], value[3], value[4], value[5], value[6]],
         }
     }
@@ -80,7 +67,7 @@ impl From<SendArgs> for RawSyscallArgs {
     fn from(value: SendArgs) -> Self {
         [
             value.target,
-            ((value.op as usize) << 16) | (value.num_caps as usize),
+            value.tag.as_raw(),
             value.raw_args[0],
             value.raw_args[1],
             value.raw_args[2],

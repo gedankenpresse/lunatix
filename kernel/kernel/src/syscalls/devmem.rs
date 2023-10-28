@@ -10,8 +10,8 @@ use crate::{
 };
 
 pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<(), Error> {
-    const MAP: u16 = 1;
-    match args.op {
+    const MAP: usize = 1;
+    match args.label() {
         MAP => devmem_map(
             cspace,
             devmem,

@@ -8,7 +8,7 @@ pub fn derive(
     variant: CapabilityVariant,
     size: Option<usize>,
 ) -> SyscallResult<NoValue> {
-    const DERIVE: u16 = 1;
+    const DERIVE: usize = 1;
     send(
         mem,
         DERIVE,

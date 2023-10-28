@@ -7,10 +7,10 @@ use crate::{
 };
 
 pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Error> {
-    const ASSIGN_REGS: u16 = 1;
-    const ASSIGN_VSPACE: u16 = 2;
-    const ASSIGN_CSPACE: u16 = 3;
-    match args.op {
+    const ASSIGN_REGS: usize = 1;
+    const ASSIGN_VSPACE: usize = 2;
+    const ASSIGN_CSPACE: usize = 3;
+    match args.label() {
         ASSIGN_REGS => task_assign_control_registers(task, args.data_args()),
         ASSIGN_VSPACE => task_assign_vspace(cspace, task, args.cap_args()[0]),
         ASSIGN_CSPACE => task_assign_cspace(cspace, task, args.cap_args()[0]),

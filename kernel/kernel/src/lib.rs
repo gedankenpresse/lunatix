@@ -5,7 +5,6 @@
 
 pub mod caps;
 pub mod init;
-pub mod ipc;
 pub mod sched;
 pub mod virtmem;
 

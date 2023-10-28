@@ -9,8 +9,8 @@ use syscall_abi::CAddr;
 use super::utils;
 
 pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<(), Error> {
-    const DERIVE: u16 = 1;
-    match args.op {
+    const DERIVE: usize = 1;
+    match args.label() {
         DERIVE => mem_derive(
             cspace,
             mem,

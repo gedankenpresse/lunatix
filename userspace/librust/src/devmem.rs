@@ -9,6 +9,6 @@ pub fn devmem_map(
     base: usize,
     len: usize,
 ) -> SyscallResult<NoValue> {
-    const MAP: u16 = 1;
+    const MAP: usize = 1;
     send(devmem, MAP, &[mem, vspace], &[base, len, 0])
 }

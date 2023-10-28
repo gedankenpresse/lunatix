@@ -9,11 +9,11 @@ use crate::{
 };
 
 pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<(), Error> {
-    const MAP: u16 = 0;
-    const UNMAP: u16 = 1;
-    const PADDR: u16 = 2;
+    const MAP: usize = 0;
+    const UNMAP: usize = 1;
+    const PADDR: usize = 2;
 
-    match args.op {
+    match args.label() {
         MAP => {
             let [mem, vspace] = args.cap_args() else {
                 panic!("not enough cap arguments")
