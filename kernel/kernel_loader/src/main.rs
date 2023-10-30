@@ -4,10 +4,12 @@
 // TODO: remove dead code
 #![allow(dead_code)]
 
+mod args;
 mod devtree;
 mod elfloader;
 mod virtmem;
 
+use crate::args::{CmdArgIter, LoaderArgs};
 use crate::elfloader::KernelLoader;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator};
@@ -34,52 +36,11 @@ fn panic_handler(info: &PanicInfo) -> ! {
     loop {}
 }
 
-struct Args {
-    phys_fdt_addr: *const u8,
-    image_addr: *const u8,
-    image_size: Option<usize>,
-}
-
-impl Args {
-    fn from_args(args: impl Iterator<Item = &'static str>) -> Self {
-        let mut phys_fdt_addr = None;
-        let mut image_addr = None;
-        let mut image_size = None;
-        for arg in args {
-            if let Some(addr_s) = arg.strip_prefix("fdt_addr=") {
-                let addr =
-                    usize::from_str_radix(addr_s, 16).expect("fdt_addr should be in base 16");
-                phys_fdt_addr = Some(addr as *const u8);
-            }
-            if let Some(addr_s) = arg.strip_prefix("image_addr=") {
-                let addr =
-                    usize::from_str_radix(addr_s, 16).expect("image_addr should be in base 16");
-                image_addr = Some(addr as *const u8);
-            }
-            if let Some(size_s) = arg.strip_prefix("image_size=") {
-                let size =
-                    usize::from_str_radix(size_s, 16).expect("image size should be in base 16");
-                image_size = Some(size);
-            }
-        }
-        Self {
-            phys_fdt_addr: phys_fdt_addr.expect("no fdt_addr given"),
-            image_addr: image_addr.expect("no kernel image addr given"),
-            image_size,
-        }
-    }
-
-    fn get_kernel_bin(&self) -> &[u8] {
-        const MB: usize = 1024 * 1024;
-        unsafe { core::slice::from_raw_parts(self.image_addr, self.image_size.unwrap_or(2 * MB)) }
-    }
-}
-
 /// The entry point of the loader that is called by U-Boot
 #[no_mangle]
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
-    let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
+    let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
 
     log::debug!("parsing device tree to get information about the host hardware");
     let dev_tree = unsafe {
