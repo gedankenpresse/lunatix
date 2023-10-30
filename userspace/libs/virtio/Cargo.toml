@@ -13,4 +13,4 @@ license-file.workspace = true
 bitflags = "2.4.1"
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
 librust = { version = "0.1.0", path = "../librust" }
-regs = { version = "0.1.0", path = "../../support_crates/regs" }
+regs = { version = "0.1.0", path = "../../../support_crates/regs" }
