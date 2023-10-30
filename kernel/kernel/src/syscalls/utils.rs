@@ -6,7 +6,7 @@ pub(crate) unsafe fn lookup_cap(
     caddr: CAddr,
     expected_tag: crate::caps::Tag,
 ) -> Result<&'static Capability, Error> {
-    let cap_ptr = cspace.lookup_raw(caddr).ok_or(Error::InvalidCap)?.0;
+    let cap_ptr = cspace.resolve_caddr(caddr).ok_or(Error::InvalidCap)?;
     // TODO Use a cursor to safely access the capability
     let cap = cap_ptr.as_ref().unwrap();
     if *cap.get_tag() != expected_tag {
@@ -20,7 +20,7 @@ pub(crate) unsafe fn lookup_cap_mut(
     caddr: CAddr,
     expected_tag: crate::caps::Tag,
 ) -> Result<&'static mut Capability, Error> {
-    let cap_ptr = cspace.lookup_raw(caddr).ok_or(Error::InvalidCap)?.0;
+    let cap_ptr = cspace.resolve_caddr(caddr).ok_or(Error::InvalidCap)?;
     // TODO Use a cursor to safely access the capability
     let cap = cap_ptr.as_mut().unwrap();
     if *cap.get_tag() != expected_tag {

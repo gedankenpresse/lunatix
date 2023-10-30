@@ -57,17 +57,39 @@ impl CSpace {
         n_shifts
     }
 
-    /// Perform a lookup based on the given address and return a *TreeNode* if one corresponds to that address.
+    /// Perform a lookup based on the given address and return a *TreeNode* if one corresponds to that address as well
+    /// ass the remaining part of the CAddr.
     ///
     /// # Safety
     /// The returned node may not be linked into a derivation tree yet.
     ///
     /// Additionally, looking up a node from the cspace may produce overlapping aliases if the node is already part of
     /// a DerivationTree.
-    pub unsafe fn lookup_raw(&self, addr: CAddr) -> Option<(*mut Capability, CAddr)> {
+    unsafe fn lookup_raw(&self, addr: CAddr) -> Option<(*mut Capability, CAddr)> {
         let (slot, remainder) = addr.take_bits(self.addr_bits());
         let slot = self.slots.get(slot)?.as_ptr();
         Some((slot, remainder))
+    }
+
+    /// Fully resolve the given CAddr and return the capability that it points to.
+    ///
+    /// This function honors the hierarchical nature of CAddrs by recursing into child CSpaces.
+    ///
+    /// # Safety
+    /// The returned node may not be linked into a derivation tree yet.
+    ///
+    /// Additionally, looking up a node from the CSpace may produce overlapping aliases if the node is already part of
+    /// a derivation tree and must be selected via with a cursor before further uses.
+    pub unsafe fn resolve_caddr(&self, addr: CAddr) -> Option<*mut Capability> {
+        // TODO Properly use cursors
+        let (slot_ptr, remainder) = self.lookup_raw(addr)?;
+        let slot = unsafe { &mut *slot_ptr };
+        if slot.tag == Tag::CSpace {
+            let slot_cspace = slot.get_inner_cspace().unwrap();
+            slot_cspace.resolve_caddr(remainder)
+        } else {
+            Some(slot_ptr)
+        }
     }
 }
 

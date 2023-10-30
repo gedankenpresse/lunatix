@@ -27,9 +27,8 @@ pub(super) fn sys_send(
 
     let cap = unsafe {
         cspace
-            .lookup_raw(args.target)
+            .resolve_caddr(args.target)
             .ok_or(Error::InvalidCAddr)?
-            .0
             .as_mut()
             .unwrap()
     };

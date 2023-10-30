@@ -18,9 +18,8 @@ pub fn sys_destroy(
 
     let target = unsafe {
         cspace
-            .lookup_raw(args[0].into())
+            .resolve_caddr(args[0].into())
             .ok_or(Error::InvalidCAddr)?
-            .0
             .as_mut()
             .unwrap()
     };
