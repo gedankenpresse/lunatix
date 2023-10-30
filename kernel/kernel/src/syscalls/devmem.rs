@@ -1,6 +1,5 @@
 use core::arch::asm;
-use libkernel::mem::PAGESIZE;
-use riscv::pt::EntryFlags;
+use riscv::pt::{EntryFlags, PAGESIZE};
 use syscall_abi::send::SendArgs;
 use syscall_abi::CAddr;
 

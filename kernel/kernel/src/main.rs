@@ -10,9 +10,10 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
 use klog::KernelLogger;
-use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use log::Level;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
+use riscv::mem::ptrs::{PhysConstPtr, PhysMutPtr};
+use riscv::mem::VIRT_MEM_KERNEL_START;
 use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
@@ -213,7 +214,6 @@ fn kernel_loop(
 /// Assert that all environment conditions under which the kernel expects to be started are met
 #[cfg(target_arch = "riscv64")]
 fn assert_start_expectations() {
-    use libkernel::mem::VIRT_MEM_KERNEL_START;
     use riscv::cpu::*;
     // check address translation
     assert_eq!(

@@ -16,8 +16,8 @@ use elfloader::{
     VAddr,
 };
 use fdt_rs::base::DevTree;
-use libkernel::mem::ptrs::{MappedConstPtr, PhysMutPtr};
-use libkernel::mem::{EntryFlags, PAGESIZE};
+use riscv::mem::ptrs::{MappedConstPtr, PhysMutPtr};
+use riscv::pt::{EntryFlags, PAGESIZE};
 
 static INIT_BIN: &[u8] = include_aligned!(
     Align16,

@@ -6,8 +6,8 @@ mod x86_64;
 
 use allocators::{bump_allocator::BumpAllocator, Box};
 use derivation_tree::tree::DerivationTree;
-use libkernel::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
 
+use riscv::mem::ptrs::{MappedConstPtr, PhysConstPtr, PhysMutPtr};
 use riscv::pt::PageTable;
 #[cfg(target_arch = "riscv64")]
 pub use riscv64::*;

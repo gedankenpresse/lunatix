@@ -1,5 +1,5 @@
-use libkernel::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::cpu;
+use riscv::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::pt::PageTable;
 use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 

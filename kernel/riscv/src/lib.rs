@@ -2,6 +2,7 @@
 
 mod asm_utils;
 pub mod cpu;
+pub mod mem;
 pub mod pt;
 pub mod timer;
 pub mod trap;

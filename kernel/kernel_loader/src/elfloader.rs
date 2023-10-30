@@ -8,8 +8,7 @@ use elfloader::arch::riscv::RelocationTypes;
 use elfloader::{
     ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr,
 };
-use libkernel::mem::{EntryFlags, PageTable};
-use riscv::pt::PAGESIZE;
+use riscv::pt::{EntryFlags, PageTable, PAGESIZE};
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {

@@ -1,5 +1,5 @@
 use derivation_tree::tree::CursorRefMut;
-use libkernel::mem::ptrs::MappedConstPtr;
+use riscv::mem::ptrs::MappedConstPtr;
 use syscall_abi::send::SendArgs;
 use syscall_abi::MapFlags;
 

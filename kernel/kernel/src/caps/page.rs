@@ -7,7 +7,7 @@ use crate::{caps::Uninit, virtmem::KernelMapper};
 use allocators::{AllocInit, Allocator};
 use core::{alloc::Layout, arch::asm, mem::ManuallyDrop, ptr};
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
-use libkernel::mem::PAGESIZE;
+use riscv::pt::PAGESIZE;
 use riscv::{
     pt::{EntryFlags, MemoryPage},
     PhysMapper,

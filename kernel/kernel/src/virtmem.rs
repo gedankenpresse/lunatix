@@ -1,6 +1,6 @@
 use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
-use libkernel::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
+use riscv::mem::ptrs::{MappedConstPtr, MappedMutPtr, PhysConstPtr, PhysMutPtr};
 
 use crate::caps::KernelAlloc;
 use riscv::pt;
