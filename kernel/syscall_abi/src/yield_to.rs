@@ -1,26 +1,6 @@
 //! Definitions for the `yield_to` syscall
 
-use crate::{CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
-
-macro_rules! back_to_enum {
-    ($(#[$meta:meta])* $vis:vis enum $name:ident {
-        $($(#[$vmeta:meta])* $vname:ident $(= $val:expr)?,)*
-    }) => {
-        $(#[$meta])*
-        $vis enum $name {
-            $($(#[$vmeta])* $vname $(= $val)?,)*
-        }
-
-        impl core::convert::From<usize> for $name {
-            fn from(v: usize) -> Self {
-                match v {
-                    $(x if x == $name::$vname as usize => $name::$vname,)*
-                    _ => panic!(),
-                }
-            }
-        }
-    }
-}
+use crate::{back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct YieldTo;
 

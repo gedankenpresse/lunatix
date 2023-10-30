@@ -44,6 +44,7 @@ mod ipc_tag;
 pub mod send;
 pub mod system_reset;
 mod traits;
+mod utils;
 pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;

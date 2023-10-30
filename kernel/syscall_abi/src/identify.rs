@@ -1,29 +1,7 @@
 //! Definitions for the `identify` syscall.
 
-use crate::{RawSyscallArgs, SyscallBinding, SyscallResult};
+use crate::{back_to_enum, RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::convert::Infallible;
-
-macro_rules! back_to_enum {
-    ($(#[$meta:meta])* $vis:vis enum $name:ident {
-        $($(#[$vmeta:meta])* $vname:ident $(= $val:expr)?,)*
-    }) => {
-        $(#[$meta])*
-        $vis enum $name {
-            $($(#[$vmeta])* $vname $(= $val)?,)*
-        }
-
-        impl core::convert::TryFrom<usize> for $name {
-            type Error = ();
-
-            fn try_from(v: usize) -> Result<Self, Self::Error> {
-                match v {
-                    $(x if x == $name::$vname as usize => Ok($name::$vname),)*
-                    _ => Err(()),
-                }
-            }
-        }
-    }
-}
 
 back_to_enum! {
     #[derive(Debug, PartialEq, Eq)]
