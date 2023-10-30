@@ -7,18 +7,18 @@ use liblunatix::println;
 #[no_mangle]
 fn _start() {
     main();
-    liblunatix::exit();
+    liblunatix::syscalls::exit();
 }
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     println!("hello_world panicked {}", info);
-    liblunatix::exit();
+    liblunatix::syscalls::exit();
 }
 
 fn main() {
     for i in 0..3 {
         println!("Hello World {i:}");
-        liblunatix::r#yield().unwrap();
+        liblunatix::syscalls::r#yield().unwrap();
     }
 }

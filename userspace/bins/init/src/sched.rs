@@ -1,6 +1,6 @@
 use alloc::collections::VecDeque;
+use liblunatix::prelude::syscall_abi::yield_to::TaskStatus;
 use liblunatix::prelude::CAddr;
-use liblunatix::syscall_abi::yield_to::TaskStatus;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Scheduler {
@@ -20,7 +20,7 @@ impl Scheduler {
                 "running schedule with {} tasks in round-robin until all are exited",
                 self.tasks.len()
             );
-            match liblunatix::yield_to(task).unwrap() {
+            match liblunatix::syscalls::yield_to(task).unwrap() {
                 TaskStatus::DidExecute => {
                     self.tasks.push_back(task);
                 }

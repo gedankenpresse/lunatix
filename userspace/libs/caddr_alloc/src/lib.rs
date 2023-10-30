@@ -2,7 +2,7 @@
 
 use core::sync::atomic::Ordering::SeqCst;
 use core::{cell::UnsafeCell, sync::atomic::AtomicUsize};
-use liblunatix::syscall_abi::CAddr;
+use liblunatix::prelude::CAddr;
 
 pub trait CAddressAllocator {
     fn alloc_caddr(&self) -> CAddr;

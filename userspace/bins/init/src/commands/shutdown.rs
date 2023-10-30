@@ -1,6 +1,5 @@
-use liblunatix::syscall_abi::system_reset::{ResetReason, ResetType};
-
 use super::Command;
+use liblunatix::prelude::syscall_abi::system_reset::{ResetReason, ResetType};
 
 pub struct Shutdown;
 
@@ -14,6 +13,6 @@ impl Command for Shutdown {
     }
 
     fn execute(&self, _args: &str) -> Result<(), &'static str> {
-        liblunatix::system_reset(ResetType::Shutdown, ResetReason::NoReason);
+        liblunatix::syscalls::system_reset(ResetType::Shutdown, ResetReason::NoReason);
     }
 }

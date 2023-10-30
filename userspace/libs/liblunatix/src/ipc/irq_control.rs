@@ -1,4 +1,4 @@
-use syscall_abi::{CAddr, FromRawSysResponse, NoValue, SyscallResult};
+use syscall_abi::{CAddr, NoValue, SyscallResult};
 
 use crate::syscalls::send;
 
@@ -13,6 +13,6 @@ pub fn irq_control_claim(
         irq_control_addr,
         CLAIM,
         &[notification_addr, irq_addr],
-        &[interrupt_line, 0, 0],
+        &[interrupt_line],
     )
 }

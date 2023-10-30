@@ -13,7 +13,7 @@ impl Command for Destroy {
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
         let CAddrArg { addr } = args.to_value()?;
-        let Ok(_) = liblunatix::destroy(addr) else {
+        let Ok(_) = liblunatix::syscalls::destroy(addr) else {
             return Err("syscall failed");
         };
         Ok(())

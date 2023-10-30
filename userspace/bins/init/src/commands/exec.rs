@@ -2,13 +2,13 @@ use alloc::vec::Vec;
 use elfloader::ElfBinary;
 use io::read::Reader;
 use liblunatix::prelude::CAddr;
-use liblunatix::syscall_abi::identify::CapabilityVariant;
-use liblunatix::syscall_abi::MapFlags;
 
 use crate::elfloader::LunatixElfLoader;
 use crate::sched::Scheduler;
 use crate::{CADDR_ASID_CONTROL, CADDR_MEM, CADDR_VSPACE, FS};
 use caddr_alloc::alloc_caddr;
+use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
+use liblunatix::prelude::syscall_abi::MapFlags;
 
 use super::Command;
 
@@ -42,12 +42,12 @@ impl Command for Exec {
             // load the elf content into the task
             log::debug!("preparing capabilities for the new task");
             let task_caps = self.make_task_caps();
-            liblunatix::asid_assign(CADDR_ASID_CONTROL, task_caps.vspace).unwrap();
+            liblunatix::ipc::asid::asid_assign(CADDR_ASID_CONTROL, task_caps.vspace).unwrap();
 
             // load a stack for the child task
             log::debug!("mapping stack space for the new task");
             const TASK_STACK_LOW: usize = 0x5_0000_0000;
-            liblunatix::map_page(
+            liblunatix::ipc::page::map_page(
                 task_caps.stack_page,
                 task_caps.vspace,
                 CADDR_MEM,
@@ -66,7 +66,7 @@ impl Command for Exec {
             elf_loader.remap_to_target_vspace();
 
             // setting task start params
-            liblunatix::task_assign_control_registers(
+            liblunatix::ipc::task::task_assign_control_registers(
                 task_caps.task,
                 elf_binary.entry_point() as usize,
                 TASK_STACK_LOW + 4096,
@@ -91,18 +91,19 @@ impl Command for Exec {
 impl Exec {
     fn make_task_caps(&self) -> TaskCaps {
         let task = alloc_caddr();
-        liblunatix::derive(CADDR_MEM, task, CapabilityVariant::Task, None).unwrap();
+        liblunatix::ipc::mem::derive(CADDR_MEM, task, CapabilityVariant::Task, None).unwrap();
 
         let cspace = alloc_caddr();
-        liblunatix::derive(CADDR_MEM, cspace, CapabilityVariant::CSpace, Some(8)).unwrap();
-        liblunatix::task_assign_cspace(cspace, task).unwrap();
+        liblunatix::ipc::mem::derive(CADDR_MEM, cspace, CapabilityVariant::CSpace, Some(8))
+            .unwrap();
+        liblunatix::ipc::task::task_assign_cspace(cspace, task).unwrap();
 
         let vspace = alloc_caddr();
-        liblunatix::derive(CADDR_MEM, vspace, CapabilityVariant::VSpace, None).unwrap();
-        liblunatix::task_assign_vspace(vspace, task).unwrap();
+        liblunatix::ipc::mem::derive(CADDR_MEM, vspace, CapabilityVariant::VSpace, None).unwrap();
+        liblunatix::ipc::task::task_assign_vspace(vspace, task).unwrap();
 
         let stack_page = alloc_caddr();
-        liblunatix::derive(CADDR_MEM, stack_page, CapabilityVariant::Page, None).unwrap();
+        liblunatix::ipc::mem::derive(CADDR_MEM, stack_page, CapabilityVariant::Page, None).unwrap();
 
         TaskCaps {
             task,
@@ -113,9 +114,9 @@ impl Exec {
     }
 
     fn destroy_task_caps(&self, caps: TaskCaps) {
-        liblunatix::destroy(caps.stack_page).unwrap();
-        liblunatix::destroy(caps.cspace).unwrap();
-        liblunatix::destroy(caps.task).unwrap();
-        liblunatix::destroy(caps.vspace).unwrap();
+        liblunatix::syscalls::destroy(caps.stack_page).unwrap();
+        liblunatix::syscalls::destroy(caps.cspace).unwrap();
+        liblunatix::syscalls::destroy(caps.task).unwrap();
+        liblunatix::syscalls::destroy(caps.vspace).unwrap();
     }
 }

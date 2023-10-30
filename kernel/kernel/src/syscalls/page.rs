@@ -19,7 +19,7 @@ pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<()
                 panic!("not enough cap arguments")
             };
 
-            let [addr, flags, _] = args.data_args() else {
+            let [addr, flags] = args.data_args() else {
                 panic!("not enough data arguments")
             };
             let mem_cap = unsafe { utils::lookup_cap(cspace, *mem, Tag::Memory) }?;

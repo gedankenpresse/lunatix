@@ -22,7 +22,7 @@ impl Command for Identify {
         let caddr = caddr
             .parse::<usize>()
             .map_err(|_| "failed to parse caddr")?;
-        println!("{:?}", liblunatix::identify(caddr));
+        println!("{:?}", liblunatix::syscalls::identify(caddr));
         Ok(())
     }
 }
