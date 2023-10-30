@@ -4,7 +4,7 @@
 # Phony targets
 #
 
-all: kernel apps
+all: kernel apps u-boot/u-boot.bin
 
 kernel: target/riscv64imac-unknown-none-elf/debug/kernel target/riscv64imac-unknown-none-elf/release/kernel_loader
 
@@ -13,15 +13,18 @@ apps: guest_root/hello_world
 clean:
 	rm -f guest_root/hello_world
 	rm -rf target
-
+	make -C u-boot clean
 
 
 #
-# Apps placed inside guest_root
+# Basic Targets
 #
 
 guest_root/% : target/riscv64imac-unknown-none-elf/release/%
 	cp $< $@
+
+u-boot/u-boot.bin:
+	make -C u-boot -E "ARCH=riscv" -E "CROSS_COMPILE=riscv64-linux-gnu-" qemu-riscv64_smode_defconfig u-boot.bin
 
 
 
