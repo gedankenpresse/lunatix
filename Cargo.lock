@@ -58,10 +58,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctors"
-version = "0.1.0"
-
-[[package]]
 name = "derivation_tree"
 version = "0.1.0"
 dependencies = [
