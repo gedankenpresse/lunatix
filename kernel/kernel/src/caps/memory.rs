@@ -44,7 +44,7 @@ impl MemoryIface {
 impl CapabilityIface<Capability> for MemoryIface {
     type InitArgs = (Memory, usize);
 
-    fn init(&self, target: &mut impl AsStaticMut<Capability>, args: Self::InitArgs) {
+    fn init(&self, _target: &mut impl AsStaticMut<Capability>, _args: Self::InitArgs) {
         todo!()
     }
 

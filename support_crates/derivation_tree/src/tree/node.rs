@@ -1,7 +1,7 @@
 use crate::tree::cursors::{CursorData, CursorSet};
 use crate::Correspondence;
 use core::cell::Cell;
-use core::ptr::{self, NonNull};
+use core::ptr::{self};
 
 use super::CursorHandle;
 

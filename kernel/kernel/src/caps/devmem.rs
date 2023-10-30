@@ -51,8 +51,8 @@ impl CapabilityIface<Capability> for DevmemIface {
 
     fn init(
         &self,
-        target: &mut impl derivation_tree::AsStaticMut<Capability>,
-        args: Self::InitArgs,
+        _target: &mut impl derivation_tree::AsStaticMut<Capability>,
+        _args: Self::InitArgs,
     ) {
         panic!("cant derive devmem")
     }

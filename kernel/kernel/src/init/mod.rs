@@ -99,7 +99,7 @@ pub fn init_derivation_tree<'a>(
 pub fn load_init_task(
     derivation_tree: &DerivationTree<Capability>,
     init_caps: &mut InitCaps,
-    dtb: PhysConstPtr<u8>,
+    _dtb: PhysConstPtr<u8>,
 ) {
     // load the init binary
     {

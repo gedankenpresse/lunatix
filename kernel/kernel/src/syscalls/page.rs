@@ -42,7 +42,7 @@ pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<()
 }
 
 pub(crate) fn page_paddr(
-    ctx: &mut crate::SyscallContext,
+    _ctx: &mut crate::SyscallContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: &[usize; 7],
 ) -> Result<usize, Error> {

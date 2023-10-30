@@ -51,7 +51,7 @@ pub struct IrqControl {
 }
 
 impl Correspondence for IrqControl {
-    fn corresponds_to(&self, other: &Self) -> bool {
+    fn corresponds_to(&self, _other: &Self) -> bool {
         // there is only one way to aquire an IrqControl, so we always return true here
         true
     }
@@ -125,7 +125,7 @@ impl IrqControlIface {
 impl CapabilityIface<Capability> for IrqControlIface {
     type InitArgs = ();
 
-    fn init(&self, target: &mut impl AsStaticMut<Capability>, args: Self::InitArgs) {
+    fn init(&self, _target: &mut impl AsStaticMut<Capability>, _args: Self::InitArgs) {
         todo!()
     }
 

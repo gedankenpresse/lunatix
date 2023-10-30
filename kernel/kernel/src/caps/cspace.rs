@@ -41,7 +41,7 @@ impl CSpaceIface {
 impl CapabilityIface<Capability> for CSpaceIface {
     type InitArgs = usize;
 
-    fn init(&self, target: &mut impl AsStaticMut<Capability>, args: Self::InitArgs) {
+    fn init(&self, _target: &mut impl AsStaticMut<Capability>, _args: Self::InitArgs) {
         todo!()
     }
 
@@ -68,7 +68,7 @@ impl CapabilityIface<Capability> for CSpaceIface {
         assert_eq!(target.tag, Tag::CSpace);
 
         if target.is_final_copy() {
-            let cspace = target.get_inner_cspace_mut().unwrap();
+            let _cspace = target.get_inner_cspace_mut().unwrap();
             todo!("destroy cspace slots and dealloc cspace");
         }
 

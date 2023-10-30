@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub fn sys_copy(
-    ctx: &mut SyscallContext,
+    _ctx: &mut SyscallContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: &[usize; 7],
 ) -> Result<(), Error> {

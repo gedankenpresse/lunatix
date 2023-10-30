@@ -197,7 +197,7 @@ pub fn handle_syscall(
             (Default::default(), Schedule::RunInit)
         }
 
-        no => {
+        _no => {
             log::warn!(
                 "received unknown syscall {} with args {:x?}",
                 syscall_no,

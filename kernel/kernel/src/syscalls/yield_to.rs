@@ -1,9 +1,9 @@
-use crate::caps::task::{TaskExecutionState, TaskState};
+use crate::caps::task::TaskExecutionState;
 use crate::caps::{Capability, Tag};
 use crate::sched::Schedule;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::yield_to::{TaskStatus, YieldTo};
-use syscall_abi::{NoValue, SyscallBinding};
+use syscall_abi::SyscallBinding;
 
 use super::utils;
 
@@ -20,7 +20,7 @@ pub(super) fn sys_yield_to(
     // get valid memory cap from task
     let target_task_cap = match unsafe { utils::lookup_cap_mut(cspace, args.task, Tag::Task) } {
         Ok(c) => c,
-        Err(e) => return (Err(syscall_abi::Error::InvalidCap), Schedule::Keep),
+        Err(_e) => return (Err(syscall_abi::Error::InvalidCap), Schedule::Keep),
     };
     let target_task_ptr = target_task_cap as *mut Capability;
     let target_task = target_task_cap.get_inner_task().unwrap();

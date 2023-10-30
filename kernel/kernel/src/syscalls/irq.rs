@@ -23,7 +23,7 @@ pub fn irq_send(
 }
 
 pub(super) fn sys_irq_complete(
-    cspace: &CSpace,
+    _cspace: &CSpace,
     irq: &Irq,
     plic: &mut PLIC,
 ) -> Result<(), caps::Error> {
