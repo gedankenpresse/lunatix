@@ -22,6 +22,7 @@ bitflags = "2.2.1"
 fdt-rs = { version = "0.4.3", default-features = false }
 riscv = { version = "0.1.0", path = "../riscv" }
 thiserror-no-std = "2.0.2"
+klog = { version = "0.1.0", path = "../../support_crates/klog" }
 
 [build-dependencies]
 cc = "1.0.79"

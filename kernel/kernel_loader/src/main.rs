@@ -18,7 +18,7 @@ use core::alloc::Layout;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
 use fdt_rs::index::DevTreeIndex;
-use libkernel::log::KernelLogger;
+use klog::KernelLogger;
 use libkernel::mem::{PageTable, PAGESIZE};
 use log::Level;
 use sbi::system_reset::{ResetReason, ResetType};

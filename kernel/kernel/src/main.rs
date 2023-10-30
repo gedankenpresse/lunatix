@@ -9,9 +9,8 @@ use allocators::Box;
 use core::arch::asm;
 use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
-use libkernel::log::KernelLogger;
+use klog::KernelLogger;
 use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
-use libkernel::println;
 use log::Level;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::pt::PageTable;
@@ -24,6 +23,9 @@ mod init;
 mod sched;
 mod syscalls;
 mod virtmem;
+
+#[macro_use]
+extern crate klog;
 
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv64imac/mod.rs"]

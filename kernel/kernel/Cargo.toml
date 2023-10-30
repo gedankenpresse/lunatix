@@ -27,6 +27,7 @@ align-data = "0.1.0"
 derivation_tree = { version = "0.1.0", path = "../../support_crates/derivation_tree" }
 riscv = { version = "0.1.0", path = "../riscv" }
 uart_driver = { version = "0.1.0", path = "../../support_crates/uart_driver" }
+klog = { version = "0.1.0", path = "../../support_crates/klog" }
 
 
 

@@ -166,6 +166,7 @@ dependencies = [
  "derivation_tree",
  "elfloader 0.16.0 (git+https://github.com/gz/rust-elfloader.git?branch=master)",
  "fdt-rs",
+ "klog",
  "ksync",
  "libkernel",
  "log",
@@ -189,11 +190,20 @@ dependencies = [
  "cc",
  "elfloader 0.16.0 (git+https://github.com/gz/rust-elfloader.git?branch=master)",
  "fdt-rs",
+ "klog",
  "libkernel",
  "log",
  "riscv",
  "sbi",
  "thiserror-no-std",
+]
+
+[[package]]
+name = "klog"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "sbi",
 ]
 
 [[package]]

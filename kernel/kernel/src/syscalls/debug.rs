@@ -1,5 +1,5 @@
 use core::str;
-use libkernel::print;
+use klog::print;
 use syscall_abi::debug::{DebugLog, DebugPutc};
 use syscall_abi::{NoValue, SyscallBinding};
 
