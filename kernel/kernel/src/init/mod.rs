@@ -17,9 +17,15 @@ pub use x86_64::*;
 use crate::{
     arch_specific::plic::PLIC,
     caps::{Capability, KernelAlloc},
-    InitCaps, KERNEL_ALLOCATOR, KERNEL_ROOT_PT,
+    KERNEL_ALLOCATOR, KERNEL_ROOT_PT,
 };
 pub use userspace::{create_init_caps, load_init_binary, map_device_tree};
+
+pub struct InitCaps<'alloc, 'mem> {
+    pub init_task: Box<'alloc, 'mem, Capability>,
+    pub irq_control: Box<'alloc, 'mem, Capability>,
+    pub devmem: Box<'alloc, 'mem, Capability>,
+}
 
 /// Create an allocator that can be used for kernel initialization
 pub fn init_alloc(phys_mem_start: PhysMutPtr<u8>, phys_mem_end: PhysMutPtr<u8>) -> KernelAlloc {

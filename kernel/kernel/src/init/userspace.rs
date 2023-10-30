@@ -5,8 +5,8 @@ use crate::caps::{self, CSpaceIface, Capability, DevmemIface, IrqControlIface, V
 use crate::caps::{KernelAlloc, MemoryIface, TaskIface};
 use crate::devtree::get_external_devices;
 use crate::virtmem;
-use crate::InitCaps;
 
+use crate::init::InitCaps;
 use align_data::{include_aligned, Align16};
 use allocators::Box;
 use derivation_tree::caps::CapabilityIface;

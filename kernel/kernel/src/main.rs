@@ -1,24 +1,45 @@
 #![no_std]
 #![no_main]
 
+use crate::caps::task::TaskExecutionState;
+use crate::caps::{Capability, IrqControlIface, KernelAlloc, NotificationIface};
+use crate::init::InitCaps;
+use crate::sched::Schedule;
 use allocators::Box;
 use core::arch::asm;
 use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
-use kernel::caps::task::TaskExecutionState;
-use kernel::caps::{Capability, IrqControlIface, KernelAlloc, NotificationIface};
-use kernel::sched::Schedule;
-use kernel::{syscalls, InitCaps, SyscallContext};
 use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use libkernel::println;
 use log::Level;
 use riscv::cpu::{Exception, Interrupt, TrapEvent};
+use riscv::pt::PageTable;
 use riscv::timer::set_next_timer;
 use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
 
+mod caps;
+mod devtree;
+mod init;
+mod sched;
+mod syscalls;
+mod virtmem;
+
+#[cfg(target_arch = "riscv64")]
+#[path = "arch/riscv64imac/mod.rs"]
+mod arch_specific;
+
 static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
+
+/// A global static reference to the root PageTable which has only the kernel part mapped
+pub static mut KERNEL_ROOT_PT: PhysConstPtr<PageTable> = PhysConstPtr::null();
+
+pub static mut KERNEL_ALLOCATOR: Option<KernelAlloc> = None;
+
+pub struct SyscallContext {
+    pub plic: &'static mut arch_specific::plic::PLIC,
+}
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -51,7 +72,7 @@ extern "C" fn kernel_main(
     phys_mem_start: PhysMutPtr<u8>,
     phys_mem_end: PhysMutPtr<u8>,
 ) {
-    use kernel::init::*;
+    use crate::init::*;
 
     let allocator: &KernelAlloc = init_kernel_allocator(phys_mem_start, phys_mem_end);
     let dt = init_device_tree(dtb.as_mapped().into());
@@ -98,7 +119,7 @@ fn kernel_loop(
     mut init_caps: InitCaps,
     ctx: &mut SyscallContext,
 ) {
-    use kernel::init::{prepare_task, yield_to_task};
+    use crate::init::{prepare_task, yield_to_task};
     log::info!("🚀 launching init");
     let mut active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
     let mut schedule = Schedule::RunInit;

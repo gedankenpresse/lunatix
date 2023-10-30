@@ -3,7 +3,7 @@ use riscv::cpu;
 use riscv::pt::PageTable;
 use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
-use crate::{caps, mmu, virtmem};
+use crate::{arch_specific::mmu, caps, virtmem};
 
 /// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.
 ///
