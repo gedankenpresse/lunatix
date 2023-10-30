@@ -7,6 +7,7 @@
 use crate::ipc_tag::IpcTag;
 use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::fmt::Debug;
+use core::mem;
 
 pub const NUM_DATA_REGS: usize = 5;
 
@@ -31,11 +32,12 @@ pub struct SendArgs {
 impl SendArgs {
     /// Return the capabilities that are included as arguments to this send call
     pub fn cap_args(&self) -> &[CAddr] {
-        &self.raw_args[..self.tag.ncaps() as usize]
+        let slice = &self.raw_args[..self.tag.ncaps() as usize];
+        unsafe { mem::transmute::<&[usize], &[CAddr]>(slice) }
     }
 
     /// Return the inline data that is included as argument to this send call
-    pub fn data_args(&self) -> &[CAddr] {
+    pub fn data_args(&self) -> &[usize] {
         &self.raw_args[self.tag.ncaps() as usize..(self.tag.ncaps() + self.tag.nparams()) as usize]
     }
 
@@ -56,7 +58,7 @@ impl SyscallBinding for Send {
 impl From<RawSyscallArgs> for SendArgs {
     fn from(value: RawSyscallArgs) -> Self {
         Self {
-            target: value[0],
+            target: value[0].into(),
             tag: IpcTag::from_raw(value[1]),
             raw_args: [value[2], value[3], value[4], value[5], value[6]],
         }
@@ -66,7 +68,7 @@ impl From<RawSyscallArgs> for SendArgs {
 impl From<SendArgs> for RawSyscallArgs {
     fn from(value: SendArgs) -> Self {
         [
-            value.target,
+            value.target.into(),
             value.tag.as_raw(),
             value.raw_args[0],
             value.raw_args[1],

@@ -1,8 +1,9 @@
 use crate::caps::{CSpace, Capability, Error};
+use syscall_abi::CAddr;
 
 pub(crate) unsafe fn lookup_cap(
     cspace: &CSpace,
-    caddr: usize,
+    caddr: CAddr,
     expected_tag: crate::caps::Tag,
 ) -> Result<&'static Capability, Error> {
     let cap_ptr = cspace.lookup_raw(caddr).ok_or(Error::InvalidCap)?;
@@ -16,7 +17,7 @@ pub(crate) unsafe fn lookup_cap(
 
 pub(crate) unsafe fn lookup_cap_mut(
     cspace: &CSpace,
-    caddr: usize,
+    caddr: CAddr,
     expected_tag: crate::caps::Tag,
 ) -> Result<&'static mut Capability, Error> {
     let cap_ptr = cspace.lookup_raw(caddr).ok_or(Error::InvalidCap)?;

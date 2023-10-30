@@ -33,13 +33,15 @@ impl SyscallBinding for YieldTo {
 
 impl From<YieldToArgs> for RawSyscallArgs {
     fn from(value: YieldToArgs) -> Self {
-        [value.task, 0, 0, 0, 0, 0, 0]
+        [value.task.into(), 0, 0, 0, 0, 0, 0]
     }
 }
 
 impl From<RawSyscallArgs> for YieldToArgs {
     fn from(value: RawSyscallArgs) -> Self {
-        Self { task: value[0] }
+        Self {
+            task: value[0].into(),
+        }
     }
 }
 

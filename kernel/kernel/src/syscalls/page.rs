@@ -53,7 +53,7 @@ pub(crate) fn page_paddr(
 
     let cap = unsafe {
         cspace
-            .lookup_raw(args[0])
+            .lookup_raw(args[0].into())
             .ok_or(Error::InvalidCAddr)?
             .as_mut()
             .unwrap()

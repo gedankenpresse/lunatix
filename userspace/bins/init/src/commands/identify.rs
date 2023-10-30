@@ -21,7 +21,8 @@ impl Command for Identify {
             .ok_or("failed to read caddr")?;
         let caddr = caddr
             .parse::<usize>()
-            .map_err(|_| "failed to parse caddr")?;
+            .map_err(|_| "failed to parse caddr")?
+            .into();
         println!("{:?}", liblunatix::syscalls::identify(caddr));
         Ok(())
     }

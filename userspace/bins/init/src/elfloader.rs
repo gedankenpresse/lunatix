@@ -119,7 +119,7 @@ impl ElfLoader for LunatixElfLoader {
                 liblunatix::ipc::mem::derive(self.mem, mapping.page, CapabilityVariant::Page, None)
                     .unwrap();
                 // map page for us so we can load content into it later
-                log::trace!("mapping page {} {:x}", mapping.page, mapping.local_addr);
+                log::trace!("mapping page {:?} {:x}", mapping.page, mapping.local_addr);
                 liblunatix::ipc::page::map_page(
                     mapping.page,
                     self.own_vspace,

@@ -19,13 +19,13 @@ impl SyscallBinding for WaitOn {
 impl From<RawSyscallArgs> for WaitOnArgs {
     fn from(value: RawSyscallArgs) -> Self {
         Self {
-            notification: value[0],
+            notification: value[0].into(),
         }
     }
 }
 
 impl From<WaitOnArgs> for RawSyscallArgs {
     fn from(value: WaitOnArgs) -> Self {
-        [value.notification, 0, 0, 0, 0, 0, 0]
+        [value.notification.into(), 0, 0, 0, 0, 0, 0]
     }
 }

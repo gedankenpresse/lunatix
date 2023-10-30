@@ -1,4 +1,3 @@
-mod assign_ipc_buffer;
 mod copy;
 mod destroy;
 mod identify;
@@ -21,7 +20,6 @@ mod wait_on;
 
 use crate::caps::Capability;
 use crate::sched::Schedule;
-use crate::syscalls::assign_ipc_buffer::sys_assign_ipc_buffer;
 use crate::syscalls::debug::sys_debug_log;
 use crate::syscalls::debug::sys_debug_putc;
 use crate::syscalls::identify::sys_identify;
@@ -31,7 +29,6 @@ use crate::syscalls::wait_on::sys_wait_on;
 use crate::syscalls::yield_to::sys_yield_to;
 use crate::SyscallContext;
 use derivation_tree::tree::CursorRefMut;
-use syscall_abi::assign_ipc_buffer::{AssignIpcBuffer, AssignIpcBufferArgs};
 use syscall_abi::debug::{DebugLog, DebugLogArgs};
 use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
 use syscall_abi::identify::{Identify, IdentifyArgs};
@@ -100,16 +97,15 @@ pub fn handle_syscall(
             (result.into_response(), Schedule::Keep)
         }
 
-        AssignIpcBuffer::SYSCALL_NO => {
-            log::debug!(
-                "handling assign_ipc_buffer syscall with args {:?}",
-                AssignIpcBufferArgs::try_from(args).unwrap()
-            );
-            let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
-            log::debug!("assign_ipc_buffer syscall result is {:?}", result);
-            (result.into_response(), Schedule::Keep)
-        }
-
+        // AssignIpcBuffer::SYSCALL_NO => {
+        //     log::debug!(
+        //         "handling assign_ipc_buffer syscall with args {:?}",
+        //         AssignIpcBufferArgs::try_from(args).unwrap()
+        //     );
+        //     let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
+        //     log::debug!("assign_ipc_buffer syscall result is {:?}", result);
+        //     (result.into_response(), Schedule::Keep)
+        // }
         YieldTo::SYSCALL_NO => {
             log::debug!(
                 "handling yield_to syscall with args {:?}",

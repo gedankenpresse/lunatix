@@ -32,9 +32,7 @@
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
 
-use core::usize;
-
-pub mod assign_ipc_buffer;
+pub mod caddr;
 pub mod debug;
 mod errors;
 pub mod exit;
@@ -49,9 +47,7 @@ pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;
 
+pub use caddr::CAddr;
 pub use errors::Error;
 pub use ipc_tag::IpcTag;
 pub use traits::*;
-
-/// A type alias for explicitly marking a capability address in type signatures.
-pub type CAddr = usize;

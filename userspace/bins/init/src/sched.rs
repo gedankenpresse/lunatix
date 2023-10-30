@@ -27,9 +27,9 @@ impl Scheduler {
                 TaskStatus::Blocked => {
                     self.tasks.push_back(task);
                 }
-                TaskStatus::AlreadyRunning => panic!("task {task} is already running. WTF"),
+                TaskStatus::AlreadyRunning => panic!("task {task:?} is already running. WTF"),
                 TaskStatus::Exited => {
-                    log::debug!("task {task} exited")
+                    log::debug!("task {task:?} exited")
                 }
             }
         }

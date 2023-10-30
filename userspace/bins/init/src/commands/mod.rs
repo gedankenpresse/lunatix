@@ -71,11 +71,17 @@ impl FromArgs for CAddrArg {
         let s = s.trim_start();
         match s.split_once(" ") {
             Some((a, rest)) => {
-                let addr = a.parse().map_err(|_| "arg is not a number")?;
+                let addr = a
+                    .parse::<usize>()
+                    .map_err(|_| "arg is not a number")?
+                    .into();
                 Ok((Self { addr }, rest))
             }
             None => {
-                let addr = s.parse().map_err(|_| "arg is not a number")?;
+                let addr = s
+                    .parse::<usize>()
+                    .map_err(|_| "arg is not a number")?
+                    .into();
                 Ok((Self { addr }, ""))
             }
         }

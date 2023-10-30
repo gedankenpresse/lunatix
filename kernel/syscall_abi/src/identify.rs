@@ -1,6 +1,6 @@
 //! Definitions for the `identify` syscall.
 
-use crate::{back_to_enum, RawSyscallArgs, SyscallBinding, SyscallResult};
+use crate::{back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
 use core::convert::Infallible;
 
 back_to_enum! {
@@ -31,7 +31,7 @@ pub struct Identify;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct IdentifyArgs {
-    pub caddr: usize,
+    pub caddr: CAddr,
 }
 
 impl SyscallBinding for Identify {
@@ -42,7 +42,7 @@ impl SyscallBinding for Identify {
 
 impl From<IdentifyArgs> for RawSyscallArgs {
     fn from(args: IdentifyArgs) -> Self {
-        [args.caddr, 0, 0, 0, 0, 0, 0]
+        [args.caddr.into(), 0, 0, 0, 0, 0, 0]
     }
 }
 
@@ -50,6 +50,8 @@ impl TryFrom<RawSyscallArgs> for IdentifyArgs {
     type Error = Infallible;
 
     fn try_from(args: RawSyscallArgs) -> Result<Self, Self::Error> {
-        Ok(Self { caddr: args[0] })
+        Ok(Self {
+            caddr: args[0].into(),
+        })
     }
 }

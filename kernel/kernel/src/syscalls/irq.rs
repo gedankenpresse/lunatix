@@ -65,7 +65,8 @@ fn irq_control_claim(
     let interrupt_line = args.data_args()[0];
     // get valid notification cap from task
     let notification_cap =
-        unsafe { utils::lookup_cap(cspace, *notification_addr, Tag::Notification) }.unwrap();
+        unsafe { utils::lookup_cap(cspace, (*notification_addr).into(), Tag::Notification) }
+            .unwrap();
 
     // get valid uninitialized target cap from task
     let irq_cap = unsafe { utils::lookup_cap_mut(cspace, *irq_addr, Tag::Uninit) }.unwrap();

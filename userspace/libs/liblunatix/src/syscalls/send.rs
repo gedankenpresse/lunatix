@@ -7,7 +7,7 @@ pub fn send(cap: CAddr, label: usize, caps: &[CAddr], data: &[usize]) -> Syscall
 
     let arg = |i: usize| {
         if i < caps.len() {
-            caps[i]
+            caps[i].into()
         } else if i - caps.len() < data.len() {
             data[i - caps.len()]
         } else {

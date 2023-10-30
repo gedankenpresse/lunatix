@@ -44,6 +44,6 @@ impl CAddressAllocator for CAddrAlloc {
     fn alloc_caddr(&self) -> CAddr {
         let addr = self.cur.fetch_add(1, SeqCst);
         assert!(addr < self.max.load(SeqCst));
-        return addr;
+        return addr.into();
     }
 }

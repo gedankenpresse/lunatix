@@ -16,6 +16,7 @@ use crate::sifive_uart::SifiveUartMM;
 
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
+use core::convert::Into;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
 use io::read::{ByteReader, EchoingByteReader};
@@ -39,14 +40,14 @@ fn _start() {
     main();
 }
 
-const CADDR_MEM: CAddr = 1;
-const _CADDR_CSPACE: CAddr = 2;
-const CADDR_VSPACE: CAddr = 3;
-const CADDR_IRQ_CONTROL: CAddr = 4;
-const CADDR_DEVMEM: CAddr = 5;
-const CADDR_ASID_CONTROL: CAddr = 6;
-const CADDR_UART_IRQ: CAddr = 7;
-const CADDR_UART_NOTIFICATION: CAddr = 8;
+const CADDR_MEM: CAddr = CAddr::new(1);
+const _CADDR_CSPACE: CAddr = CAddr::new(2);
+const CADDR_VSPACE: CAddr = CAddr::new(3);
+const CADDR_IRQ_CONTROL: CAddr = CAddr::new(4);
+const CADDR_DEVMEM: CAddr = CAddr::new(5);
+const CADDR_ASID_CONTROL: CAddr = CAddr::new(6);
+const CADDR_UART_IRQ: CAddr = CAddr::new(7);
+const CADDR_UART_NOTIFICATION: CAddr = CAddr::new(8);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {

@@ -1,5 +1,6 @@
 use derivation_tree::caps::CapabilityIface;
 use syscall_abi::send::SendArgs;
+use syscall_abi::CAddr;
 
 use crate::{
     caps::{CSpace, CSpaceIface, Error, Tag, Task, VSpaceIface},
@@ -18,12 +19,12 @@ pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Er
     }
 }
 
-fn task_assign_cspace(cspace: &CSpace, task: &Task, cspace_addr: usize) -> Result<(), Error> {
+fn task_assign_cspace(cspace: &CSpace, task: &Task, cspace_addr: CAddr) -> Result<(), Error> {
     // get valid cspace cap from current tasks cspace
     let source = unsafe { utils::lookup_cap(cspace, cspace_addr, Tag::CSpace) }?;
 
     // assign cspace to target task
-    log::debug!("copy cspace: {}", cspace_addr);
+    log::debug!("copy cspace: {:?}", cspace_addr);
     let mut task = task.state.borrow_mut();
     log::debug!("{:?}", task.cspace.get_tag());
     CSpaceIface.copy(&source, &mut task.cspace);
@@ -31,7 +32,7 @@ fn task_assign_cspace(cspace: &CSpace, task: &Task, cspace_addr: usize) -> Resul
     Ok(())
 }
 
-fn task_assign_vspace(cspace: &CSpace, task: &Task, vspace_addr: usize) -> Result<(), Error> {
+fn task_assign_vspace(cspace: &CSpace, task: &Task, vspace_addr: CAddr) -> Result<(), Error> {
     // get valid cspace cap from current tasks cspace
     let source = unsafe { utils::lookup_cap(cspace, vspace_addr, Tag::VSpace) }?;
 

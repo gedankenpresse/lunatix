@@ -1,9 +1,11 @@
 use crate::syscalls::syscall;
 use syscall_abi::{
     identify::{CapabilityVariant, Identify, IdentifyArgs},
-    SyscallResult,
+    CAddr, SyscallResult,
 };
 
-pub fn identify(caddr: usize) -> SyscallResult<CapabilityVariant> {
-    syscall::<Identify>(IdentifyArgs { caddr })
+pub fn identify(caddr: CAddr) -> SyscallResult<CapabilityVariant> {
+    syscall::<Identify>(IdentifyArgs {
+        caddr: caddr.into(),
+    })
 }

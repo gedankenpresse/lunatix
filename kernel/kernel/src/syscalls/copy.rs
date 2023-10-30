@@ -18,14 +18,14 @@ pub fn sys_copy(
 
     let src = unsafe {
         cspace
-            .lookup_raw(args[0])
+            .lookup_raw(args[0].into())
             .ok_or(Error::InvalidCAddr)?
             .as_ref()
             .unwrap()
     };
     let target = unsafe {
         cspace
-            .lookup_raw(args[1])
+            .lookup_raw(args[1].into())
             .ok_or(Error::InvalidCAddr)?
             .as_mut()
             .unwrap()
