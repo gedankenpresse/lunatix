@@ -1,7 +1,11 @@
 [package]
 name = "allocators"
-version = "0.1.0"
-edition = "2021"
+version = "0.2.0"
+authors.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

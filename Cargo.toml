@@ -5,8 +5,15 @@ members = [
     "support_crates/*",
     "userspace/*",
 ]
-
 default-members = ["kernel/kernel"]
+
+[workspace.package]
+authors = [ "Finn Sell <dev@ftsell.de>", "rnxpyke <rnxpyke@gmail.com>" ]
+repository = "https://github.com/gedankenpresse/lunatix"
+license-file = "LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
 
 [profile.dev]
 panic = 'abort'

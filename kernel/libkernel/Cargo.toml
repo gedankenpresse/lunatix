@@ -1,7 +1,11 @@
 [package]
 name = "libkernel"
-version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
 autotests = false
 
 [lib]
