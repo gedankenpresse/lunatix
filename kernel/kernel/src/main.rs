@@ -9,7 +9,6 @@ use allocators::Box;
 use core::arch::asm;
 use core::panic::PanicInfo;
 use derivation_tree::tree::DerivationTree;
-use libkernel::arch;
 use libkernel::log::KernelLogger;
 use libkernel::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use libkernel::println;
@@ -47,7 +46,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
     println!("🚨 Kernel Panic! 😱  {}", info);
 
     // shutdown the device
-    arch::shutdown()
+    riscv::shutdown()
 }
 
 #[no_mangle]
@@ -62,7 +61,7 @@ extern "C" fn _start(
     assert_start_expectations();
 
     kernel_main(0, 0, phys_fdt, phys_mem_start, phys_mem_end);
-    arch::shutdown();
+    riscv::shutdown();
 }
 
 extern "C" fn kernel_main(
