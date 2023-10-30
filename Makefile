@@ -1,4 +1,4 @@
-.PHONY = all kernel apps clean
+.PHONY = all kernel apps clean target/
 
 #
 # Phony targets
@@ -29,11 +29,17 @@ guest_root/% : target/riscv64imac-unknown-none-elf/release/%
 # Rust crates
 #
 
-target/riscv64imac-unknown-none-elf/release/%:
+target/riscv64imac-unknown-none-elf/release/%: FORCE
 	cargo build --release -p $*
 
-target/riscv64imac-unknown-none-elf/debug/%:
+target/riscv64imac-unknown-none-elf/debug/%: FORCE
 	cargo build -p $*
 
-target/riscv64imac-unknown-none-elf/debug/kernel: target/riscv64imac-unknown-none-elf/release/init
+target/riscv64imac-unknown-none-elf/debug/kernel: FORCE target/riscv64imac-unknown-none-elf/release/init
 	cargo build -p kernel
+
+
+#
+# Helpers
+#
+FORCE:
