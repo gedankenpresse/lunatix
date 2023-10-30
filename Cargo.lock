@@ -193,6 +193,7 @@ dependencies = [
  "log",
  "riscv",
  "sbi",
+ "thiserror-no-std",
 ]
 
 [[package]]

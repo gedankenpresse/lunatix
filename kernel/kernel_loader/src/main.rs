@@ -4,6 +4,7 @@
 // TODO: remove dead code
 #![allow(dead_code)]
 
+mod devtree;
 mod elfloader;
 mod virtmem;
 
@@ -14,7 +15,7 @@ use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::panic::PanicInfo;
 use fdt_rs::base::DevTree;
-use libkernel::device_info::DeviceInfo;
+use fdt_rs::index::DevTreeIndex;
 use libkernel::log::KernelLogger;
 use libkernel::mem::{PageTable, PAGESIZE};
 use log::Level;
@@ -81,14 +82,15 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let args = Args::from_args(libkernel::argv_iter::arg_iter(argc, argv));
 
     log::debug!("parsing device tree to get information about the host hardware");
-    let mut device_info_index = [0u8; 10 * 1024]; // TODO The size was tested to work in our qemu boot environment but is not properly chosen
-    let device_info =
-        unsafe { DeviceInfo::from_device_tree(args.phys_fdt_addr, &mut device_info_index) }
-            .expect("Could not parse device info from flattened device tree");
+    let dev_tree = unsafe {
+        DevTree::from_raw_pointer(args.phys_fdt_addr).expect("Could not load device tree")
+    };
+    let mut dev_tree_idx = [0u8; 10 * 1024]; // TODO The size was tested to work in our qemu boot environment but is not properly chosen
+    let dev_tree_idx = DevTreeIndex::new(dev_tree, &mut dev_tree_idx)
+        .expect("Could not construct an index over the device tree");
 
     // extract usable memory from device information
-    let (mem_start, mem_len) = device_info
-        .get_usable_memory()
+    let (mem_start, mem_len) = devtree::get_usable_memory(&dev_tree_idx)
         .expect("Could not get usable memory from device tree");
     let mem_end = unsafe { mem_start.add(mem_len) };
 
