@@ -1,7 +1,7 @@
 use core::ops::Range;
 
 use io::read::Reader;
-use librust::println;
+use liblunatix::println;
 
 use crate::FS;
 use p9::{ByteReader, Stat};

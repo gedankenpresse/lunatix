@@ -6,8 +6,8 @@ use io::read::Reader;
 use virtio::{DeviceFeaturesLow, DeviceId, DeviceStatus, VirtDevice, VIRTIO_MAGIC};
 
 use caddr_alloc;
-use librust::syscall_abi::identify::CapabilityVariant;
-use librust::{prelude::CAddr, syscall_abi::MapFlags};
+use liblunatix::syscall_abi::identify::CapabilityVariant;
+use liblunatix::{prelude::CAddr, syscall_abi::MapFlags};
 
 use p9::{
     P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
@@ -22,8 +22,8 @@ const VIRTIO_DEVICE_LEN: usize = 0x1000;
 fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
     const BUF1: *mut u8 = 0x30_0000_0000usize as *mut u8;
     let page1 = caddr_alloc::alloc_caddr();
-    librust::derive(mem, page1, CapabilityVariant::Page, None).unwrap();
-    librust::map_page(
+    liblunatix::derive(mem, page1, CapabilityVariant::Page, None).unwrap();
+    liblunatix::map_page(
         page1,
         vspace,
         mem,
@@ -34,8 +34,8 @@ fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
 
     const BUF2: *mut u8 = (0x30_0000_0000usize + 4096usize) as *mut u8;
     let page2 = caddr_alloc::alloc_caddr();
-    librust::derive(mem, page2, CapabilityVariant::Page, None).unwrap();
-    librust::map_page(
+    liblunatix::derive(mem, page2, CapabilityVariant::Page, None).unwrap();
+    liblunatix::map_page(
         page2,
         vspace,
         mem,
@@ -48,12 +48,12 @@ fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
         VirtQMsgBuf {
             buf: unsafe { core::slice::from_raw_parts_mut(BUF1, 4096) },
             page: page1,
-            paddr: librust::page_paddr(page1).unwrap(),
+            paddr: liblunatix::page_paddr(page1).unwrap(),
         },
         VirtQMsgBuf {
             buf: unsafe { core::slice::from_raw_parts_mut(BUF2, 4096) },
             page: page2,
-            paddr: librust::page_paddr(page2).unwrap(),
+            paddr: liblunatix::page_paddr(page2).unwrap(),
         },
     )
 }
@@ -65,7 +65,7 @@ pub fn init_9p_driver(
     irq_control: CAddr,
     queue_base_ptr: *mut u8,
 ) -> P9Driver<'static> {
-    librust::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN).unwrap();
+    liblunatix::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN).unwrap();
     let mut driver = unsafe {
         let device = VirtDevice::at(VIRTIO_DEVICE as *mut VirtDevice);
         assert_eq!(device.device_id.read(), DeviceId::NINEP_TRANSPORT);
@@ -78,9 +78,9 @@ pub fn init_9p_driver(
 
         // setup an irq handler for the virtio device
         let irq_notif = caddr_alloc::alloc_caddr();
-        librust::derive(mem, irq_notif, CapabilityVariant::Notification, None).unwrap();
+        liblunatix::derive(mem, irq_notif, CapabilityVariant::Notification, None).unwrap();
         let irq = caddr_alloc::alloc_caddr();
-        librust::irq_control_claim(irq_control, 0x08, irq, irq_notif).unwrap();
+        liblunatix::irq_control_claim(irq_control, 0x08, irq, irq_notif).unwrap();
 
         let queue = virtio::queue_setup(device, 0, mem, vspace, queue_base_ptr).unwrap();
         let (req_buf, resp_buf) = prepare_msg_bufs(mem, vspace);
@@ -161,7 +161,7 @@ impl<'mm> P9Driver<'mm> {
         };
 
         self.device.notify(0);
-        librust::wait_on(self.noti).unwrap();
+        liblunatix::wait_on(self.noti).unwrap();
         self.queue.descriptor_table[resp_idx].free();
         self.queue.descriptor_table[req_idx].free();
     }
@@ -300,7 +300,7 @@ fn p9_handshake(driver: &mut P9Driver) {
     assert_eq!(msize, 4096);
     assert_eq!(version, "9P2000.u");
 
-    librust::irq_complete(irq).unwrap();
+    liblunatix::irq_complete(irq).unwrap();
 }
 
 /// Attach us to a servers file tree
@@ -314,7 +314,7 @@ fn p9_attach(driver: &mut P9Driver, attach: TAttach) -> P9Qid {
         panic!()
     };
 
-    librust::irq_complete(driver.irq).unwrap();
+    liblunatix::irq_complete(driver.irq).unwrap();
     resp.qid
 }
 
@@ -322,7 +322,7 @@ fn p9_attach(driver: &mut P9Driver, attach: TAttach) -> P9Qid {
 fn p9_walk(driver: &mut P9Driver, walk: TWalk) -> RWalk {
     let res = driver.do_request(p9::Request::Walk(walk)).unwrap();
     let Response::Walk(resp) = res else { panic!() };
-    librust::irq_complete(driver.irq).unwrap();
+    liblunatix::irq_complete(driver.irq).unwrap();
     resp
 }
 
@@ -330,7 +330,7 @@ fn p9_open(driver: &mut P9Driver, open: TOpen) -> ROpen {
     let res = driver.do_request(p9::Request::Open(open)).unwrap();
     let Response::Open(resp) = res else { panic!() };
 
-    librust::irq_complete(driver.irq).unwrap();
+    liblunatix::irq_complete(driver.irq).unwrap();
     resp
 }
 
@@ -338,7 +338,7 @@ fn p9_clunk(driver: &mut P9Driver, clunk: TClunk) -> RClunk {
     let res = driver.do_request(p9::Request::Clunk(clunk)).unwrap();
     let Response::Clunk(resp) = res else { panic!() };
 
-    librust::irq_complete(driver.irq).unwrap();
+    liblunatix::irq_complete(driver.irq).unwrap();
     resp
 }
 
@@ -347,6 +347,6 @@ fn p9_read<'resp>(driver: &'resp mut P9Driver, read: TRead) -> RRead<'resp> {
     let res = driver.do_request(p9::Request::Read(read)).unwrap();
     let Response::Read(resp) = res else { panic!() };
 
-    librust::irq_complete(irq).unwrap();
+    liblunatix::irq_complete(irq).unwrap();
     resp
 }

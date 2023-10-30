@@ -1,4 +1,4 @@
-use librust::syscall_abi::system_reset::{ResetReason, ResetType};
+use liblunatix::syscall_abi::system_reset::{ResetReason, ResetType};
 
 use super::Command;
 
@@ -14,6 +14,6 @@ impl Command for Shutdown {
     }
 
     fn execute(&self, _args: &str) -> Result<(), &'static str> {
-        librust::system_reset(ResetType::Shutdown, ResetReason::NoReason);
+        liblunatix::system_reset(ResetType::Shutdown, ResetReason::NoReason);
     }
 }

@@ -12,5 +12,5 @@ license-file.workspace = true
 [dependencies]
 bitflags = "2.4.1"
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
-librust = { version = "0.1.0", path = "../librust" }
+liblunatix = { version = "0.1.0", path = "../liblunatix" }
 regs = { version = "0.1.0", path = "../../../support_crates/regs" }

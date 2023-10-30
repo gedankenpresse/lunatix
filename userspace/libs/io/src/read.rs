@@ -2,7 +2,7 @@ extern crate alloc;
 
 use aligned_vec::AVec;
 use alloc::vec;
-use librust::print;
+use liblunatix::print;
 
 pub trait ByteReader {
     fn read_byte(&mut self) -> Result<u8, ()>;

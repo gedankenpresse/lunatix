@@ -1,4 +1,4 @@
-use librust::print;
+use liblunatix::print;
 
 use crate::FS;
 use io::read::Reader;

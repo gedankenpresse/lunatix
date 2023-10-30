@@ -1,4 +1,4 @@
-use librust::println;
+use liblunatix::println;
 
 use super::Command;
 
@@ -22,7 +22,7 @@ impl Command for Identify {
         let caddr = caddr
             .parse::<usize>()
             .map_err(|_| "failed to parse caddr")?;
-        println!("{:?}", librust::identify(caddr));
+        println!("{:?}", liblunatix::identify(caddr));
         Ok(())
     }
 }

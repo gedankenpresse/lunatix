@@ -1,4 +1,4 @@
-use librust::println;
+use liblunatix::println;
 use regs::RW;
 
 #[allow(unused)]

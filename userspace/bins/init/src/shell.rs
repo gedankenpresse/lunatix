@@ -1,5 +1,5 @@
 use io::read::ByteReader;
-use librust::{print, println};
+use liblunatix::{print, println};
 
 use crate::commands::{self, Command};
 

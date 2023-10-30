@@ -13,7 +13,7 @@ impl Command for Copy {
 
     fn execute(&self, args: &str) -> Result<(), &'static str> {
         let (CAddrArg { addr: source }, CAddrArg { addr: target }) = args.to_value()?;
-        librust::copy(source, target).unwrap();
+        liblunatix::copy(source, target).unwrap();
         Ok(())
     }
 }

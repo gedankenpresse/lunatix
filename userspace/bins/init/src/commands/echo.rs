@@ -1,4 +1,4 @@
-use librust::println;
+use liblunatix::println;
 
 use super::Command;
 

@@ -2,7 +2,7 @@
 
 use bitflags::bitflags;
 use caddr_alloc;
-use librust::syscall_abi::{identify::CapabilityVariant, CAddr, MapFlags};
+use liblunatix::syscall_abi::{identify::CapabilityVariant, CAddr, MapFlags};
 use regs::{RO, RW, WO};
 
 pub const VIRTIO_MAGIC: u32 = 0x74726976;
@@ -281,8 +281,8 @@ fn queue_alloc(
     // and we can't guarantee that, because mapping in a vspace uses pages..
     {
         let page = caddr_alloc::alloc_caddr();
-        librust::derive(mem, page, CapabilityVariant::Page, None).unwrap();
-        librust::map_page(
+        liblunatix::derive(mem, page, CapabilityVariant::Page, None).unwrap();
+        liblunatix::map_page(
             page,
             vspace,
             mem,
@@ -295,15 +295,15 @@ fn queue_alloc(
     let mut paddr = None;
     for i in 0..pages {
         let page = caddr_alloc::alloc_caddr();
-        librust::derive(mem, page, CapabilityVariant::Page, None).unwrap();
-        let this_paddr = librust::page_paddr(page).unwrap();
+        liblunatix::derive(mem, page, CapabilityVariant::Page, None).unwrap();
+        let this_paddr = liblunatix::page_paddr(page).unwrap();
         paddr.get_or_insert(this_paddr);
         assert_eq!(
             paddr,
             Some(this_paddr - i * PAGESIZE),
             "non consecutive physical pages for virtio driver"
         );
-        librust::map_page(
+        liblunatix::map_page(
             page,
             vspace,
             mem,

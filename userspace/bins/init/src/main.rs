@@ -19,8 +19,8 @@ use caddr_alloc::CAddrAlloc;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
 use io::read::{ByteReader, EchoingByteReader};
-use librust::println;
-use librust::syscall_abi::{identify::CapabilityVariant, system_reset::*, CAddr, MapFlags};
+use liblunatix::println;
+use liblunatix::syscall_abi::{identify::CapabilityVariant, system_reset::*, CAddr, MapFlags};
 use log::Level;
 use logger::Logger;
 use sifive_uart::SifiveUart;
@@ -48,7 +48,7 @@ const CADDR_UART_NOTIFICATION: CAddr = 8;
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
     log::error!("panic {}", info);
-    librust::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
+    liblunatix::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
 }
 
 fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static str> {
@@ -73,14 +73,14 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
         return Err("no interrupt");
     };
 
-    librust::derive(
+    liblunatix::derive(
         CADDR_MEM,
         CADDR_UART_NOTIFICATION,
         CapabilityVariant::Notification,
         None,
     )
     .unwrap();
-    librust::irq_control_claim(
+    liblunatix::irq_control_claim(
         CADDR_IRQ_CONTROL,
         interrupt as usize,
         CADDR_UART_IRQ,
@@ -88,11 +88,11 @@ fn init_uart<'a, 'dt>(node: &FdtNode<'a, 'dt>) -> Result<Uart<'static>, &'static
     )
     .unwrap();
     assert_eq!(
-        librust::identify(CADDR_UART_IRQ).unwrap(),
+        liblunatix::identify(CADDR_UART_IRQ).unwrap(),
         CapabilityVariant::Irq
     );
 
-    librust::devmem_map(
+    liblunatix::devmem_map(
         CADDR_DEVMEM,
         CADDR_MEM,
         CADDR_VSPACE,
@@ -123,14 +123,14 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
         return Err("no interrupt");
     };
 
-    librust::derive(
+    liblunatix::derive(
         CADDR_MEM,
         CADDR_UART_NOTIFICATION,
         CapabilityVariant::Notification,
         None,
     )
     .unwrap();
-    librust::irq_control_claim(
+    liblunatix::irq_control_claim(
         CADDR_IRQ_CONTROL,
         interrupt as usize,
         CADDR_UART_IRQ,
@@ -138,11 +138,11 @@ fn init_sifive_uart(node: &FdtNode<'_, '_>) -> Result<SifiveUart<'static>, &'sta
     )
     .unwrap();
     assert_eq!(
-        librust::identify(CADDR_UART_IRQ).unwrap(),
+        liblunatix::identify(CADDR_UART_IRQ).unwrap(),
         CapabilityVariant::Irq
     );
 
-    librust::devmem_map(
+    liblunatix::devmem_map(
         CADDR_DEVMEM,
         CADDR_MEM,
         CADDR_VSPACE,
@@ -165,15 +165,15 @@ fn init_stdin(stdio: &FdtNode) -> Result<impl ByteReader, &'static str> {
         fn read_byte(&mut self) -> Result<u8, ()> {
             match self {
                 Reader::Uart(uart) => {
-                    let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
+                    let _ = liblunatix::wait_on(CADDR_UART_NOTIFICATION).unwrap();
                     let c = unsafe { uart.read_data() };
-                    librust::irq_complete(CADDR_UART_IRQ).unwrap();
+                    liblunatix::irq_complete(CADDR_UART_IRQ).unwrap();
                     return Ok(c);
                 }
                 Reader::Sifive(uart) => {
-                    let _ = librust::wait_on(CADDR_UART_NOTIFICATION).unwrap();
+                    let _ = liblunatix::wait_on(CADDR_UART_NOTIFICATION).unwrap();
                     let c = uart.read_data();
-                    librust::irq_complete(CADDR_UART_IRQ).unwrap();
+                    liblunatix::irq_complete(CADDR_UART_IRQ).unwrap();
                     return Ok(c);
                 }
             }
@@ -198,8 +198,8 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
     const PAGESIZE: usize = 4096;
     for i in 0..pages {
         let page = caddr_alloc::alloc_caddr();
-        librust::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
-        librust::map_page(
+        liblunatix::derive(CADDR_MEM, page, CapabilityVariant::Page, None).unwrap();
+        liblunatix::map_page(
             page,
             CADDR_VSPACE,
             CADDR_MEM,

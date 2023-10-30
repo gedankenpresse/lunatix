@@ -1,5 +1,5 @@
 [package]
-name = "librust"
+name = "liblunatix"
 authors.workspace = true
 repository.workspace = true
 version.workspace = true

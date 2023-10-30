@@ -45,7 +45,7 @@ checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
 name = "caddr_alloc"
 version = "0.1.0"
 dependencies = [
- "librust",
+ "liblunatix",
 ]
 
 [[package]]
@@ -125,7 +125,7 @@ name = "hello_world"
 version = "0.1.0"
 dependencies = [
  "cc",
- "librust",
+ "liblunatix",
 ]
 
 [[package]]
@@ -139,7 +139,7 @@ dependencies = [
  "fdt",
  "io",
  "ksync",
- "librust",
+ "liblunatix",
  "log",
  "p9",
  "regs",
@@ -152,7 +152,7 @@ name = "io"
 version = "0.1.0"
 dependencies = [
  "aligned-vec",
- "librust",
+ "liblunatix",
 ]
 
 [[package]]
@@ -215,7 +215,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
 
 [[package]]
-name = "librust"
+name = "liblunatix"
 version = "0.1.0"
 dependencies = [
  "syscall_abi",
@@ -415,7 +415,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.4.1",
  "caddr_alloc",
- "librust",
+ "liblunatix",
  "regs",
 ]
 
@@ -425,7 +425,7 @@ version = "0.1.0"
 dependencies = [
  "caddr_alloc",
  "io",
- "librust",
+ "liblunatix",
  "p9",
  "virtio",
 ]

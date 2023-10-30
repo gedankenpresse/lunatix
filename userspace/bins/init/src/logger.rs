@@ -1,4 +1,4 @@
-use librust::println;
+use liblunatix::println;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
 pub struct Logger {

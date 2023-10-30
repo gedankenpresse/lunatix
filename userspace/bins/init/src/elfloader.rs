@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use elfloader::{ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, VAddr};
-use librust::syscall_abi::identify::CapabilityVariant;
-use librust::syscall_abi::CAddr;
-use librust::syscall_abi::MapFlags;
+use liblunatix::syscall_abi::identify::CapabilityVariant;
+use liblunatix::syscall_abi::CAddr;
+use liblunatix::syscall_abi::MapFlags;
 
 use crate::static_vec::StaticVec;
 use caddr_alloc;
@@ -74,8 +74,8 @@ impl LunatixElfLoader {
     pub fn remap_to_target_vspace(&mut self) {
         for mapping in self.used_pages.iter() {
             log::trace!("remapping {mapping:x?} to target vspace");
-            librust::unmap_page(mapping.page).unwrap();
-            librust::map_page(
+            liblunatix::unmap_page(mapping.page).unwrap();
+            liblunatix::map_page(
                 mapping.page,
                 self.target_vspace,
                 self.mem,
@@ -117,10 +117,10 @@ impl ElfLoader for LunatixElfLoader {
                     load_header.offset()
                 );
                 self.interim_addr += PAGESIZE;
-                librust::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
+                liblunatix::derive(self.mem, mapping.page, CapabilityVariant::Page, None).unwrap();
                 // map page for us so we can load content into it later
                 log::trace!("mapping page {} {:x}", mapping.page, mapping.local_addr);
-                librust::map_page(
+                liblunatix::map_page(
                     mapping.page,
                     self.own_vspace,
                     self.mem,

@@ -17,7 +17,7 @@ elfloader = "0.16.0"
 fdt = "0.1.5"
 ksync = { version = "0.1.0", path = "../../../support_crates/ksync" }
 io = { version = "0.1.0", path = "../../libs/io" }
-librust = { version = "0.1.0", path = "../../libs/librust" }
+liblunatix = { version = "0.1.0", path = "../../libs/liblunatix" }
 log = "0.4.20"
 p9 = { version = "0.1.0", path = "../../libs/p9" }
 regs = { version = "0.1.0", path = "../../../support_crates/regs" }

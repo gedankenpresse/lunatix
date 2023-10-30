@@ -13,7 +13,7 @@ pub use destroy::Destroy;
 pub use echo::Echo;
 pub use exec::Exec;
 pub use identify::Identify;
-use librust::syscall_abi::CAddr;
+use liblunatix::syscall_abi::CAddr;
 pub use ls::Ls;
 pub use shutdown::Shutdown;
 

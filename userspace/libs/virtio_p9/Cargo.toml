@@ -12,6 +12,6 @@ license-file.workspace = true
 [dependencies]
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
 io = { version = "0.1.0", path = "../io" }
-librust = { version = "0.1.0", path = "../librust" }
+liblunatix = { version = "0.1.0", path = "../liblunatix" }
 p9 = { version = "0.1.0", path = "../p9" }
 virtio = { version = "0.1.0", path = "../virtio" }

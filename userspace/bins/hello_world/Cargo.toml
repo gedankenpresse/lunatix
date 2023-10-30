@@ -14,7 +14,7 @@ panic = "abort"
 lto = true
 
 [dependencies]
-librust = { version = "0.1.0", path = "../../libs/librust" }
+liblunatix = { version = "0.1.0", path = "../../libs/liblunatix" }
 
 [build-dependencies]
 cc = "1.0.79"
