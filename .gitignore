@@ -2,3 +2,5 @@
 .idea
 
 /guest_root/hello_world
+*.dtb
+*.dtb.txt

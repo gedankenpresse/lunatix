@@ -4,7 +4,7 @@
 # Phony targets
 #
 
-all: kernel apps u-boot/u-boot.bin
+all: kernel apps u-boot/u-boot.bin qemu_virt.dtb.txt qemu_sifive_u.dtb.txt
 
 kernel: target/riscv64imac-unknown-none-elf/debug/kernel target/riscv64imac-unknown-none-elf/release/kernel_loader
 
@@ -12,6 +12,7 @@ apps: guest_root/hello_world
 
 clean:
 	rm -f guest_root/hello_world
+	rm -f *.dtb *.dtb.txt
 	rm -rf target
 	make -C u-boot clean
 
@@ -25,6 +26,12 @@ guest_root/% : target/riscv64imac-unknown-none-elf/release/%
 
 u-boot/u-boot.bin:
 	make -C u-boot -E "ARCH=riscv" -E "CROSS_COMPILE=riscv64-linux-gnu-" qemu-riscv64_smode_defconfig u-boot.bin
+
+qemu_%.dtb:
+	@qemu-system-riscv64 -machine $* -machine dumpdtb=qemu_$*.dtb
+
+%.dtb.txt: %.dtb
+	dtc -I dtb -O dts $< > $@
 
 
 
