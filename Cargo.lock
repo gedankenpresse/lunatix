@@ -168,7 +168,6 @@ dependencies = [
  "fdt-rs",
  "klog",
  "ksync",
- "libkernel",
  "log",
  "r0",
  "regs",
@@ -191,7 +190,6 @@ dependencies = [
  "elfloader 0.16.0 (git+https://github.com/gz/rust-elfloader.git?branch=master)",
  "fdt-rs",
  "klog",
- "libkernel",
  "log",
  "riscv",
  "sbi",
@@ -215,24 +213,6 @@ name = "libc"
 version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
-
-[[package]]
-name = "libkernel"
-version = "0.1.0"
-dependencies = [
- "allocators",
- "bitflags 2.4.1",
- "cc",
- "elfloader 0.16.0 (git+https://github.com/gz/rust-elfloader.git?branch=master)",
- "fdt-rs",
- "log",
- "r0",
- "riscv",
- "rlibc",
- "sbi",
- "static_assertions",
- "thiserror-no-std",
-]
 
 [[package]]
 name = "librust"
