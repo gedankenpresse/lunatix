@@ -14,7 +14,9 @@ pub(super) fn sys_identify(
     let cspace = cspace.get_shared().unwrap();
     let cspace = cspace.get_inner_cspace().unwrap();
 
-    let cap_ptr = unsafe { cspace.lookup_raw(args.caddr) }.ok_or(Error::InvalidCAddr)?;
+    let cap_ptr = unsafe { cspace.lookup_raw(args.caddr) }
+        .ok_or(Error::InvalidCAddr)?
+        .0;
     // TODO Use a cursor to safely access the capability
     let cap = unsafe { &*cap_ptr };
     let tag = cap.get_tag();

@@ -20,6 +20,7 @@ pub fn sys_copy(
         cspace
             .lookup_raw(args[0].into())
             .ok_or(Error::InvalidCAddr)?
+            .0
             .as_ref()
             .unwrap()
     };
@@ -27,6 +28,7 @@ pub fn sys_copy(
         cspace
             .lookup_raw(args[1].into())
             .ok_or(Error::InvalidCAddr)?
+            .0
             .as_mut()
             .unwrap()
     };

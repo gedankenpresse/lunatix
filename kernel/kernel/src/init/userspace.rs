@@ -225,6 +225,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(6.into())
                 .unwrap()
+                .0
                 .as_mut()
                 .unwrap()
         };
@@ -250,6 +251,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(1.into())
                 .unwrap()
+                .0
         };
         MemoryIface.copy(&mem_cap, target_slot);
     }
@@ -262,6 +264,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(2.into())
                 .unwrap()
+                .0
         };
         CSpaceIface.copy(&task_state.cspace, target_slot);
     }
@@ -274,6 +277,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(3.into())
                 .unwrap()
+                .0
         };
         VSpaceIface.copy(&task_state.vspace, target_slot);
     }
@@ -286,6 +290,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(4.into())
                 .unwrap()
+                .0
         };
         let irq_control: &Capability = &init_caps.irq_control;
         IrqControlIface.copy(irq_control, target_slot);
@@ -299,6 +304,7 @@ pub fn create_init_caps<'dt>(
                 .unwrap()
                 .lookup_raw(5.into())
                 .unwrap()
+                .0
                 .as_mut()
                 .unwrap()
         };

@@ -29,6 +29,7 @@ pub(super) fn sys_send(
         cspace
             .lookup_raw(args.target)
             .ok_or(Error::InvalidCAddr)?
+            .0
             .as_mut()
             .unwrap()
     };

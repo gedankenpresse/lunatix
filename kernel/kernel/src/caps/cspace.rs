@@ -44,6 +44,19 @@ impl CSpace {
         self.slots.destroy();
     }
 
+    /// How many bits of a CAddr this CSpace requires to index all its slots.
+    pub fn addr_bits(&self) -> usize {
+        let mut len = self.slots.len();
+        let mut n_shifts = 0;
+
+        while len != 0 {
+            len = len >> 1;
+            n_shifts += 1;
+        }
+
+        n_shifts
+    }
+
     /// Perform a lookup based on the given address and return a *TreeNode* if one corresponds to that address.
     ///
     /// # Safety
@@ -51,9 +64,10 @@ impl CSpace {
     ///
     /// Additionally, looking up a node from the cspace may produce overlapping aliases if the node is already part of
     /// a DerivationTree.
-    pub unsafe fn lookup_raw(&self, addr: CAddr) -> Option<*mut Capability> {
-        let slot = addr.raw();
-        Some(self.slots.get(slot)?.as_ptr())
+    pub unsafe fn lookup_raw(&self, addr: CAddr) -> Option<(*mut Capability, CAddr)> {
+        let (slot, remainder) = addr.take_bits(self.addr_bits());
+        let slot = self.slots.get(slot)?.as_ptr();
+        Some((slot, remainder))
     }
 }
 

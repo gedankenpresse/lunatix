@@ -55,6 +55,7 @@ pub(crate) fn page_paddr(
         cspace
             .lookup_raw(args[0].into())
             .ok_or(Error::InvalidCAddr)?
+            .0
             .as_mut()
             .unwrap()
     };

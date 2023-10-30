@@ -12,6 +12,7 @@ pub fn asid_control_send(
             cspace
                 .lookup_raw(args.cap_args()[0])
                 .ok_or(Error::InvalidCAddr)?
+                .0
                 .as_mut()
                 .unwrap()
                 .get_inner_vspace_mut()
