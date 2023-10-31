@@ -431,6 +431,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "walk_cspace"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "liblunatix",
+ "log",
+]
+
+[[package]]
 name = "xmas-elf"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

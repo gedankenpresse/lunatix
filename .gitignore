@@ -2,5 +2,6 @@
 .idea
 
 /guest_root/hello_world
+/guest_root/walk_cspace
 *.dtb
 *.dtb.txt
