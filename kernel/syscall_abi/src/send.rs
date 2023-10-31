@@ -6,14 +6,14 @@
 
 use crate::ipc_tag::IpcTag;
 use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
-use core::fmt::Debug;
+use core::fmt::{Debug, Formatter};
 use core::mem;
 
 pub const NUM_DATA_REGS: usize = 5;
 
 pub struct Send;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct SendArgs {
     /// The object on which a send is performed.
     pub target: CAddr,
@@ -46,6 +46,17 @@ impl SendArgs {
     /// Often used to communicate what should be done and can be though of serving a similar purpose to a syscall number.
     pub fn label(&self) -> usize {
         self.tag.label()
+    }
+}
+
+impl Debug for SendArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SendArgs")
+            .field("target", &self.target)
+            .field("label", &self.label())
+            .field("cap_args", &self.cap_args())
+            .field("data_args", &self.data_args())
+            .finish()
     }
 }
 
