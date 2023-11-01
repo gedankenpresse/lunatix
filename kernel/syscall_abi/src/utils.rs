@@ -1,4 +1,4 @@
-/// A macro for creating an enum that supports TryFrom<usize> conversion
+/// A macro for creating an enum that supports `TryFrom<usize>` conversion
 #[macro_export]
 macro_rules! back_to_enum {
     ($(#[$meta:meta])* $vis:vis enum $name:ident {

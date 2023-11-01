@@ -40,14 +40,14 @@ fn _start() {
     main();
 }
 
-const CADDR_MEM: CAddr = CAddr::new(1);
-const _CADDR_CSPACE: CAddr = CAddr::new(2);
-const CADDR_VSPACE: CAddr = CAddr::new(3);
-const CADDR_IRQ_CONTROL: CAddr = CAddr::new(4);
-const CADDR_DEVMEM: CAddr = CAddr::new(5);
-const CADDR_ASID_CONTROL: CAddr = CAddr::new(6);
-const CADDR_UART_IRQ: CAddr = CAddr::new(7);
-const CADDR_UART_NOTIFICATION: CAddr = CAddr::new(8);
+const CADDR_MEM: CAddr = CAddr::from_raw(1);
+const _CADDR_CSPACE: CAddr = CAddr::from_raw(2);
+const CADDR_VSPACE: CAddr = CAddr::from_raw(3);
+const CADDR_IRQ_CONTROL: CAddr = CAddr::from_raw(4);
+const CADDR_DEVMEM: CAddr = CAddr::from_raw(5);
+const CADDR_ASID_CONTROL: CAddr = CAddr::from_raw(6);
+const CADDR_UART_IRQ: CAddr = CAddr::from_raw(7);
+const CADDR_UART_NOTIFICATION: CAddr = CAddr::from_raw(8);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
