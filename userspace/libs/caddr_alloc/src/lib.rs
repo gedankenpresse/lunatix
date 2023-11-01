@@ -36,14 +36,15 @@ pub fn alloc_caddr() -> CAddr {
 }
 
 pub struct CAddrAlloc {
-    pub max: AtomicUsize,
+    pub cspace_bits: AtomicUsize,
     pub cur: AtomicUsize,
 }
 
 impl CAddressAllocator for CAddrAlloc {
     fn alloc_caddr(&self) -> CAddr {
         let addr = self.cur.fetch_add(1, SeqCst);
-        assert!(addr < self.max.load(SeqCst));
-        return addr.into();
+        let cspace_bits = self.cspace_bits.load(SeqCst);
+        assert!(addr < 2usize.pow(cspace_bits as u32));
+        CAddr::new(addr, cspace_bits)
     }
 }

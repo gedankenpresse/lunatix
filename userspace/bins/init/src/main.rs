@@ -40,14 +40,17 @@ fn _start() {
     main();
 }
 
-const CADDR_MEM: CAddr = CAddr::from_raw(1);
-const _CADDR_CSPACE: CAddr = CAddr::from_raw(2);
-const CADDR_VSPACE: CAddr = CAddr::from_raw(3);
-const CADDR_IRQ_CONTROL: CAddr = CAddr::from_raw(4);
-const CADDR_DEVMEM: CAddr = CAddr::from_raw(5);
-const CADDR_ASID_CONTROL: CAddr = CAddr::from_raw(6);
-const CADDR_UART_IRQ: CAddr = CAddr::from_raw(7);
-const CADDR_UART_NOTIFICATION: CAddr = CAddr::from_raw(8);
+/// How many bits the init tasks cspace uses to address its capabilities
+const CSPACE_BITS: usize = 7; // capacity = 128
+
+const CADDR_MEM: CAddr = CAddr::new(1, CSPACE_BITS);
+const _CADDR_CSPACE: CAddr = CAddr::new(2, CSPACE_BITS);
+const CADDR_VSPACE: CAddr = CAddr::new(3, CSPACE_BITS);
+const CADDR_IRQ_CONTROL: CAddr = CAddr::new(4, CSPACE_BITS);
+const CADDR_DEVMEM: CAddr = CAddr::new(5, CSPACE_BITS);
+const CADDR_ASID_CONTROL: CAddr = CAddr::new(6, CSPACE_BITS);
+const CADDR_UART_IRQ: CAddr = CAddr::new(7, CSPACE_BITS);
+const CADDR_UART_NOTIFICATION: CAddr = CAddr::new(8, CSPACE_BITS);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -222,7 +225,7 @@ pub unsafe fn alloc_init(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'s
 pub static ALLOC: StaticOnceCell<BoundaryTagAllocator<'static, TagsU32>> = StaticOnceCell::new();
 
 pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
-    max: AtomicUsize::new(128),
+    cspace_bits: AtomicUsize::new(CSPACE_BITS),
     cur: AtomicUsize::new(10),
 };
 
