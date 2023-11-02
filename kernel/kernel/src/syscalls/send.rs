@@ -1,8 +1,9 @@
 use derivation_tree::tree::CursorRefMut;
-use syscall_abi::send::SendArgs;
+use syscall_abi::send::Send;
+use syscall_abi::{NoValue, SyscallBinding};
 
 use crate::{
-    caps::{self, Capability, Error},
+    caps::{self, Capability, SyscallError},
     SyscallContext,
 };
 
@@ -18,8 +19,8 @@ use super::{
 pub(super) fn sys_send(
     ctx: &mut SyscallContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
-    args: SendArgs,
-) -> Result<(), caps::Error> {
+    args: <Send as SyscallBinding>::CallArgs,
+) -> <Send as SyscallBinding>::Return {
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
     let cspace = cspace.get_shared().unwrap();
@@ -28,7 +29,7 @@ pub(super) fn sys_send(
     let cap = unsafe {
         cspace
             .resolve_caddr(args.target)
-            .ok_or(Error::InvalidCAddr)?
+            .ok_or(SyscallError::InvalidCAddr)?
             .as_mut()
             .unwrap()
     };
@@ -47,5 +48,6 @@ pub(super) fn sys_send(
         caps::Tag::AsidControl => {
             asid_control_send(cspace, cap.get_inner_asid_control().unwrap(), &args)
         }
-    }
+    }?;
+    Ok(NoValue)
 }

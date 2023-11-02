@@ -1,9 +1,10 @@
 use crate::back_to_enum;
 
 back_to_enum! {
-    #[derive(Debug)]
+    /// The error type that a syscall can return
+    #[derive(Debug, Eq, PartialEq)]
     #[repr(usize)]
-    pub enum Error {
+    pub enum SyscallError {
         InvalidCAddr = 1,
         NoMem = 2,
         OccupiedSlot = 3,

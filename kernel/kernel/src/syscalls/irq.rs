@@ -14,11 +14,11 @@ pub fn irq_send(
     cspace: &CSpace,
     irq: &Irq,
     args: &SendArgs,
-) -> Result<(), caps::Error> {
+) -> Result<(), caps::SyscallError> {
     const COMPLETE: usize = 0;
     match args.label() {
         COMPLETE => sys_irq_complete(cspace, irq, ctx.plic),
-        _ => Err(caps::Error::Unsupported),
+        _ => Err(caps::SyscallError::Unsupported),
     }
 }
 
@@ -26,7 +26,7 @@ pub(super) fn sys_irq_complete(
     _cspace: &CSpace,
     irq: &Irq,
     plic: &mut PLIC,
-) -> Result<(), caps::Error> {
+) -> Result<(), caps::SyscallError> {
     let interrupt_line = irq.interrupt_line;
 
     // mark the interrupt as completed
@@ -43,11 +43,11 @@ pub fn irq_control_send(
     cspace: &CSpace,
     irq_control: &mut Capability,
     args: &SendArgs,
-) -> Result<(), caps::Error> {
+) -> Result<(), caps::SyscallError> {
     const REGISTER_IRQ: usize = 0;
     match args.label() {
         REGISTER_IRQ => irq_control_claim(cspace, irq_control, &mut ctx.plic, args),
-        _ => Err(caps::Error::Unsupported),
+        _ => Err(caps::SyscallError::Unsupported),
     }
 }
 
@@ -57,7 +57,7 @@ fn irq_control_claim(
     irq_control: &mut Capability,
     plic: &mut PLIC,
     args: &SendArgs,
-) -> Result<(), caps::Error> {
+) -> Result<(), caps::SyscallError> {
     let [notification_addr, irq_addr] = args.cap_args() else {
         panic!("not enough cap args")
     };

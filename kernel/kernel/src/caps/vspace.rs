@@ -7,7 +7,7 @@ use allocators::Box;
 use derivation_tree::{caps::CapabilityIface, tree::TreeNodeOps, Correspondence};
 use riscv::pt::{EntryFlags, PageTable};
 
-use caps::Error;
+use caps::SyscallError;
 
 // use crate::virtmem;
 
@@ -39,7 +39,7 @@ impl VSpace {
         vaddr_base: usize,
         size: usize,
         flags: EntryFlags,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SyscallError> {
         let mem = mem.get_inner_memory().unwrap();
         virtmem::map_range_alloc(
             &*mem.allocator,
@@ -60,7 +60,7 @@ impl VSpace {
         vaddr: usize,
         paddr: usize,
         flags: EntryFlags,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SyscallError> {
         virtmem::map(
             &mem.allocator,
             unsafe { &mut *self.root },

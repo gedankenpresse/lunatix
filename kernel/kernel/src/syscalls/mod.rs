@@ -32,7 +32,7 @@ use derivation_tree::tree::CursorRefMut;
 use syscall_abi::debug::{DebugLog, DebugLogArgs};
 use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
 use syscall_abi::identify::{Identify, IdentifyArgs};
-use syscall_abi::r#yield::{Yield, YieldArgs};
+use syscall_abi::r#yield::Yield;
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 
 use crate::syscalls::exit::sys_exit;
@@ -41,19 +41,6 @@ use syscall_abi::send::SendArgs;
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
 use syscall_abi::yield_to::{YieldTo, YieldToArgs};
 use syscall_abi::*;
-
-#[derive(Debug)]
-#[repr(usize)]
-pub enum SyscallError {
-    InvalidCAddr = 1,
-    NoMem = 2,
-    OccupiedSlot = 3,
-    InvalidCap = 4,
-    InvalidArg = 6,
-    AliasingCSlot = 7,
-    InvalidReturn = 8,
-    Unsupported = 9,
-}
 
 /// Handle a syscall from userspace.
 ///
@@ -117,11 +104,8 @@ pub fn handle_syscall(
         }
 
         Yield::SYSCALL_NO => {
-            log::debug!(
-                "handling yield syscall with args {:?}",
-                YieldArgs::from(args)
-            );
-            let (result, schedule) = sys_yield(YieldArgs::from(args));
+            log::debug!("handling yield syscall",);
+            let (result, schedule) = sys_yield(NoValue);
             log::debug!("yield result is {:?}", result);
             (result.into_response(), schedule)
         }
@@ -150,14 +134,11 @@ pub fn handle_syscall(
             log::debug!("handling send syscall with args {:?}", args);
             let result = send::sys_send(ctx, task, args);
             log::debug!("send result is {:?}", result);
-            let response = match result {
-                Ok(()) => Ok(NoValue),
-                Err(e) => Err(e),
-            };
-            (response.into_response(), Schedule::Keep)
+            (result.into_response(), Schedule::Keep)
         }
 
         /* DESTROY SYSCALL */
+        // TODO Update syscall_abi to include destroy
         19 => {
             let result = destroy::sys_destroy(ctx, task, &args);
             let response = match result {
@@ -168,6 +149,7 @@ pub fn handle_syscall(
         }
 
         /* COPY SYSCALL */
+        // TODO Update syscall_abi to include copy
         20 => {
             let result = copy::sys_copy(ctx, task, &args);
             let response = match result {
@@ -176,7 +158,9 @@ pub fn handle_syscall(
             };
             (response.into_response(), Schedule::Keep)
         }
+
         /* Get Page PADDR SYSCALL */
+        // TODO Make get_page_paddr a call
         21 => {
             let result = page::page_paddr(ctx, task, &args);
             let response = match result {
@@ -199,16 +183,18 @@ pub fn handle_syscall(
                 syscall_no,
                 args
             );
-            ([Error::UnknownSyscall as usize, 0], Schedule::Keep)
+            (
+                [SyscallError::UnknownSyscall as usize, 0, 0, 0, 0, 0, 0, 0],
+                Schedule::Keep,
+            )
         }
     };
 
     // write the result back to userspace
-    if res[0] != Error::WouldBlock as usize {
-        let [a0, a1] = res;
+    if res[0] != SyscallError::WouldBlock as usize {
         let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
         let tf = &mut task_state.frame;
-        tf.write_syscall_result(a0, a1);
+        tf.write_syscall_return(res);
     }
     schedule
 }

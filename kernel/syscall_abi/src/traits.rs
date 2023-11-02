@@ -1,3 +1,5 @@
+use crate::errors::SyscallError;
+
 /// A trait for binding a syscall number to its specific argument and return type.
 pub trait SyscallBinding {
     /// The syscall number which identifies this syscall.
@@ -18,41 +20,28 @@ pub trait SyscallBinding {
     type Return: FromRawSysResponse + IntoRawSysRepsonse;
 }
 
-/// A trait binding a syscall to a `repr(C)` type which is expected to be put into the tasks IPC buffer when calling it.
-pub trait IpcArgsBinding: SyscallBinding {
-    type IpcArgs;
-}
-
-/// A trait binding a syscall to a `repr(C)` type which the kernel puts into the tasks IPC buffer as a result when
-/// called.
-pub trait IpcReturnBinding: SyscallBinding {
-    type IpcReturn;
-}
-
 /// The arguments to a syscall as they are encoded in the CPUs registers.
 pub type RawSyscallArgs = [usize; 7];
 
 /// The return value of a syscall as they are encoded in the CPUs registers.
-pub type RawSyscallReturn = [usize; 2];
+pub type RawSyscallReturn = [usize; 8];
 
+/// The data that is returned on a successful syscall invocation
+pub type SyscallReturnData = [usize; 7];
+
+/// A type that is used when a syscall requires no arguments or returns nothing.
 #[derive(Debug, Copy, Clone)]
 pub struct NoValue;
 
-impl TryFrom<usize> for NoValue {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        if value == 0 {
-            Ok(NoValue)
-        } else {
-            Err(())
-        }
+impl From<SyscallReturnData> for NoValue {
+    fn from(_value: SyscallReturnData) -> Self {
+        NoValue
     }
 }
 
-impl Into<usize> for NoValue {
-    fn into(self) -> usize {
-        0
+impl Into<SyscallReturnData> for NoValue {
+    fn into(self) -> SyscallReturnData {
+        [0, 0, 0, 0, 0, 0, 0]
     }
 }
 
@@ -64,49 +53,39 @@ pub trait IntoRawSysRepsonse {
     fn into_response(self) -> RawSyscallReturn;
 }
 
-pub type SyscallResult<T> = Result<T, Error>;
+pub type SyscallResult<T> = Result<T, SyscallError>;
 
 impl<T> IntoRawSysRepsonse for SyscallResult<T>
 where
-    T: Into<usize>,
+    T: Into<SyscallReturnData>,
 {
     fn into_response(self) -> RawSyscallReturn {
         match self {
-            Ok(v) => [0, v.into()],
-            Err(e) => [e as usize, 0],
+            Ok(v) => {
+                let inner = v.into();
+                [
+                    0, inner[0], inner[1], inner[2], inner[3], inner[4], inner[5], inner[6],
+                ]
+            }
+            Err(e) => [e as usize, 0, 0, 0, 0, 0, 0, 0],
         }
     }
 }
 
-impl<T> FromRawSysResponse for Result<T, Error>
+impl<T> FromRawSysResponse for SyscallResult<T>
 where
-    T: TryFrom<usize>,
+    T: TryFrom<SyscallReturnData>,
 {
     fn from_response(raw: RawSyscallReturn) -> Self {
         match raw {
-            [0, v] => match T::try_from(v) {
+            [0, v1, v2, v3, v4, v5, v6, v7] => match T::try_from([v1, v2, v3, v4, v5, v6, v7]) {
                 Ok(v) => Ok(v),
-                Err(_) => Err(Error::ValueInvalid),
+                Err(_) => Err(SyscallError::ValueInvalid),
             },
-            [e, _] => match Error::try_from(e) {
+            [e, ..] => match SyscallError::try_from(e) {
                 Ok(e) => Err(e),
-                Err(_) => Err(Error::UnknownError),
+                Err(_) => Err(SyscallError::UnknownError),
             },
         }
-    }
-}
-
-use crate::Error;
-use bitflags::bitflags;
-
-bitflags! {
-    #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
-    pub struct MapFlags: usize {
-        /// The page should be mapped so that it is readable.
-        const READ = 0b001;
-        /// The page should be mapped so that it is writable.
-        const WRITE = 0b010;
-        /// The page should be mapped so that code stored in it can be executed.
-        const EXEC = 0b100;
     }
 }

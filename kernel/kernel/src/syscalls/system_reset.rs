@@ -1,6 +1,7 @@
-use syscall_abi::system_reset::{ResetReason, ResetType, SystemResetArgs};
+use syscall_abi::system_reset::{ResetReason, ResetType, SystemReset};
+use syscall_abi::SyscallBinding;
 
-pub(super) fn sys_system_reset(args: SystemResetArgs) -> ! {
+pub(super) fn sys_system_reset(args: <SystemReset as SyscallBinding>::CallArgs) -> ! {
     log::info!(
         "Performing system reset {:?} because {:?}",
         args.typ,

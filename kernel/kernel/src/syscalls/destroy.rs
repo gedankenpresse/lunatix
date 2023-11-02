@@ -1,7 +1,7 @@
 use derivation_tree::tree::CursorRefMut;
 
 use crate::{
-    caps::{self, Capability, Error},
+    caps::{self, Capability, SyscallError},
     SyscallContext,
 };
 
@@ -9,7 +9,7 @@ pub fn sys_destroy(
     _ctx: &mut SyscallContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: &[usize; 7],
-) -> Result<(), Error> {
+) -> Result<(), SyscallError> {
     log::debug!("send args: {:?}", args);
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
@@ -19,7 +19,7 @@ pub fn sys_destroy(
     let target = unsafe {
         cspace
             .resolve_caddr(args[0].into())
-            .ok_or(Error::InvalidCAddr)?
+            .ok_or(SyscallError::InvalidCAddr)?
             .as_mut()
             .unwrap()
     };

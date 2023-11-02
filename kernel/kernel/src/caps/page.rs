@@ -1,6 +1,6 @@
 use super::{
     asid::{ASID_NONE, ASID_POOL},
-    Capability, Error, Memory, Tag, VSpace, Variant,
+    Capability, Memory, SyscallError, Tag, VSpace, Variant,
 };
 use crate::{caps::Uninit, virtmem::KernelMapper};
 
@@ -144,7 +144,7 @@ pub fn map_page(
     vspace: &VSpace,
     flags: MapFlags,
     addr: usize,
-) -> Result<(), Error> {
+) -> Result<(), SyscallError> {
     // compute flags with which to map from arguments
     let mut entry_flags = EntryFlags::UserReadable;
     if flags.contains(MapFlags::READ) {
@@ -165,12 +165,12 @@ pub fn map_page(
     );
 
     if page.asid != ASID_NONE {
-        return Err(Error::AlreadyMapped);
+        return Err(SyscallError::AlreadyMapped);
     }
 
     if vspace.asid == ASID_NONE {
         log::error!("no asid!");
-        return Err(Error::NoAsid);
+        return Err(SyscallError::NoAsid);
     }
 
     let paddr = unsafe { KernelMapper.mapped_to_phys(page.kernel_addr) } as usize;

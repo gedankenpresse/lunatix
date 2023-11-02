@@ -4,11 +4,11 @@ use syscall_abi::send::SendArgs;
 use syscall_abi::CAddr;
 
 use crate::{
-    caps::{CSpace, Devmem, Error, Tag},
+    caps::{CSpace, Devmem, SyscallError, Tag},
     syscalls::utils,
 };
 
-pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<(), Error> {
+pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<(), SyscallError> {
     const MAP: usize = 1;
     match args.label() {
         MAP => devmem_map(
@@ -19,7 +19,7 @@ pub fn devmem_send(cspace: &CSpace, devmem: &Devmem, args: &SendArgs) -> Result<
             args.data_args()[0],
             args.data_args()[1],
         ),
-        _ => Err(Error::Unsupported),
+        _ => Err(SyscallError::Unsupported),
     }
 }
 
@@ -30,7 +30,7 @@ fn devmem_map(
     vspace_addr: CAddr,
     base: usize,
     len: usize,
-) -> Result<(), Error> {
+) -> Result<(), SyscallError> {
     let mem = unsafe { utils::lookup_cap(cspace, mem_addr, Tag::Memory)? };
     let vspace = unsafe { utils::lookup_cap_mut(cspace, vspace_addr, Tag::VSpace)? };
     let vspace = vspace.get_inner_vspace_mut().unwrap();
@@ -40,7 +40,7 @@ fn devmem_map(
         let Some(e) = *r else { return false };
         return e.base == base && e.len == len;
     }) else {
-        return Err(Error::InvalidArg);
+        return Err(SyscallError::InvalidArg);
     };
     let entry = entry.borrow().unwrap();
 

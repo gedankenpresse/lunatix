@@ -1,4 +1,4 @@
-use super::Error;
+use super::SyscallError;
 use crate::caps::{CapCounted, Capability, KernelAlloc, Tag, Uninit, Variant};
 use allocators::bump_allocator::BumpAllocator;
 use allocators::Box;
@@ -67,7 +67,7 @@ impl IrqControlIface {
         &self,
         cap: &mut Capability,
         line: usize,
-    ) -> Result<*mut Capability, Error> {
+    ) -> Result<*mut Capability, SyscallError> {
         assert_eq!(cap.tag, Tag::IrqControl);
         let irq_control = cap.get_inner_irq_control_mut().unwrap();
 
@@ -76,10 +76,10 @@ impl IrqControlIface {
             .state
             .interrupt_lines
             .get(line)
-            .ok_or(Error::InvalidArg)?
+            .ok_or(SyscallError::InvalidArg)?
             .borrow_mut();
         if irq_slot.tag != Tag::Uninit {
-            Err(Error::AlreadyMapped)
+            Err(SyscallError::AlreadyMapped)
         } else {
             Ok(irq_slot.deref_mut() as *mut Capability)
         }

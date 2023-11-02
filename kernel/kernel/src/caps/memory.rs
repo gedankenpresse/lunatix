@@ -19,7 +19,7 @@ impl MemoryIface {
         &self,
         target_slot: &mut Capability,
         alloc: &'static KernelAlloc,
-    ) -> Result<(), super::Error> {
+    ) -> Result<(), super::SyscallError> {
         assert_eq!(target_slot.tag, Tag::Uninit);
         // convert the remaining memory of the source allocator into a memory capability
         let mem_cap = unsafe {
@@ -30,7 +30,7 @@ impl MemoryIface {
                 |mem| KernelAlloc::new(mem),
             )
         }
-        .map_err(|_| super::Error::NoMem)?;
+        .map_err(|_| super::SyscallError::NoMem)?;
 
         // put it into the target slot
         target_slot.tag = Tag::Memory;

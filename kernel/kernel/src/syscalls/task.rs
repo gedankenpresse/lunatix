@@ -3,11 +3,11 @@ use syscall_abi::send::SendArgs;
 use syscall_abi::CAddr;
 
 use crate::{
-    caps::{CSpace, CSpaceIface, Error, Tag, Task, VSpaceIface},
+    caps::{CSpace, CSpaceIface, SyscallError, Tag, Task, VSpaceIface},
     syscalls::utils,
 };
 
-pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Error> {
+pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), SyscallError> {
     const ASSIGN_REGS: usize = 1;
     const ASSIGN_VSPACE: usize = 2;
     const ASSIGN_CSPACE: usize = 3;
@@ -15,11 +15,15 @@ pub fn task_send(cspace: &CSpace, task: &Task, args: &SendArgs) -> Result<(), Er
         ASSIGN_REGS => task_assign_control_registers(task, args.data_args()),
         ASSIGN_VSPACE => task_assign_vspace(cspace, task, args.cap_args()[0]),
         ASSIGN_CSPACE => task_assign_cspace(cspace, task, args.cap_args()[0]),
-        _ => Err(Error::Unsupported),
+        _ => Err(SyscallError::Unsupported),
     }
 }
 
-fn task_assign_cspace(cspace: &CSpace, task: &Task, cspace_addr: CAddr) -> Result<(), Error> {
+fn task_assign_cspace(
+    cspace: &CSpace,
+    task: &Task,
+    cspace_addr: CAddr,
+) -> Result<(), SyscallError> {
     // get valid cspace cap from current tasks cspace
     let source = unsafe { utils::lookup_cap(cspace, cspace_addr, Tag::CSpace) }?;
 
@@ -32,7 +36,11 @@ fn task_assign_cspace(cspace: &CSpace, task: &Task, cspace_addr: CAddr) -> Resul
     Ok(())
 }
 
-fn task_assign_vspace(cspace: &CSpace, task: &Task, vspace_addr: CAddr) -> Result<(), Error> {
+fn task_assign_vspace(
+    cspace: &CSpace,
+    task: &Task,
+    vspace_addr: CAddr,
+) -> Result<(), SyscallError> {
     // get valid cspace cap from current tasks cspace
     let source = unsafe { utils::lookup_cap(cspace, vspace_addr, Tag::VSpace) }?;
 
@@ -47,7 +55,7 @@ fn task_assign_vspace(cspace: &CSpace, task: &Task, vspace_addr: CAddr) -> Resul
     Ok(())
 }
 
-fn task_assign_control_registers(task: &Task, args: &[usize]) -> Result<(), Error> {
+fn task_assign_control_registers(task: &Task, args: &[usize]) -> Result<(), SyscallError> {
     // TODO Ensure that the task is not currently executing
 
     // assign control registers as specified by the syscall

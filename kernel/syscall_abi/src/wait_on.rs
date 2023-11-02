@@ -1,6 +1,6 @@
 //! Definitions for the `wait_on` syscall.
 
-use crate::{CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
+use crate::{CAddr, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 pub struct WaitOn;
 
@@ -13,7 +13,7 @@ pub struct WaitOnArgs {
 impl SyscallBinding for WaitOn {
     const SYSCALL_NO: usize = 14;
     type CallArgs = WaitOnArgs;
-    type Return = SyscallResult<usize>;
+    type Return = SyscallResult<NoValue>;
 }
 
 impl From<RawSyscallArgs> for WaitOnArgs {

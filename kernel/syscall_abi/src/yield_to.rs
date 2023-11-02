@@ -1,6 +1,8 @@
 //! Definitions for the `yield_to` syscall
 
-use crate::{back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
+use crate::{
+    back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult, SyscallReturnData,
+};
 
 pub struct YieldTo;
 
@@ -45,8 +47,16 @@ impl From<RawSyscallArgs> for YieldToArgs {
     }
 }
 
-impl From<TaskStatus> for usize {
-    fn from(value: TaskStatus) -> Self {
-        value as usize
+impl Into<SyscallReturnData> for TaskStatus {
+    fn into(self) -> SyscallReturnData {
+        [self as usize, 0, 0, 0, 0, 0, 0]
+    }
+}
+
+impl TryFrom<SyscallReturnData> for TaskStatus {
+    type Error = ();
+
+    fn try_from(value: SyscallReturnData) -> Result<Self, Self::Error> {
+        Self::try_from(value[0])
     }
 }

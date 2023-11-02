@@ -34,7 +34,7 @@ struct StackLoader<'v, 'm> {
 
 impl<'a, 'b> StackLoader<'a, 'b> {
     /// Perform the allocate and map operation
-    fn load(self) -> Result<u64, caps::Error> {
+    fn load(self) -> Result<u64, caps::SyscallError> {
         let vspace = self.vspace;
         let mem = self.mem;
         let rw = EntryFlags::Read | EntryFlags::Write | EntryFlags::UserReadable;

@@ -14,6 +14,7 @@ bitflags = "2.3.3"
 log = "0.4.19"
 sbi = "0.2.0"
 static_assertions = "1.1.0"
+syscall_abi = { version = "0.1.0", path = "../syscall_abi" }
 
 [build-dependencies]
 cc = "1.0.79"

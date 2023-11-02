@@ -28,6 +28,25 @@
 //! | [copy] | *20* |
 //! | [get_page_paddr] | *21* |
 //! | [exit] | *22* |
+//!
+//! # Calling Conventions
+//!
+//! When executing an `ecall` (syscall) asm instructions, the kernel honors a certain custom calling
+//! convention to read syscall arguments and return syscall results.
+//!
+//! ## Argument Registers
+//!
+//! When entering the kernel, it reads syscall arguments from the 8 registers `a0-a7`.
+//! `a0` must hold a valid syscall number while the other 7 registers are used to store arguments
+//! to that syscall.
+//! Their exact meaning depend on the syscall.
+//!
+//! ## Return Registers
+//!
+//! When returning to userspace, the kernel writes data to the 8 registers `a0-a7`.
+//! `a0` holds a general status code (0 = success or one of the [`SyscallError`](crate::SyscallError)
+//! definitions).
+//!
 
 #![no_std]
 #![allow(clippy::enum_clike_unportable_variant)]
@@ -37,7 +56,6 @@ pub mod debug;
 mod errors;
 pub mod exit;
 pub mod identify;
-pub mod inspect_derivation_tree;
 mod ipc_tag;
 pub mod send;
 pub mod system_reset;
@@ -47,7 +65,20 @@ pub mod wait_on;
 pub mod r#yield;
 pub mod yield_to;
 
+use bitflags::bitflags;
 pub use caddr::CAddr;
-pub use errors::Error;
+pub use errors::SyscallError;
 pub use ipc_tag::IpcTag;
 pub use traits::*;
+
+bitflags! {
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
+    pub struct MapFlags: usize {
+        /// The page should be mapped so that it is readable.
+        const READ = 0b001;
+        /// The page should be mapped so that it is writable.
+        const WRITE = 0b010;
+        /// The page should be mapped so that code stored in it can be executed.
+        const EXEC = 0b100;
+    }
+}

@@ -12,7 +12,7 @@ mod r#yield;
 mod yield_to;
 
 use core::arch::asm;
-use syscall_abi::{FromRawSysResponse, SyscallBinding};
+use syscall_abi::{FromRawSysResponse, RawSyscallReturn, SyscallBinding};
 
 pub use copy::copy;
 pub use destroy::destroy;
@@ -36,23 +36,29 @@ pub fn raw_syscall(
     a5: usize,
     a6: usize,
     a7: usize,
-) -> [usize; 2] {
+) -> RawSyscallReturn {
     let mut out0: usize;
     let mut out1: usize;
+    let mut out2: usize;
+    let mut out3: usize;
+    let mut out4: usize;
+    let mut out5: usize;
+    let mut out6: usize;
+    let mut out7: usize;
     unsafe {
         asm!(
         "ecall",
         inout("x10") syscallno => out0,
         inout("x11") a1 => out1,
-        in("x12") a2,
-        in("x13") a3,
-        in("x14") a4,
-        in("x15") a5,
-        in("x16") a6,
-        in("x17") a7,
+        inout("x12") a2 => out2,
+        inout("x13") a3 => out3,
+        inout("x14") a4 => out4,
+        inout("x15") a5 => out5,
+        inout("x16") a6 => out6,
+        inout("x17") a7 => out7,
         );
     }
-    return [out0, out1];
+    return [out0, out1, out2, out3, out4, out5, out6, out7];
 }
 
 #[inline(always)]

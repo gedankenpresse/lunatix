@@ -29,7 +29,7 @@ pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
 
 pub use prelude::*;
-pub use syscall_abi::Error;
+pub use syscall_abi::SyscallError;
 
 #[derive(Copy, Clone)]
 pub struct Uninit {}

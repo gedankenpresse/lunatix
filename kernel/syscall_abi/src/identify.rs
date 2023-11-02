@@ -1,6 +1,8 @@
 //! Definitions for the `identify` syscall.
 
-use crate::{back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult};
+use crate::{
+    back_to_enum, CAddr, RawSyscallArgs, SyscallBinding, SyscallResult, SyscallReturnData,
+};
 use core::convert::Infallible;
 
 back_to_enum! {
@@ -53,5 +55,19 @@ impl TryFrom<RawSyscallArgs> for IdentifyArgs {
         Ok(Self {
             caddr: args[0].into(),
         })
+    }
+}
+
+impl Into<SyscallReturnData> for CapabilityVariant {
+    fn into(self) -> SyscallReturnData {
+        [self as usize, 0, 0, 0, 0, 0, 0]
+    }
+}
+
+impl TryFrom<SyscallReturnData> for CapabilityVariant {
+    type Error = ();
+
+    fn try_from(value: SyscallReturnData) -> Result<Self, Self::Error> {
+        Self::try_from(value[0])
     }
 }

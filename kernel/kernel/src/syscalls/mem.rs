@@ -1,5 +1,5 @@
 use crate::caps::{
-    CSpace, CSpaceIface, Capability, Error, NotificationIface, PageIface, Tag, TaskIface,
+    CSpace, CSpaceIface, Capability, NotificationIface, PageIface, SyscallError, Tag, TaskIface,
     VSpaceIface,
 };
 use syscall_abi::identify::CapabilityVariant;
@@ -8,17 +8,18 @@ use syscall_abi::CAddr;
 
 use super::utils;
 
-pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<(), Error> {
+pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<(), SyscallError> {
     const DERIVE: usize = 1;
     match args.label() {
         DERIVE => mem_derive(
             cspace,
             mem,
             args.cap_args()[0],
-            CapabilityVariant::try_from(args.data_args()[0]).map_err(|_| Error::InvalidArg)?,
+            CapabilityVariant::try_from(args.data_args()[0])
+                .map_err(|_| SyscallError::InvalidArg)?,
             args.data_args()[1],
         ),
-        _ => Err(Error::Unsupported),
+        _ => Err(SyscallError::Unsupported),
     }
 }
 
@@ -28,12 +29,12 @@ fn mem_derive(
     target: CAddr,
     variant: CapabilityVariant,
     size: usize,
-) -> Result<(), Error> {
+) -> Result<(), SyscallError> {
     let target_cap = unsafe { utils::lookup_cap_mut(cspace, target, Tag::Uninit)? };
 
     // derive the correct capability
     match variant {
-        CapabilityVariant::Uninit => return Err(Error::InvalidArg),
+        CapabilityVariant::Uninit => return Err(SyscallError::InvalidArg),
         CapabilityVariant::Memory => unimplemented!("memory cannot yet be derived"),
         CapabilityVariant::CSpace => {
             CSpaceIface.derive(mem, target_cap, size);

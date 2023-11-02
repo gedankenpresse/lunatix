@@ -23,11 +23,11 @@ impl DevmemIface {
         target_slot: &mut Capability,
         alloc: &'static KernelAlloc,
         devs: &[Option<DevmemEntry>],
-    ) -> Result<(), super::Error> {
+    ) -> Result<(), super::SyscallError> {
         assert_eq!(target_slot.tag, Tag::Uninit);
         let mut entries: Box<[RefCell<Option<DevmemEntry>>]> =
             Box::new_slice_with(devs.len(), alloc, |_| RefCell::new(None))
-                .map_err(|_| super::Error::NoMem)?;
+                .map_err(|_| super::SyscallError::NoMem)?;
         for (entry, dev) in entries.iter_mut().zip(devs.iter()) {
             *entry.get_mut() = *dev;
         }

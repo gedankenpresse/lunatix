@@ -10,6 +10,6 @@ pub mod prelude {
     pub use crate::println;
     pub use syscall_abi;
     pub use syscall_abi::CAddr;
-    pub use syscall_abi::Error;
     pub use syscall_abi::NoValue;
+    pub use syscall_abi::SyscallError;
 }

@@ -1,20 +1,21 @@
 use crate::caps::{Capability, Tag};
 use derivation_tree::tree::CursorRefMut;
+use syscall_abi::identify::Identify;
 use syscall_abi::{
     identify::{CapabilityVariant, IdentifyArgs},
-    Error, SyscallResult,
+    SyscallBinding, SyscallError, SyscallResult,
 };
 
 pub(super) fn sys_identify(
     task: &mut CursorRefMut<'_, '_, Capability>,
-    args: IdentifyArgs,
-) -> SyscallResult<CapabilityVariant> {
+    args: <Identify as SyscallBinding>::CallArgs,
+) -> <Identify as SyscallBinding>::Return {
     let task = task.get_inner_task().unwrap();
     let mut cspace = task.get_cspace();
     let cspace = cspace.get_shared().unwrap();
     let cspace = cspace.get_inner_cspace().unwrap();
 
-    let cap_ptr = unsafe { cspace.resolve_caddr(args.caddr) }.ok_or(Error::InvalidCAddr)?;
+    let cap_ptr = unsafe { cspace.resolve_caddr(args.caddr) }.ok_or(SyscallError::InvalidCAddr)?;
 
     // TODO Use a cursor to safely access the capability
     let cap = unsafe { &*cap_ptr };

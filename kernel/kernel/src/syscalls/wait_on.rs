@@ -4,13 +4,13 @@ use crate::sched::Schedule;
 use crate::syscalls::utils;
 use derivation_tree::tree::CursorRefMut;
 use derivation_tree::AsStaticMut;
-use syscall_abi::wait_on::WaitOnArgs;
-use syscall_abi::{Error, SyscallResult};
+use syscall_abi::wait_on::WaitOn;
+use syscall_abi::{NoValue, SyscallBinding, SyscallError};
 
 pub(super) fn sys_wait_on(
     task_cap: &mut CursorRefMut<'_, '_, Capability>,
-    args: WaitOnArgs,
-) -> (SyscallResult<usize>, Schedule) {
+    args: <WaitOn as SyscallBinding>::CallArgs,
+) -> (<WaitOn as SyscallBinding>::Return, Schedule) {
     // get basic caps from task
     let task_cap_ptr = task_cap.as_static_mut() as *mut Capability;
     let task = task_cap.get_inner_task().unwrap();
@@ -37,7 +37,7 @@ pub(super) fn sys_wait_on(
         // this has the effect of then executing the branch below to construct a valid return value
         task_state.frame.start_pc -= 4;
 
-        (Err(Error::WouldBlock), Schedule::RunInit)
+        (Err(SyscallError::WouldBlock), Schedule::RunInit)
     } else {
         // notification already has a value so we ensure that the task is not blocked anymore and return that value
         unsafe {
@@ -49,6 +49,6 @@ pub(super) fn sys_wait_on(
         }
         TaskIface.wake(task_cap);
 
-        (Ok(value), Schedule::Keep)
+        (Ok(NoValue), Schedule::Keep)
     }
 }
