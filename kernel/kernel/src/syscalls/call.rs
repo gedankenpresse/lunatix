@@ -1,11 +1,12 @@
 use crate::caps::{Capability, Tag};
+use crate::syscalls::ipc::page::page_call;
 use crate::SyscallContext;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::call::Call;
 use syscall_abi::{SyscallBinding, SyscallError};
 
 pub(super) fn sys_call(
-    ctx: &mut SyscallContext,
+    _ctx: &mut SyscallContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: <Call as SyscallBinding>::CallArgs,
 ) -> <Call as SyscallBinding>::Return {
@@ -28,7 +29,7 @@ pub(super) fn sys_call(
         Tag::CSpace => todo!("call for cspace unimplemented"),
         Tag::VSpace => todo!("call for vspace unimplemented"),
         Tag::Task => todo!("call to task unimplemented"),
-        Tag::Page => todo!("call for page unimplemented"),
+        Tag::Page => page_call(cspace, cap.get_inner_page_mut().unwrap(), args),
         Tag::IrqControl => todo!("call for irq-control unimplemented"),
         Tag::Irq => todo!("call for irq unimplemented"),
         Tag::Notification => todo!("call for notification unimplemented"),

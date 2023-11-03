@@ -1,7 +1,8 @@
 use derivation_tree::tree::CursorRefMut;
 use riscv::mem::ptrs::MappedConstPtr;
+use syscall_abi::call::CallArgs;
 use syscall_abi::send::SendArgs;
-use syscall_abi::{MapFlags, RawSyscallArgs, SyscallReturnData};
+use syscall_abi::{MapFlags, RawSyscallArgs, SyscallResult, SyscallReturnData};
 
 use crate::{
     caps::{page::map_page, CSpace, Capability, Page, SyscallError, Tag},
@@ -41,24 +42,19 @@ pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<()
     }
 }
 
-pub(crate) fn page_paddr(
-    _ctx: &mut crate::SyscallContext,
-    task: &mut CursorRefMut<'_, '_, Capability>,
-    args: &RawSyscallArgs,
-) -> Result<SyscallReturnData, SyscallError> {
-    let task = task.get_inner_task().unwrap();
-    let mut cspace = task.get_cspace();
-    let cspace = cspace.get_shared().unwrap();
-    let cspace = cspace.get_inner_cspace().unwrap();
+pub fn page_call(
+    _cspace: &CSpace,
+    page: &mut Page,
+    args: CallArgs,
+) -> SyscallResult<SyscallReturnData> {
+    const GET_PADDR: usize = 0;
+    match args.label() {
+        GET_PADDR => get_page_paddr(page),
+        _ => Err(SyscallError::Unsupported),
+    }
+}
 
-    let cap = unsafe {
-        cspace
-            .resolve_caddr(args[0].into())
-            .ok_or(SyscallError::InvalidCAddr)?
-            .as_mut()
-            .unwrap()
-    };
-    let page = cap.get_inner_page().map_err(|_| SyscallError::InvalidCap)?;
+fn get_page_paddr(page: &mut Page) -> SyscallResult<SyscallReturnData> {
     let phys = MappedConstPtr::from(page.kernel_addr as *const _)
         .as_direct()
         .raw();

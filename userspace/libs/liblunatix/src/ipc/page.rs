@@ -18,6 +18,6 @@ pub fn unmap_page(page: CAddr) -> SyscallResult<NoValue> {
 }
 
 pub fn get_paddr(page: CAddr) -> SyscallResult<usize> {
-    const GET_PADDR: usize = 2;
+    const GET_PADDR: usize = 0;
     call(page, GET_PADDR, &[], &[]).map(|data| data[0])
 }
