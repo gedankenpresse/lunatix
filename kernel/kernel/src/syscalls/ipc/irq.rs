@@ -7,7 +7,7 @@ use crate::{
     SyscallContext,
 };
 
-use super::utils;
+use super::super::utils;
 
 pub fn irq_send(
     ctx: &mut SyscallContext,
@@ -22,7 +22,7 @@ pub fn irq_send(
     }
 }
 
-pub(super) fn sys_irq_complete(
+pub(in crate::syscalls) fn sys_irq_complete(
     _cspace: &CSpace,
     irq: &Irq,
     plic: &mut PLIC,

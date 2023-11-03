@@ -4,16 +4,11 @@ mod identify;
 mod r#yield;
 mod yield_to;
 
-mod asid_control;
 mod debug;
-mod irq;
-mod mem;
-mod page;
-mod task;
 
 mod call;
-mod devmem;
 mod exit;
+mod ipc;
 mod send;
 mod system_reset;
 mod utils;
@@ -36,7 +31,6 @@ use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::r#yield::Yield;
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 
-use crate::syscalls::call::sys_call;
 use crate::syscalls::exit::sys_exit;
 use syscall_abi::call::Call;
 use syscall_abi::exit::Exit;

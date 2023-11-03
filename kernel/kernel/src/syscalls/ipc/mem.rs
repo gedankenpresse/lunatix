@@ -6,7 +6,7 @@ use syscall_abi::identify::CapabilityVariant;
 use syscall_abi::send::SendArgs;
 use syscall_abi::CAddr;
 
-use super::utils;
+use super::super::utils;
 
 pub fn mem_send(cspace: &CSpace, mem: &Capability, args: &SendArgs) -> Result<(), SyscallError> {
     const DERIVE: usize = 1;
