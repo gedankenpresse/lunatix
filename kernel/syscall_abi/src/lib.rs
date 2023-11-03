@@ -26,8 +26,8 @@
 //! | [send] | *18* |
 //! | [destroy] | *19* |
 //! | [copy] | *20* |
-//! | [get_page_paddr] | *21* |
 //! | [exit] | *22* |
+//! | [call] | *23* |
 //!
 //! # Calling Conventions
 //!
@@ -52,6 +52,7 @@
 #![allow(clippy::enum_clike_unportable_variant)]
 
 pub mod caddr;
+pub mod call;
 pub mod debug;
 mod errors;
 pub mod exit;
