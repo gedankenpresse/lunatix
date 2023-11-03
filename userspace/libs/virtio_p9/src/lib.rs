@@ -49,12 +49,12 @@ fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
         VirtQMsgBuf {
             buf: unsafe { core::slice::from_raw_parts_mut(BUF1, 4096) },
             page: page1,
-            paddr: liblunatix::syscalls::page_paddr(page1).unwrap(),
+            paddr: liblunatix::ipc::page::get_paddr(page1).unwrap(),
         },
         VirtQMsgBuf {
             buf: unsafe { core::slice::from_raw_parts_mut(BUF2, 4096) },
             page: page2,
-            paddr: liblunatix::syscalls::page_paddr(page2).unwrap(),
+            paddr: liblunatix::ipc::page::get_paddr(page2).unwrap(),
         },
     )
 }

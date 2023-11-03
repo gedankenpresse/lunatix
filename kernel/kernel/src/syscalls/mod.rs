@@ -159,17 +159,6 @@ pub fn handle_syscall(
             (response.into_response(), Schedule::Keep)
         }
 
-        /* Get Page PADDR SYSCALL */
-        // TODO Make get_page_paddr a call
-        21 => {
-            let result = page::page_paddr(ctx, task, &args);
-            let response = match result {
-                Ok(addr) => Ok(addr),
-                Err(e) => Err(e),
-            };
-            (response.into_response(), Schedule::Keep)
-        }
-
         Exit::SYSCALL_NO => {
             log::debug!("handling exit syscall");
             let task = task.get_inner_task().unwrap();

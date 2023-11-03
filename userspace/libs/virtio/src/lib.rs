@@ -298,7 +298,7 @@ fn queue_alloc(
     for i in 0..pages {
         let page = caddr_alloc::alloc_caddr();
         liblunatix::ipc::mem::derive(mem, page, CapabilityVariant::Page, None).unwrap();
-        let this_paddr = liblunatix::syscalls::page_paddr(page).unwrap();
+        let this_paddr = liblunatix::ipc::page::get_paddr(page).unwrap();
         paddr.get_or_insert(this_paddr);
         assert_eq!(
             paddr,

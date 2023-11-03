@@ -5,7 +5,7 @@ mod identify;
 mod send;
 #[macro_use]
 mod print;
-mod page_paddr;
+mod call;
 mod system_reset;
 mod wait_on;
 mod r#yield;
@@ -14,11 +14,11 @@ mod yield_to;
 use core::arch::asm;
 use syscall_abi::{FromRawSysResponse, RawSyscallReturn, SyscallBinding};
 
+pub use call::call;
 pub use copy::copy;
 pub use destroy::destroy;
 pub use exit::exit;
 pub use identify::identify;
-pub use page_paddr::page_paddr;
 pub use print::{_print, print, put_c};
 pub use r#yield::r#yield;
 pub use send::send;

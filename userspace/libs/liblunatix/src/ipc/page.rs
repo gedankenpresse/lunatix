@@ -1,4 +1,4 @@
-use crate::syscalls::send;
+use crate::syscalls::{call, send};
 use syscall_abi::{CAddr, MapFlags, NoValue, SyscallResult};
 
 pub fn map_page(
@@ -15,4 +15,9 @@ pub fn map_page(
 pub fn unmap_page(page: CAddr) -> SyscallResult<NoValue> {
     const UNMAP: usize = 1;
     send(page, UNMAP, &[], &[])
+}
+
+pub fn get_paddr(page: CAddr) -> SyscallResult<usize> {
+    const GET_PADDR: usize = 2;
+    call(page, GET_PADDR, &[], &[]).map(|data| data[0])
 }
