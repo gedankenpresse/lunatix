@@ -11,6 +11,7 @@ mod mem;
 mod page;
 mod task;
 
+mod call;
 mod devmem;
 mod exit;
 mod send;
@@ -35,7 +36,9 @@ use syscall_abi::identify::{Identify, IdentifyArgs};
 use syscall_abi::r#yield::Yield;
 use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
 
+use crate::syscalls::call::sys_call;
 use crate::syscalls::exit::sys_exit;
+use syscall_abi::call::Call;
 use syscall_abi::exit::Exit;
 use syscall_abi::send::SendArgs;
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
@@ -164,6 +167,14 @@ pub fn handle_syscall(
             let task = task.get_inner_task().unwrap();
             sys_exit(task);
             (Default::default(), Schedule::RunInit)
+        }
+
+        Call::SYSCALL_NO => {
+            let args = <Call as SyscallBinding>::CallArgs::from(args);
+            log::debug!("handling call syscall with args {:?}", args);
+            let result = call::sys_call(ctx, task, args);
+            log::debug!("call result is {:?}", result);
+            (result.into_response(), Schedule::Keep)
         }
 
         _no => {
