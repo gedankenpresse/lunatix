@@ -144,6 +144,7 @@ dependencies = [
  "p9",
  "regs",
  "uart_driver",
+ "virtio",
  "virtio_p9",
 ]
 

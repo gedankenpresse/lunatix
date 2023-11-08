@@ -23,6 +23,7 @@ p9 = { version = "0.1.0", path = "../../libs/p9" }
 regs = { version = "0.1.0", path = "../../../support_crates/regs" }
 uart_driver = { version = "0.1.0", path = "../../../support_crates/uart_driver" }
 virtio_p9 = { version = "0.1.0", path = "../../libs/virtio_p9" }
+virtio = { version = "0.1.0", path = "../../libs/virtio" }
 
 [build-dependencies]
 cc = "1.0.79"

@@ -5,6 +5,7 @@ extern crate alloc;
 
 mod commands;
 mod elfloader;
+mod gpu;
 mod logger;
 mod sched;
 mod shell;
@@ -16,7 +17,6 @@ use crate::sifive_uart::SifiveUartMM;
 
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
-use core::convert::Into;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
 use io::read::{ByteReader, EchoingByteReader};
@@ -244,6 +244,8 @@ fn main() {
         0x33_0000_0000 as *mut u8,
     );
     let _ = FS.0.borrow_mut().insert(p9);
+
+    let gpu = gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
 
     shell::shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");

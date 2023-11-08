@@ -14,7 +14,7 @@ clean:
 	rm -f guest_root/hello_world
 	rm -f *.dtb *.dtb.txt
 	rm -rf target
-	make -C u-boot clean
+# make -C u-boot clean
 
 
 #
