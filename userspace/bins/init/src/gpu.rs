@@ -1,9 +1,17 @@
-use liblunatix::prelude::{
-    syscall_abi::{identify::CapabilityVariant, MapFlags},
-    CAddr,
+use core::borrow::Borrow;
+
+use alloc::vec;
+use liblunatix::{
+    prelude::{
+        syscall_abi::{identify::CapabilityVariant, MapFlags},
+        CAddr,
+    },
+    println,
 };
 
 use virtio::{DescriptorFlags, DeviceId, VirtDevice, VirtQ, VirtQMsgBuf};
+
+use crate::CSPACE_BITS;
 
 const VIRTIO_DEVICE: usize = 0x10007000;
 const VIRTIO_DEVICE_LEN: usize = 0x1000;
@@ -97,6 +105,7 @@ impl LittleEndian for u32 {
 }
 
 #[repr(transparent)]
+#[derive(Clone)]
 pub struct LE<T: LittleEndian>(T);
 
 impl<T: LittleEndian + Copy + core::fmt::Debug> core::fmt::Debug for LE<T> {
@@ -137,6 +146,44 @@ struct CtrlHeader {
     _padding: LE<u32>,
 }
 
+#[repr(u32)]
+enum HeaderFlags {
+    FENCE = 1,
+}
+
+struct CtrlHeaderBuilder {
+    header: CtrlHeader,
+}
+
+impl CtrlHeaderBuilder {
+    fn new(req: CtrlType) -> Self {
+        Self {
+            header: CtrlHeader {
+                typ: LE::new(req as u32),
+                flags: LE::new(0),
+                fence_id: LE::new(0),
+                ctx_id: LE::new(0),
+                _padding: LE::new(0),
+            },
+        }
+    }
+
+    fn flag(mut self, flag: HeaderFlags) -> Self {
+        let cur = self.header.flags.get();
+        self.header.flags.set(cur | flag as u32);
+        self
+    }
+
+    fn fence(mut self, id: u64) -> Self {
+        self.header.fence_id.set(id);
+        self.flag(HeaderFlags::FENCE)
+    }
+
+    fn finish(self) -> CtrlHeader {
+        self.header
+    }
+}
+
 impl CtrlHeader {
     fn new(req: CtrlType) -> Self {
         Self {
@@ -147,7 +194,7 @@ impl CtrlHeader {
 }
 
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Rect {
     x: LE<u32>,
     y: LE<u32>,
@@ -158,7 +205,7 @@ struct Rect {
 const MAX_SCANOUTS: usize = 16;
 
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Display {
     rect: Rect,
     enabled: LE<u32>,
@@ -187,6 +234,57 @@ struct ResourceCreate2D {
     format: LE<u32>,
     width: LE<u32>,
     height: LE<u32>,
+}
+
+#[repr(C)]
+struct MemEntry {
+    addr: LE<u64>,
+    length: LE<u32>,
+    padding: LE<u32>,
+}
+
+#[repr(C)]
+struct ResourceCreateBacking {
+    header: CtrlHeader,
+    resource_id: LE<u32>,
+    nr_entries: LE<u32>,
+    entries: [MemEntry; 254],
+}
+
+const _: () = assert!(4096 == core::mem::size_of::<ResourceCreateBacking>());
+
+#[repr(C)]
+struct ResourceCreateBackingSingle {
+    header: CtrlHeader,
+    resource_id: LE<u32>,
+    /// HAS TO BE EXACTLY 1
+    nr_entries: LE<u32>,
+    entry: MemEntry,
+}
+
+#[repr(C)]
+struct TransferToHost2d {
+    header: CtrlHeader,
+    rect: Rect,
+    offset: LE<u64>,
+    resource_id: LE<u32>,
+    padding: LE<u32>,
+}
+
+#[repr(C)]
+struct SetScanout {
+    header: CtrlHeader,
+    rect: Rect,
+    scanout_id: LE<u32>,
+    resource_id: LE<u32>,
+}
+
+#[repr(C)]
+struct ResourceFlush {
+    header: CtrlHeader,
+    rect: Rect,
+    resource_id: LE<u32>,
+    padding: LE<u32>,
 }
 
 #[repr(C)]
@@ -225,10 +323,11 @@ fn alloc_msg_buf(mem: CAddr, vspace: CAddr, addr: *mut u8) -> VirtQMsgBuf {
 
 fn gpu_do_request<'r, T, R>(
     driver: &mut GpuDriver,
-    req: T,
+    req: impl Borrow<T>,
     req_buf: &mut VirtQMsgBuf,
     res_buf: &'r mut VirtQMsgBuf,
 ) -> &'r R {
+    let req = req.borrow();
     let (num2, desc2) = driver.ctrl_q.get_free_descriptor().unwrap();
     desc2.address = res_buf.paddr as u64;
     desc2.next = 0;
@@ -239,14 +338,29 @@ fn gpu_do_request<'r, T, R>(
     desc.next = num2 as u16;
     desc.flags = DescriptorFlags::NEXT as u16;
     desc.length = core::mem::size_of::<T>() as u32;
-    unsafe { req_buf.buf.as_mut_ptr().cast::<T>().write(req) }
+    unsafe {
+        let src_ptr = req as *const T;
+        let dest_ptr = req_buf.buf.as_mut_ptr().cast::<T>();
+        core::ptr::copy_nonoverlapping(src_ptr, dest_ptr, 1);
+    }
 
     driver.ctrl_q.avail.insert_request(num as u16);
     driver.device.notify(0);
     liblunatix::syscalls::wait_on(driver.noti).unwrap();
     liblunatix::ipc::irq::irq_complete(driver.irq).unwrap();
 
+    driver.ctrl_q.descriptor_table[num2].free();
+    driver.ctrl_q.descriptor_table[num].free();
+
     unsafe { res_buf.buf.as_ptr().cast::<R>().as_ref().unwrap() }
+}
+
+fn assert_phys_cont(pages: &[CAddr]) {
+    for i in 1..pages.len() {
+        let prev = liblunatix::ipc::page::get_paddr(pages[i - 1]).unwrap();
+        let cur = liblunatix::ipc::page::get_paddr(pages[i]).unwrap();
+        assert_eq!(prev + 4096, cur, "pages are not physically contigous");
+    }
 }
 
 pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CAddr) {
@@ -296,7 +410,155 @@ pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CA
         CtrlType::RESP_OK_DISPLAY_INFO,
         "mismatching ctrl types"
     );
-    log::info!("resp: {:?}", &res.header);
-    log::info!("resp: {:?}", &res.pmodes[0]);
-    log::info!("resp: {:?}", &res.pmodes[1]);
+    let display = res.pmodes[0].clone();
+    let fb = 0xdeadbeef;
+    let width = 600;
+    let height = 400;
+    let req = ResourceCreate2D {
+        header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_CREATE_2D)
+            .fence(0x1234)
+            .finish(),
+        format: LE::new(ResourceFormats::A8R8G8B8_UNORM as u32),
+        height: LE::new(height),
+        width: LE::new(width),
+        resource_id: LE::new(fb),
+    };
+    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+    assert_eq!(
+        CtrlType::try_from(res.typ.get()).unwrap(),
+        CtrlType::RESP_OK_NODATA
+    );
+
+    let fb_cspace = caddr_alloc::alloc_caddr();
+    const FB_BITS: usize = 10;
+    liblunatix::ipc::mem::derive(
+        mem,
+        fb_cspace,
+        CapabilityVariant::CSpace,
+        Some(1 << FB_BITS),
+    )
+    .expect("creating CSpace failed");
+    assert_eq!(
+        CapabilityVariant::CSpace,
+        liblunatix::syscalls::identify(fb_cspace).unwrap()
+    );
+    let mut pages = vec![];
+    for i in 0..235 {
+        let page_addr = CAddr::builder()
+            .part(fb_cspace.raw(), CSPACE_BITS)
+            .part(i, FB_BITS)
+            .finish();
+        // println!("{:064b} page cspace addr", page_addr);
+        liblunatix::ipc::mem::derive(mem, page_addr, CapabilityVariant::Page, None)
+            .expect("failed deriving page");
+        pages.push(page_addr);
+    }
+    assert_phys_cont(&pages);
+    let phys_addr = liblunatix::ipc::page::get_paddr(pages[0]).unwrap();
+    let size = pages.len() * 4096;
+    let fb_start = 0x38_000_0000 as *mut u8;
+    for (i, page) in pages.iter().enumerate() {
+        let addr = unsafe { fb_start.add(i * 4096) };
+        liblunatix::ipc::page::map_page(
+            *page,
+            vspace,
+            mem,
+            addr as usize,
+            MapFlags::READ | MapFlags::WRITE,
+        )
+        .unwrap();
+    }
+    let mut fb_buf = unsafe {
+        core::slice::from_raw_parts_mut(fb_start.cast::<u32>(), size / core::mem::size_of::<u32>())
+    };
+
+    println!("framebuffer start: 0x{:x} size: 0x{:x}", phys_addr, size);
+    assert!(size > (width * height * 4) as usize);
+
+    let req = ResourceCreateBackingSingle {
+        header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_ATTACH_BACKING)
+            .fence(0x123)
+            .finish(),
+        resource_id: LE::new(fb),
+        nr_entries: LE::new(1),
+        entry: MemEntry {
+            addr: LE::new(phys_addr as u64),
+            length: LE::new(width * height * 4),
+            padding: LE::new(0),
+        },
+    };
+    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+    assert_eq!(
+        CtrlType::try_from(res.typ.get()).unwrap(),
+        CtrlType::RESP_OK_NODATA
+    );
+
+    let req = SetScanout {
+        header: CtrlHeaderBuilder::new(CtrlType::CMD_SET_SCANOUT)
+            .fence(0x1231)
+            .finish(),
+        resource_id: LE::new(fb),
+        scanout_id: LE::new(0),
+        rect: Rect {
+            x: LE::new(0),
+            y: LE::new(0),
+            width: LE::new(width),
+            height: LE::new(height),
+        },
+    };
+    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+    assert_eq!(
+        CtrlType::try_from(res.typ.get()).unwrap(),
+        CtrlType::RESP_OK_NODATA
+    );
+
+    let mut iter = 0;
+    loop {
+        for x in 0..width {
+            for y in 0..height {
+                let pos = x * height + y;
+                fb_buf[pos as usize] = iter + x << 4 + y << 8;
+            }
+        }
+        iter += 1;
+
+        let req = TransferToHost2d {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_TRANSFER_TO_HOST_2D)
+                .fence(0x1234)
+                .finish(),
+            resource_id: LE::new(fb),
+            offset: LE::new(0),
+            padding: LE::new(0),
+            rect: Rect {
+                x: LE::new(0),
+                y: LE::new(0),
+                width: LE::new(width),
+                height: LE::new(height),
+            },
+        };
+        let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+        assert_eq!(
+            CtrlType::try_from(res.typ.get()).unwrap(),
+            CtrlType::RESP_OK_NODATA
+        );
+
+        let req = ResourceFlush {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_FLUSH)
+                .fence(0x122)
+                .finish(),
+            resource_id: LE::new(fb),
+            padding: LE::new(0),
+            rect: Rect {
+                x: LE::new(0),
+                y: LE::new(0),
+                width: LE::new(width),
+                height: LE::new(height),
+            },
+        };
+        let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+        assert_eq!(
+            CtrlType::try_from(res.typ.get()).unwrap(),
+            CtrlType::RESP_OK_NODATA
+        );
+    }
 }

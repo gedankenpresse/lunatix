@@ -200,6 +200,7 @@ impl Descriptor {
     pub fn free(&mut self) {
         self.length = 0;
         self.address = 0;
+        self.flags = 0;
     }
 
     pub fn describe_response(&mut self, resp_buf: &VirtQMsgBuf) {
