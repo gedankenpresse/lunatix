@@ -24,7 +24,7 @@ use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::system_reset::{ResetReason, ResetType};
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
-use liblunatix::println;
+use liblunatix::{print, println};
 use log::Level;
 use logger::Logger;
 use sifive_uart::SifiveUart;
@@ -245,7 +245,25 @@ fn main() {
     );
     let _ = FS.0.borrow_mut().insert(p9);
 
-    let gpu = gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
+    let mut gpu = gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
+    let display = gpu.get_displays()[0].clone();
+    let width = display.rect.width.get();
+    let height = display.rect.height.get();
+    println!("width: {width}, height: {height}");
+    let fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, 600, 400);
+
+    let mut iter = 0;
+    loop {
+        for x in 0..fb.width {
+            for y in 0..fb.height {
+                let pos = x * fb.height + y;
+                fb.buf[pos as usize] = iter + x << 4 + y << 8;
+            }
+        }
+        iter += 1;
+        println!("{iter}");
+        gpu.draw_resource(&fb);
+    }
 
     shell::shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");

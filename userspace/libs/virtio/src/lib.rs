@@ -242,7 +242,7 @@ pub struct VirtQUsed {
     pub avail_event: &'static mut u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct VirtQUsedElem {
     pub id: u32,

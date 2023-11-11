@@ -1,4 +1,4 @@
-use core::borrow::Borrow;
+use core::{borrow::Borrow, sync::atomic::AtomicU64};
 
 use alloc::vec;
 use liblunatix::{
@@ -121,11 +121,11 @@ impl<T: LittleEndian> LE<T> {
 }
 
 impl<T: LittleEndian + Copy> LE<T> {
-    fn get(&self) -> T {
+    pub fn get(&self) -> T {
         T::from_le(self.0)
     }
 
-    fn set(&mut self, t: T) {
+    pub fn set(&mut self, t: T) {
         self.0 = T::to_le(t)
     }
 }
@@ -195,19 +195,19 @@ impl CtrlHeader {
 
 #[repr(C)]
 #[derive(Default, Debug, Clone)]
-struct Rect {
-    x: LE<u32>,
-    y: LE<u32>,
-    width: LE<u32>,
-    height: LE<u32>,
+pub struct Rect {
+    pub x: LE<u32>,
+    pub y: LE<u32>,
+    pub width: LE<u32>,
+    pub height: LE<u32>,
 }
 
 const MAX_SCANOUTS: usize = 16;
 
 #[repr(C)]
 #[derive(Default, Debug, Clone)]
-struct Display {
-    rect: Rect,
+pub struct Display {
+    pub rect: Rect,
     enabled: LE<u32>,
     flags: LE<u32>,
 }
@@ -300,6 +300,17 @@ pub struct GpuDriver {
     cursor_q: VirtQ,
     noti: CAddr,
     irq: CAddr,
+    req_buf: VirtQMsgBuf,
+    res_buf: VirtQMsgBuf,
+}
+
+pub struct GpuFramebuffer {
+    pub page_cspace: CAddr,
+    pub resource_id: u32,
+    pub scanout: u32,
+    pub width: u32,
+    pub height: u32,
+    pub buf: &'static mut [u32],
 }
 
 fn alloc_msg_buf(mem: CAddr, vspace: CAddr, addr: *mut u8) -> VirtQMsgBuf {
@@ -332,25 +343,56 @@ fn gpu_do_request<'r, T, R>(
     desc2.address = res_buf.paddr as u64;
     desc2.next = 0;
     desc2.flags = DescriptorFlags::WRITE as u16;
-    desc2.length = core::mem::size_of::<R>() as u32;
+    let res_length = core::mem::size_of::<R>() as u32;
+    assert!(res_length != 0);
+    desc2.length = res_length;
     let (num, desc) = driver.ctrl_q.get_free_descriptor().unwrap();
     desc.address = req_buf.paddr as u64;
     desc.next = num2 as u16;
     desc.flags = DescriptorFlags::NEXT as u16;
-    desc.length = core::mem::size_of::<T>() as u32;
+    let req_length = core::mem::size_of::<T>() as u32;
+    assert!(req_length != 0);
+    desc.length = req_length;
     unsafe {
         let src_ptr = req as *const T;
         let dest_ptr = req_buf.buf.as_mut_ptr().cast::<T>();
         core::ptr::copy_nonoverlapping(src_ptr, dest_ptr, 1);
     }
 
+    let mut last_used = *driver.ctrl_q.used.idx % driver.ctrl_q.descriptor_table.len() as u16;
     driver.ctrl_q.avail.insert_request(num as u16);
     driver.device.notify(0);
-    liblunatix::syscalls::wait_on(driver.noti).unwrap();
-    liblunatix::ipc::irq::irq_complete(driver.irq).unwrap();
 
-    driver.ctrl_q.descriptor_table[num2].free();
-    driver.ctrl_q.descriptor_table[num].free();
+    // TODO: understand why this works.
+    // ... Okay, just joking.
+    // Sometimes the device interrupts without actually having a new events, so we try to await new events in a loop.
+    // In theory it is possible to receive multiple new events, so we handle that in a loop as well.
+    // Last, but not least, a single used event can have multiple chained descriptors, so we handle those in a loop as well.
+    let mut done = false;
+    while !done {
+        liblunatix::syscalls::wait_on(driver.noti).unwrap();
+        let used_idx = *driver.ctrl_q.used.idx % driver.ctrl_q.descriptor_table.len() as u16;
+        while last_used != used_idx {
+            let used_elem = driver.ctrl_q.used.ring[last_used as usize];
+            let mut idx = used_elem.id as u16;
+            let mut desc = &mut driver.ctrl_q.descriptor_table[idx as usize];
+            while DescriptorFlags::NEXT as u16 & desc.flags != 0 {
+                if num as u16 == idx {
+                    done = true;
+                }
+                idx = desc.next;
+                desc.free();
+                desc = &mut driver.ctrl_q.descriptor_table[idx as usize];
+            }
+            if num as u16 == idx {
+                done = true;
+            }
+            desc.free();
+            last_used = (last_used + 1) % driver.ctrl_q.descriptor_table.len() as u16;
+        }
+
+        liblunatix::ipc::irq::irq_complete(driver.irq).unwrap();
+    }
 
     unsafe { res_buf.buf.as_ptr().cast::<R>().as_ref().unwrap() }
 }
@@ -363,10 +405,10 @@ fn assert_phys_cont(pages: &[CAddr]) {
     }
 }
 
-pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CAddr) {
+pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CAddr) -> GpuDriver {
     liblunatix::ipc::devmem::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN)
         .unwrap();
-    let mut driver = unsafe {
+    let driver = unsafe {
         let device = VirtDevice::at(VIRTIO_DEVICE as *mut VirtDevice);
         assert_eq!(device.device_id.read(), DeviceId::GPU_DEVICE);
         let mut status = device.init();
@@ -385,180 +427,219 @@ pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CA
             virtio::queue_setup(device, 1, mem, vspace, 0x35_0000_0000 as *mut u8).unwrap();
 
         device.finish_setup(status);
+
+        let req_buf = alloc_msg_buf(mem, vspace, 0x36_000_0000 as *mut u8);
+        let res_buf = alloc_msg_buf(mem, vspace, 0x37_000_0000 as *mut u8);
         GpuDriver {
             device,
             ctrl_q,
             cursor_q,
             noti: irq_notif,
             irq,
+            req_buf,
+            res_buf,
         }
     };
     log::info!("got driver!");
-    let mut req_buf = alloc_msg_buf(mem, vspace, 0x36_000_0000 as *mut u8);
-    let mut res_buf = alloc_msg_buf(mem, vspace, 0x37_000_0000 as *mut u8);
+    return driver;
+}
 
-    let res: &RespDisplayInfo = gpu_do_request(
-        &mut driver,
-        CtrlHeader::new(CtrlType::CMD_GET_DISPLAY_INFO),
-        &mut req_buf,
-        &mut res_buf,
-    );
-
-    let ctype: CtrlType = res.header.typ.get().try_into().unwrap();
-    assert_eq!(
-        ctype,
-        CtrlType::RESP_OK_DISPLAY_INFO,
-        "mismatching ctrl types"
-    );
-    let display = res.pmodes[0].clone();
-    let fb = 0xdeadbeef;
-    let width = 600;
-    let height = 400;
-    let req = ResourceCreate2D {
-        header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_CREATE_2D)
-            .fence(0x1234)
-            .finish(),
-        format: LE::new(ResourceFormats::A8R8G8B8_UNORM as u32),
-        height: LE::new(height),
-        width: LE::new(width),
-        resource_id: LE::new(fb),
-    };
-    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
-    assert_eq!(
-        CtrlType::try_from(res.typ.get()).unwrap(),
-        CtrlType::RESP_OK_NODATA
-    );
-
-    let fb_cspace = caddr_alloc::alloc_caddr();
-    const FB_BITS: usize = 10;
-    liblunatix::ipc::mem::derive(
-        mem,
-        fb_cspace,
-        CapabilityVariant::CSpace,
-        Some(1 << FB_BITS),
-    )
-    .expect("creating CSpace failed");
-    assert_eq!(
-        CapabilityVariant::CSpace,
-        liblunatix::syscalls::identify(fb_cspace).unwrap()
-    );
-    let mut pages = vec![];
-    for i in 0..235 {
-        let page_addr = CAddr::builder()
-            .part(fb_cspace.raw(), CSPACE_BITS)
-            .part(i, FB_BITS)
-            .finish();
-        // println!("{:064b} page cspace addr", page_addr);
-        liblunatix::ipc::mem::derive(mem, page_addr, CapabilityVariant::Page, None)
-            .expect("failed deriving page");
-        pages.push(page_addr);
+impl GpuDriver {
+    fn do_request<T, R>(&mut self, req: impl Borrow<T>) -> &R {
+        let req_buf = unsafe { ((&mut self.req_buf) as *mut VirtQMsgBuf).as_mut().unwrap() };
+        let res_buf = unsafe { ((&mut self.req_buf) as *mut VirtQMsgBuf).as_mut().unwrap() };
+        gpu_do_request(self, req, req_buf, res_buf)
     }
-    assert_phys_cont(&pages);
-    let phys_addr = liblunatix::ipc::page::get_paddr(pages[0]).unwrap();
-    let size = pages.len() * 4096;
-    let fb_start = 0x38_000_0000 as *mut u8;
-    for (i, page) in pages.iter().enumerate() {
-        let addr = unsafe { fb_start.add(i * 4096) };
-        liblunatix::ipc::page::map_page(
-            *page,
-            vspace,
-            mem,
-            addr as usize,
-            MapFlags::READ | MapFlags::WRITE,
-        )
-        .unwrap();
+
+    pub fn get_displays(&mut self) -> [Display; 16] {
+        let res: &RespDisplayInfo = self.do_request(
+            CtrlHeaderBuilder::new(CtrlType::CMD_GET_DISPLAY_INFO)
+                .fence(0x1)
+                .finish(),
+        );
+
+        let ctype: CtrlType = res.header.typ.get().try_into().unwrap();
+        assert_eq!(
+            ctype,
+            CtrlType::RESP_OK_DISPLAY_INFO,
+            "mismatching ctrl types"
+        );
+        return res.pmodes.clone();
     }
-    let mut fb_buf = unsafe {
-        core::slice::from_raw_parts_mut(fb_start.cast::<u32>(), size / core::mem::size_of::<u32>())
-    };
 
-    println!("framebuffer start: 0x{:x} size: 0x{:x}", phys_addr, size);
-    assert!(size > (width * height * 4) as usize);
+    pub fn create_resource(
+        &mut self,
+        mem: CAddr,
+        vspace: CAddr,
+        resource_id: u32,
+        scanout: u32,
+        width: u32,
+        height: u32,
+    ) -> GpuFramebuffer {
+        let bytes = width as usize * height as usize * 4;
+        const PAGESIZE: usize = 4096;
+        let page_count = (bytes + PAGESIZE - 1) / PAGESIZE;
 
-    let req = ResourceCreateBackingSingle {
-        header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_ATTACH_BACKING)
-            .fence(0x123)
-            .finish(),
-        resource_id: LE::new(fb),
-        nr_entries: LE::new(1),
-        entry: MemEntry {
-            addr: LE::new(phys_addr as u64),
-            length: LE::new(width * height * 4),
-            padding: LE::new(0),
-        },
-    };
-    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
-    assert_eq!(
-        CtrlType::try_from(res.typ.get()).unwrap(),
-        CtrlType::RESP_OK_NODATA
-    );
-
-    let req = SetScanout {
-        header: CtrlHeaderBuilder::new(CtrlType::CMD_SET_SCANOUT)
-            .fence(0x1231)
-            .finish(),
-        resource_id: LE::new(fb),
-        scanout_id: LE::new(0),
-        rect: Rect {
-            x: LE::new(0),
-            y: LE::new(0),
-            width: LE::new(width),
-            height: LE::new(height),
-        },
-    };
-    let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
-    assert_eq!(
-        CtrlType::try_from(res.typ.get()).unwrap(),
-        CtrlType::RESP_OK_NODATA
-    );
-
-    let mut iter = 0;
-    loop {
-        for x in 0..width {
-            for y in 0..height {
-                let pos = x * height + y;
-                fb_buf[pos as usize] = iter + x << 4 + y << 8;
-            }
-        }
-        iter += 1;
-
-        let req = TransferToHost2d {
-            header: CtrlHeaderBuilder::new(CtrlType::CMD_TRANSFER_TO_HOST_2D)
+        let req = ResourceCreate2D {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_CREATE_2D)
                 .fence(0x1234)
                 .finish(),
-            resource_id: LE::new(fb),
+            format: LE::new(ResourceFormats::A8R8G8B8_UNORM as u32),
+            height: LE::new(height),
+            width: LE::new(width),
+            resource_id: LE::new(resource_id),
+        };
+        let res: &CtrlHeader = self.do_request(req);
+        assert_eq!(
+            CtrlType::try_from(res.typ.get()).unwrap(),
+            CtrlType::RESP_OK_NODATA
+        );
+
+        let fb_cspace = caddr_alloc::alloc_caddr();
+        const FB_BITS: usize = 10;
+        liblunatix::ipc::mem::derive(
+            mem,
+            fb_cspace,
+            CapabilityVariant::CSpace,
+            Some(1 << FB_BITS),
+        )
+        .expect("creating CSpace failed");
+        assert_eq!(
+            CapabilityVariant::CSpace,
+            liblunatix::syscalls::identify(fb_cspace).unwrap()
+        );
+        let mut pages = vec![];
+        for i in 0..page_count {
+            let page_addr = CAddr::builder()
+                .part(fb_cspace.raw(), CSPACE_BITS)
+                .part(i, FB_BITS)
+                .finish();
+            // println!("{:064b} page cspace addr", page_addr);
+            liblunatix::ipc::mem::derive(mem, page_addr, CapabilityVariant::Page, None)
+                .expect("failed deriving page");
+            pages.push(page_addr);
+        }
+        assert_phys_cont(&pages);
+        let phys_addr = liblunatix::ipc::page::get_paddr(pages[0]).unwrap();
+        let fb_start = 0x38_000_0000 as *mut u8;
+        for (i, page) in pages.iter().enumerate() {
+            let addr = unsafe { fb_start.add(i * PAGESIZE) };
+            liblunatix::ipc::page::map_page(
+                *page,
+                vspace,
+                mem,
+                addr as usize,
+                MapFlags::READ | MapFlags::WRITE,
+            )
+            .unwrap();
+        }
+        let fb_buf = unsafe {
+            core::slice::from_raw_parts_mut(
+                fb_start.cast::<u32>(),
+                bytes / core::mem::size_of::<u32>(),
+            )
+        };
+
+        println!("framebuffer start: 0x{:x} size: 0x{:x}", phys_addr, bytes);
+        assert!(bytes >= (width * height * 4) as usize);
+
+        let req = ResourceCreateBackingSingle {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_ATTACH_BACKING)
+                .fence(0x123)
+                .finish(),
+            resource_id: LE::new(resource_id),
+            nr_entries: LE::new(1),
+            entry: MemEntry {
+                addr: LE::new(phys_addr as u64),
+                length: LE::new(width * height * 4),
+                padding: LE::new(0),
+            },
+        };
+        let res: &CtrlHeader = self.do_request(req);
+        assert_eq!(
+            CtrlType::try_from(res.typ.get()).unwrap(),
+            CtrlType::RESP_OK_NODATA
+        );
+
+        let req = SetScanout {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_SET_SCANOUT)
+                .fence(0x1231)
+                .finish(),
+            resource_id: LE::new(resource_id),
+            scanout_id: LE::new(0),
+            rect: Rect {
+                x: LE::new(0),
+                y: LE::new(0),
+                width: LE::new(width),
+                height: LE::new(height),
+            },
+        };
+        let res: &CtrlHeader = self.do_request(req);
+        assert_eq!(
+            CtrlType::try_from(res.typ.get()).unwrap(),
+            CtrlType::RESP_OK_NODATA
+        );
+
+        return GpuFramebuffer {
+            page_cspace: fb_cspace,
+            resource_id,
+            scanout,
+            width,
+            height,
+            buf: fb_buf,
+        };
+    }
+
+    fn transfer_to_host_2d(&mut self, fb: &GpuFramebuffer, fence: u64) {
+        let req = TransferToHost2d {
+            header: CtrlHeaderBuilder::new(CtrlType::CMD_TRANSFER_TO_HOST_2D)
+                .fence(fence)
+                .finish(),
+            resource_id: LE::new(fb.resource_id),
             offset: LE::new(0),
             padding: LE::new(0),
             rect: Rect {
                 x: LE::new(0),
                 y: LE::new(0),
-                width: LE::new(width),
-                height: LE::new(height),
+                width: LE::new(fb.width),
+                height: LE::new(fb.height),
             },
         };
-        let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+        let res: &CtrlHeader = self.do_request(req);
+
+        assert_eq!(fence, res.fence_id.get());
         assert_eq!(
             CtrlType::try_from(res.typ.get()).unwrap(),
             CtrlType::RESP_OK_NODATA
         );
+    }
 
+    fn flush(&mut self, fb: &GpuFramebuffer, fence: u64) {
         let req = ResourceFlush {
             header: CtrlHeaderBuilder::new(CtrlType::CMD_RESOURCE_FLUSH)
-                .fence(0x122)
+                .fence(fence)
                 .finish(),
-            resource_id: LE::new(fb),
+            resource_id: LE::new(fb.resource_id),
             padding: LE::new(0),
             rect: Rect {
                 x: LE::new(0),
                 y: LE::new(0),
-                width: LE::new(width),
-                height: LE::new(height),
+                width: LE::new(fb.width),
+                height: LE::new(fb.height),
             },
         };
-        let res: &CtrlHeader = gpu_do_request(&mut driver, req, &mut req_buf, &mut res_buf);
+        let res: &CtrlHeader = self.do_request(req);
+        assert_eq!(fence, res.fence_id.get());
         assert_eq!(
             CtrlType::try_from(res.typ.get()).unwrap(),
             CtrlType::RESP_OK_NODATA
         );
+    }
+
+    pub fn draw_resource(&mut self, fb: &GpuFramebuffer) {
+        static FENCE_ID: AtomicU64 = AtomicU64::new(0x1000);
+        use core::sync::atomic::Ordering;
+        self.transfer_to_host_2d(fb, FENCE_ID.fetch_add(1, Ordering::SeqCst));
+        self.flush(fb, FENCE_ID.fetch_add(1, Ordering::SeqCst));
     }
 }
