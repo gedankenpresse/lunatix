@@ -24,6 +24,7 @@ regs = { version = "0.1.0", path = "../../../support_crates/regs" }
 uart_driver = { version = "0.1.0", path = "../../../support_crates/uart_driver" }
 virtio_p9 = { version = "0.1.0", path = "../../libs/virtio_p9" }
 virtio = { version = "0.1.0", path = "../../libs/virtio" }
+embedded-graphics = "0.8.1"
 
 [build-dependencies]
 cc = "1.0.79"

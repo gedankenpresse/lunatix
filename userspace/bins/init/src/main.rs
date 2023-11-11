@@ -4,6 +4,7 @@
 extern crate alloc;
 
 mod commands;
+mod draw;
 mod elfloader;
 mod gpu;
 mod logger;
@@ -13,11 +14,14 @@ mod sifive_uart;
 mod static_once_cell;
 mod static_vec;
 
+use crate::draw::DrawBuffer;
 use crate::sifive_uart::SifiveUartMM;
 
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
+use embedded_graphics::mono_font::MonoTextStyleBuilder;
+use embedded_graphics::text::TextStyleBuilder;
 use fdt::{node::FdtNode, Fdt};
 use io::read::{ByteReader, EchoingByteReader};
 use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
@@ -250,16 +254,45 @@ fn main() {
     let width = display.rect.width.get();
     let height = display.rect.height.get();
     println!("width: {width}, height: {height}");
-    let fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, 600, 400);
+    let mut fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, 600, 400);
 
     let mut iter = 0;
     loop {
-        for x in 0..fb.width {
-            for y in 0..fb.height {
-                let pos = x * fb.height + y;
-                fb.buf[pos as usize] = iter + x << 4 + y << 8;
-            }
-        }
+        use embedded_graphics::prelude::*;
+        use embedded_graphics::primitives::*;
+        use embedded_graphics::{
+            mono_font::{ascii, MonoTextStyle},
+            text::*,
+        };
+
+        let mut target = DrawBuffer {
+            buf: &mut fb.buf,
+            width: fb.width,
+            height: fb.height,
+        };
+
+        // Create a new character style
+        let style = MonoTextStyleBuilder::new()
+            .font(&ascii::FONT_9X18_BOLD)
+            .text_color(RgbColor::RED)
+            .build();
+        // Create a new text style.
+        let text_style = TextStyleBuilder::new()
+            .alignment(Alignment::Left)
+            .line_height(LineHeight::Pixels(20))
+            .build();
+        //let style = MonoTextStyle::new(&ascii::FONT_9X18_BOLD, RgbColor::RED);
+
+        // Create a text at position (20, 30) and draw it using the previously defined style
+        let text = "                                                                  \n                                                          \nHello World!\nThis will be a very long line, so maybe we won't see all of it on the display, let's see.\nMhm. Seems like this still looks a \nlittle weird when you go other the edge of the screen";
+        let bounds = text.len().min(iter);
+        Text::with_text_style(&text[0..bounds], Point::new(20, 30), style, text_style)
+            .draw(&mut target)
+            .unwrap();
+        // Draw a circle with top-left at `(22, 22)` with a diameter of `20` and a white stroke
+        let circle = Circle::new(Point::new(402, 22), 20)
+            .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 1));
+        circle.draw(&mut target).unwrap();
         iter += 1;
         println!("{iter}");
         gpu.draw_resource(&fb);
