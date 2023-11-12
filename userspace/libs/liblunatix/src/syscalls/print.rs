@@ -3,6 +3,8 @@ use core::fmt::{self, Write};
 use syscall_abi::debug::{DebugLog, DebugLogArgs};
 use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
 
+pub static mut SYS_WRITER: Option<&'static mut dyn core::fmt::Write> = None;
+
 pub fn print(s: &str) {
     const REG_SIZE: usize = core::mem::size_of::<usize>();
     const BUF_SIZE: usize = REG_SIZE * 6;
@@ -17,7 +19,8 @@ pub fn put_c(c: char) {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    SyscallWriter {}.write_fmt(args).unwrap();
+    let writer = unsafe { SYS_WRITER.as_mut().expect("No System Writer configured") };
+    writer.write_fmt(args).unwrap();
 }
 
 #[macro_export]
@@ -33,7 +36,7 @@ macro_rules! println {
 
 /// Dummy struct that makes converting [`fmt::Arguments`] easier to convert to strings
 /// by offloading that to the [`Write`] trait.
-struct SyscallWriter {}
+pub struct SyscallWriter {}
 
 impl Write for SyscallWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {

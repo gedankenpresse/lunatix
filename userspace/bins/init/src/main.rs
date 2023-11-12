@@ -17,10 +17,10 @@ mod static_vec;
 use crate::draw::{DrawBuffer, VGABuffer, VGAChar};
 use crate::sifive_uart::SifiveUartMM;
 
+use alloc::boxed::Box;
 use alloc::vec;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
-use core::fmt::Write;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
 use gpu::{GpuDriver, GpuFramebuffer};
@@ -41,6 +41,13 @@ static LOGGER: Logger = Logger::new(Level::Info);
 
 #[no_mangle]
 fn _start() {
+    unsafe {
+        use liblunatix::syscalls::print::{SyscallWriter, SYS_WRITER};
+        let mut sys_writer = SyscallWriter {};
+        let r = &mut sys_writer;
+        let static_r = core::mem::transmute::<&mut SyscallWriter, &'static mut SyscallWriter>(r);
+        let _ = SYS_WRITER.insert(static_r);
+    };
     LOGGER.install().expect("could not install logger");
     main();
 }
@@ -234,22 +241,30 @@ pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
     cur: AtomicUsize::new(10),
 };
 
-pub struct VGAWriter<'b> {
+pub struct VGAWriter {
     gpu: GpuDriver,
     fb: GpuFramebuffer,
-    vga: VGABuffer<'b>,
+    vga: VGABuffer,
     pos_x: u32,
     pos_y: u32,
 }
 
-impl<'b> core::fmt::Write for VGAWriter<'b> {
+impl core::fmt::Write for VGAWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for b in s.as_bytes() {
-            let idx = self.pos_y + self.vga.width + self.pos_x;
-            self.vga.buf[idx as usize].char = *b;
-            self.pos_x = self.pos_x % self.vga.width;
-            if self.pos_x == 0 {
-                self.pos_y += 1;
+        for &b in s.as_bytes() {
+            match b {
+                b'\n' => {
+                    self.pos_x = 0;
+                    self.pos_y += 1;
+                }
+                other => {
+                    let idx = self.pos_y * self.vga.width + self.pos_x;
+                    self.vga.buf[idx as usize].char = other;
+                    self.pos_x = self.pos_x + 1 % self.vga.width;
+                    if self.pos_x == 0 {
+                        self.pos_y += 1;
+                    }
+                }
             }
         }
 
@@ -289,20 +304,24 @@ fn main() {
 
     let vga_width = fb.width / 7;
     let vga_height = fb.height / 14;
-    let mut vga_buf = vec![VGAChar::default(); (vga_width * vga_height) as usize];
+    let vga_buf = vec![VGAChar::default(); (vga_width * vga_height) as usize];
     let vga = VGABuffer {
-        buf: &mut vga_buf,
+        buf: vga_buf,
         width: vga_width,
         height: vga_height,
     };
-    let mut vga_writer = VGAWriter {
+    let vga_writer = VGAWriter {
         gpu,
         fb,
         vga,
         pos_x: 0,
         pos_y: 0,
     };
-    vga_writer.write_str("Hello world!").unwrap();
+    let static_vga_writer = Box::leak(Box::new(vga_writer));
+    unsafe {
+        use liblunatix::syscalls::print::SYS_WRITER;
+        let _ = SYS_WRITER.insert(static_vga_writer);
+    };
 
     shell::shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");

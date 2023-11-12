@@ -1,9 +1,9 @@
+use alloc::vec::Vec;
 use embedded_graphics::{
     pixelcolor,
-    prelude::{DrawTarget, DrawTargetExt, OriginDimensions, RgbColor, Size},
+    prelude::{DrawTarget, OriginDimensions, RgbColor, Size},
     Pixel,
 };
-use liblunatix::println;
 
 pub struct DrawBuffer<'b> {
     pub buf: &'b mut [u32],
@@ -56,20 +56,19 @@ pub struct VGAChar {
     pub char: u8,
 }
 
-pub struct VGABuffer<'b> {
-    pub buf: &'b mut [VGAChar],
+pub struct VGABuffer {
+    pub buf: Vec<VGAChar>,
     pub width: u32,
     pub height: u32,
 }
 
 pub fn render_vga_buffer<'b, E, T: DrawTarget<Color = pixelcolor::Rgb888, Error = E>>(
     target: &mut T,
-    vga: &VGABuffer<'b>,
+    vga: &VGABuffer,
 ) -> Result<(), E> {
     use embedded_graphics::prelude::*;
-    use embedded_graphics::primitives::*;
     use embedded_graphics::{
-        mono_font::{ascii, MonoTextStyle, MonoTextStyleBuilder},
+        mono_font::{ascii, MonoTextStyleBuilder},
         text::*,
     };
 

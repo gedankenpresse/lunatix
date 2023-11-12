@@ -6,6 +6,7 @@ pub mod syscalls;
 pub mod ipc;
 
 pub mod prelude {
+    pub use super::syscalls::SYS_WRITER;
     pub use crate::print;
     pub use crate::println;
     pub use syscall_abi;
