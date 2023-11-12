@@ -14,21 +14,22 @@ mod sifive_uart;
 mod static_once_cell;
 mod static_vec;
 
-use crate::draw::DrawBuffer;
+use crate::draw::{DrawBuffer, VGABuffer, VGAChar};
 use crate::sifive_uart::SifiveUartMM;
 
+use alloc::vec;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
+use core::fmt::Write;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::text::TextStyleBuilder;
 use fdt::{node::FdtNode, Fdt};
+use gpu::{GpuDriver, GpuFramebuffer};
 use io::read::{ByteReader, EchoingByteReader};
 use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::system_reset::{ResetReason, ResetType};
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
-use liblunatix::{print, println};
+use liblunatix::println;
 use log::Level;
 use logger::Logger;
 use sifive_uart::SifiveUart;
@@ -233,6 +234,36 @@ pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
     cur: AtomicUsize::new(10),
 };
 
+pub struct VGAWriter<'b> {
+    gpu: GpuDriver,
+    fb: GpuFramebuffer,
+    vga: VGABuffer<'b>,
+    pos_x: u32,
+    pos_y: u32,
+}
+
+impl<'b> core::fmt::Write for VGAWriter<'b> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for b in s.as_bytes() {
+            let idx = self.pos_y + self.vga.width + self.pos_x;
+            self.vga.buf[idx as usize].char = *b;
+            self.pos_x = self.pos_x % self.vga.width;
+            if self.pos_x == 0 {
+                self.pos_y += 1;
+            }
+        }
+
+        let mut target = DrawBuffer {
+            buf: &mut self.fb.buf,
+            width: self.fb.width,
+            height: self.fb.height,
+        };
+        draw::render_vga_buffer(&mut target, &self.vga).unwrap();
+        self.gpu.draw_resource(&self.fb);
+        Ok(())
+    }
+}
+
 fn main() {
     unsafe { caddr_alloc::set_global_caddr_allocator(&CADDR_ALLOC) };
     ALLOC.get_or_init(|| unsafe { alloc_init(32, 0x10_0000 as *mut u8) });
@@ -254,49 +285,24 @@ fn main() {
     let width = display.rect.width.get();
     let height = display.rect.height.get();
     println!("width: {width}, height: {height}");
-    let mut fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, 600, 400);
+    let fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, width, height);
 
-    let mut iter = 0;
-    loop {
-        use embedded_graphics::prelude::*;
-        use embedded_graphics::primitives::*;
-        use embedded_graphics::{
-            mono_font::{ascii, MonoTextStyle},
-            text::*,
-        };
-
-        let mut target = DrawBuffer {
-            buf: &mut fb.buf,
-            width: fb.width,
-            height: fb.height,
-        };
-
-        // Create a new character style
-        let style = MonoTextStyleBuilder::new()
-            .font(&ascii::FONT_9X18_BOLD)
-            .text_color(RgbColor::RED)
-            .build();
-        // Create a new text style.
-        let text_style = TextStyleBuilder::new()
-            .alignment(Alignment::Left)
-            .line_height(LineHeight::Pixels(20))
-            .build();
-        //let style = MonoTextStyle::new(&ascii::FONT_9X18_BOLD, RgbColor::RED);
-
-        // Create a text at position (20, 30) and draw it using the previously defined style
-        let text = "                                                                  \n                                                          \nHello World!\nThis will be a very long line, so maybe we won't see all of it on the display, let's see.\nMhm. Seems like this still looks a \nlittle weird when you go other the edge of the screen";
-        let bounds = text.len().min(iter);
-        Text::with_text_style(&text[0..bounds], Point::new(20, 30), style, text_style)
-            .draw(&mut target)
-            .unwrap();
-        // Draw a circle with top-left at `(22, 22)` with a diameter of `20` and a white stroke
-        let circle = Circle::new(Point::new(402, 22), 20)
-            .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 1));
-        circle.draw(&mut target).unwrap();
-        iter += 1;
-        println!("{iter}");
-        gpu.draw_resource(&fb);
-    }
+    let vga_width = fb.width / 7;
+    let vga_height = fb.height / 14;
+    let mut vga_buf = vec![VGAChar::default(); (vga_width * vga_height) as usize];
+    let vga = VGABuffer {
+        buf: &mut vga_buf,
+        width: vga_width,
+        height: vga_height,
+    };
+    let mut vga_writer = VGAWriter {
+        gpu,
+        fb,
+        vga,
+        pos_x: 0,
+        pos_y: 0,
+    };
+    vga_writer.write_str("Hello world!").unwrap();
 
     shell::shell(&mut EchoingByteReader(stdin));
     println!("Init task says good bye 👋");
