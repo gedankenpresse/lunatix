@@ -249,6 +249,40 @@ pub struct VGAWriter {
     pos_y: u32,
 }
 
+impl VGAWriter {
+    fn flush(&mut self) {
+        let mut target = DrawBuffer {
+            buf: &mut self.fb.buf,
+            width: self.fb.width,
+            height: self.fb.height,
+        };
+        draw::render_vga_buffer(&mut target, &self.vga).unwrap();
+        self.gpu.draw_resource(&self.fb);
+    }
+}
+
+pub struct VgaWriterFlush {
+    vga: VGAWriter,
+}
+
+impl core::fmt::Write for VgaWriterFlush {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.vga.write_str(s)?;
+        self.vga.flush();
+        Ok(())
+    }
+
+    fn write_char(&mut self, c: char) -> core::fmt::Result {
+        self.write_str(c.encode_utf8(&mut [0; 4]))
+    }
+
+    fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
+        core::fmt::write(&mut self.vga, args)?;
+        self.vga.flush();
+        Ok(())
+    }
+}
+
 impl core::fmt::Write for VGAWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for &b in s.as_bytes() {
@@ -267,14 +301,6 @@ impl core::fmt::Write for VGAWriter {
                 }
             }
         }
-
-        let mut target = DrawBuffer {
-            buf: &mut self.fb.buf,
-            width: self.fb.width,
-            height: self.fb.height,
-        };
-        draw::render_vga_buffer(&mut target, &self.vga).unwrap();
-        self.gpu.draw_resource(&self.fb);
         Ok(())
     }
 }
@@ -317,7 +343,7 @@ fn main() {
         pos_x: 0,
         pos_y: 0,
     };
-    let static_vga_writer = Box::leak(Box::new(vga_writer));
+    let static_vga_writer = Box::leak(Box::new(VgaWriterFlush { vga: vga_writer }));
     unsafe {
         use liblunatix::syscalls::print::SYS_WRITER;
         let _ = SYS_WRITER.insert(static_vga_writer);

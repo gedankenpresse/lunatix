@@ -213,6 +213,7 @@ pub struct Display {
 }
 
 #[allow(non_camel_case_types)]
+#[allow(unused)]
 #[repr(u32)]
 enum ResourceFormats {
     B8G8R8A8_UNORM = 1,
