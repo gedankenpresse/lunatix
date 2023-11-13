@@ -13,9 +13,10 @@ mod shell;
 mod sifive_uart;
 mod static_once_cell;
 mod static_vec;
+mod vga;
 
-use crate::draw::{DrawBuffer, VGABuffer, VGAChar};
 use crate::sifive_uart::SifiveUartMM;
+use crate::vga::{VGABuffer, VGAChar};
 
 use alloc::boxed::Box;
 use alloc::vec;
@@ -23,7 +24,6 @@ use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
-use gpu::{GpuDriver, GpuFramebuffer};
 use io::read::{ByteReader, EchoingByteReader};
 use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::system_reset::{ResetReason, ResetType};
@@ -241,70 +241,6 @@ pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
     cur: AtomicUsize::new(10),
 };
 
-pub struct VGAWriter {
-    gpu: GpuDriver,
-    fb: GpuFramebuffer,
-    vga: VGABuffer,
-    pos_x: u32,
-    pos_y: u32,
-}
-
-impl VGAWriter {
-    fn flush(&mut self) {
-        let mut target = DrawBuffer {
-            buf: &mut self.fb.buf,
-            width: self.fb.width,
-            height: self.fb.height,
-        };
-        draw::render_vga_buffer(&mut target, &self.vga).unwrap();
-        self.gpu.draw_resource(&self.fb);
-    }
-}
-
-pub struct VgaWriterFlush {
-    vga: VGAWriter,
-}
-
-impl core::fmt::Write for VgaWriterFlush {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.vga.write_str(s)?;
-        self.vga.flush();
-        Ok(())
-    }
-
-    fn write_char(&mut self, c: char) -> core::fmt::Result {
-        self.write_str(c.encode_utf8(&mut [0; 4]))
-    }
-
-    fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        core::fmt::write(&mut self.vga, args)?;
-        self.vga.flush();
-        Ok(())
-    }
-}
-
-impl core::fmt::Write for VGAWriter {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for &b in s.as_bytes() {
-            match b {
-                b'\n' => {
-                    self.pos_x = 0;
-                    self.pos_y += 1;
-                }
-                other => {
-                    let idx = self.pos_y * self.vga.width + self.pos_x;
-                    self.vga.buf[idx as usize].char = other;
-                    self.pos_x = self.pos_x + 1 % self.vga.width;
-                    if self.pos_x == 0 {
-                        self.pos_y += 1;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 fn main() {
     unsafe { caddr_alloc::set_global_caddr_allocator(&CADDR_ALLOC) };
     ALLOC.get_or_init(|| unsafe { alloc_init(32, 0x10_0000 as *mut u8) });
@@ -329,21 +265,24 @@ fn main() {
     let fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, width, height);
 
     let vga_width = fb.width / 7;
-    let vga_height = fb.height / 14;
+    let vga_height = (fb.height / 14) - 2;
     let vga_buf = vec![VGAChar::default(); (vga_width * vga_height) as usize];
     let vga = VGABuffer {
         buf: vga_buf,
         width: vga_width,
         height: vga_height,
     };
-    let vga_writer = VGAWriter {
-        gpu,
-        fb,
+    let vga_writer = vga::VGAWriter {
         vga,
         pos_x: 0,
         pos_y: 0,
     };
-    let static_vga_writer = Box::leak(Box::new(VgaWriterFlush { vga: vga_writer }));
+    let fb_writer = vga::FramebufferWriter {
+        gpu,
+        fb,
+        vga: vga_writer,
+    };
+    let static_vga_writer = Box::leak(Box::new(fb_writer));
     unsafe {
         use liblunatix::syscalls::print::SYS_WRITER;
         let _ = SYS_WRITER.insert(static_vga_writer);
