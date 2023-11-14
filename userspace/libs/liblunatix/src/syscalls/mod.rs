@@ -19,7 +19,7 @@ pub use copy::copy;
 pub use destroy::destroy;
 pub use exit::exit;
 pub use identify::identify;
-pub use print::{_print, print, put_c, SYS_WRITER};
+pub use print::{print, put_c};
 pub use r#yield::r#yield;
 pub use send::send;
 pub use system_reset::system_reset;

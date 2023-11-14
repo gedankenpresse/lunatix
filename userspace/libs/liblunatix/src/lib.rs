@@ -2,13 +2,13 @@
 
 #[macro_use]
 pub mod syscalls;
-
 pub mod ipc;
+pub mod print;
 
 pub mod prelude {
-    pub use super::syscalls::SYS_WRITER;
     pub use crate::print;
     pub use crate::println;
+    pub use print::SYS_WRITER;
     pub use syscall_abi;
     pub use syscall_abi::CAddr;
     pub use syscall_abi::NoValue;

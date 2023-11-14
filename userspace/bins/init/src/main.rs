@@ -40,13 +40,6 @@ static LOGGER: Logger = Logger::new(Level::Info);
 
 #[no_mangle]
 fn _start() {
-    unsafe {
-        use liblunatix::syscalls::print::{SyscallWriter, SYS_WRITER};
-        let mut sys_writer = SyscallWriter {};
-        let r = &mut sys_writer;
-        let static_r = core::mem::transmute::<&mut SyscallWriter, &'static mut SyscallWriter>(r);
-        let _ = SYS_WRITER.insert(static_r);
-    };
     LOGGER.install().expect("could not install logger");
     main();
 }
@@ -277,7 +270,7 @@ fn main() {
     };
     let static_vga_writer = Box::leak(Box::new(fb_writer));
     unsafe {
-        use liblunatix::syscalls::print::SYS_WRITER;
+        use liblunatix::prelude::SYS_WRITER;
         let _ = SYS_WRITER.insert(static_vga_writer);
     };
 
