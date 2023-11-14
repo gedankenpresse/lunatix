@@ -186,6 +186,7 @@ dependencies = [
  "ksync",
  "liblunatix",
  "log",
+ "mmap",
  "p9",
  "regs",
  "uart_driver",
@@ -287,6 +288,13 @@ name = "micromath"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3c8dda44ff03a2f238717214da50f65d5a53b45cd213a7370424ffdb6fae815"
+
+[[package]]
+name = "mmap"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
 
 [[package]]
 name = "num-derive"
@@ -469,6 +477,7 @@ dependencies = [
  "bitflags 2.4.1",
  "caddr_alloc",
  "liblunatix",
+ "mmap",
  "regs",
 ]
 
@@ -479,6 +488,7 @@ dependencies = [
  "caddr_alloc",
  "io",
  "liblunatix",
+ "mmap",
  "p9",
  "virtio",
 ]

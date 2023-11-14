@@ -1,10 +1,13 @@
 #![no_std]
 
+use core::alloc::Layout;
+
 use bitflags::bitflags;
 use caddr_alloc;
-use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
+use liblunatix::{prelude::syscall_abi::identify::CapabilityVariant, println};
+use mmap::RawRegion;
 use regs::{RO, RW, WO};
 
 pub const VIRTIO_MAGIC: u32 = 0x74726976;
@@ -266,15 +269,13 @@ impl VirtQ {
     }
 }
 
-fn queue_alloc(
-    mem: CAddr,
-    vspace: CAddr,
-    base_ptr: *mut u8,
-    queue_bytes: usize,
-) -> Result<(*mut u8, usize), ()> {
+fn queue_alloc(mem: CAddr, vspace: CAddr, region: RawRegion) -> Result<(*mut u8, usize), ()> {
+    let queue_bytes = region.bytes;
+    let base_ptr = region.start;
     const PAGESIZE: usize = 4096;
     assert_eq!(queue_bytes & (PAGESIZE - 1), 0);
     let pages = queue_bytes / PAGESIZE;
+    println!("queue alloc: pages {}", pages);
 
     // choose an arbitrary address to store the queue in...
     // Because this is hardcoded, we can only alloc one queue
@@ -318,13 +319,7 @@ fn queue_alloc(
     return Ok((addr, paddr.unwrap()));
 }
 
-pub fn queue_setup(
-    dev: &mut VirtDevice,
-    queue_num: u32,
-    mem: CAddr,
-    vspace: CAddr,
-    base_ptr: *mut u8,
-) -> Result<VirtQ, ()> {
+pub fn queue_get_size(dev: &mut VirtDevice, queue_num: u32) -> Result<u32, ()> {
     unsafe {
         dev.queue_sel.write(queue_num);
         assert_eq!(dev.queue_pfn.read(), 0);
@@ -337,15 +332,10 @@ pub fn queue_setup(
         }
         max_items
     };
+    Ok(max_items)
+}
 
-    let queue_len = core::cmp::min(max_items as usize, 256);
-
-    const PAGESIZE: usize = 4096;
-    unsafe {
-        dev.queue_num.write(queue_len as u32);
-        dev.queue_align.write(PAGESIZE as u32);
-    }
-
+pub fn queue_calc_layout(queue_len: usize) -> core::alloc::Layout {
     let desc_sz = 16 * queue_len;
     let avail_sz = 6 + 2 * queue_len;
     let used_sz = 6 + 8 * queue_len;
@@ -356,7 +346,37 @@ pub fn queue_setup(
         return pages * PAGESIZE;
     }
     let queue_bytes = align(desc_sz + avail_sz) + align(used_sz);
-    let (queue_buf, paddr) = queue_alloc(mem, vspace, base_ptr, queue_bytes)?;
+    let layout = core::alloc::Layout::from_size_align(queue_bytes, 4096).unwrap();
+    return layout;
+}
+
+pub fn queue_setup(
+    dev: &mut VirtDevice,
+    queue_num: u32,
+    mem: CAddr,
+    vspace: CAddr,
+) -> Result<VirtQ, ()> {
+    let max_items = queue_get_size(dev, queue_num)?;
+    let queue_len = core::cmp::min(max_items as usize, 256);
+    let queue_layout = queue_calc_layout(queue_len);
+
+    const PAGESIZE: usize = 4096;
+    unsafe {
+        dev.queue_num.write(queue_len as u32);
+        dev.queue_align.write(queue_layout.align() as u32);
+    }
+
+    let desc_sz = 16 * queue_len;
+    let avail_sz = 6 + 2 * queue_len;
+
+    fn align(s: usize) -> usize {
+        const PAGESIZE: usize = 4096;
+        let pages = (s + (PAGESIZE - 1)) / PAGESIZE;
+        return pages * PAGESIZE;
+    }
+
+    let queue_region = mmap::allocate_raw(queue_layout).unwrap();
+    let (queue_buf, paddr) = queue_alloc(mem, vspace, queue_region)?;
 
     assert_eq!(paddr % PAGESIZE, 0);
     unsafe {

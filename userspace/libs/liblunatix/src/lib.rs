@@ -14,3 +14,8 @@ pub mod prelude {
     pub use syscall_abi::NoValue;
     pub use syscall_abi::SyscallError;
 }
+
+#[repr(C, align(4096))]
+pub struct MemoryPage {
+    bytes: [u8; 4096],
+}

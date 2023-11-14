@@ -1,4 +1,4 @@
-use core::{borrow::Borrow, sync::atomic::AtomicU64};
+use core::{alloc::Layout, borrow::Borrow, sync::atomic::AtomicU64};
 
 use alloc::vec;
 use liblunatix::{
@@ -6,7 +6,7 @@ use liblunatix::{
         syscall_abi::{identify::CapabilityVariant, MapFlags},
         CAddr,
     },
-    println,
+    println, MemoryPage,
 };
 
 use virtio::{DescriptorFlags, DeviceId, VirtDevice, VirtQ, VirtQMsgBuf};
@@ -184,15 +184,6 @@ impl CtrlHeaderBuilder {
     }
 }
 
-impl CtrlHeader {
-    fn new(req: CtrlType) -> Self {
-        Self {
-            typ: LE::new(req as u32),
-            ..Default::default()
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(Default, Debug, Clone)]
 pub struct Rect {
@@ -245,6 +236,7 @@ struct MemEntry {
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct ResourceCreateBacking {
     header: CtrlHeader,
     resource_id: LE<u32>,
@@ -295,6 +287,7 @@ struct RespDisplayInfo {
     pmodes: [Display; MAX_SCANOUTS],
 }
 
+#[allow(unused)]
 pub struct GpuDriver {
     device: &'static mut VirtDevice,
     ctrl_q: VirtQ,
@@ -314,20 +307,21 @@ pub struct GpuFramebuffer {
     pub buf: &'static mut [u32],
 }
 
-fn alloc_msg_buf(mem: CAddr, vspace: CAddr, addr: *mut u8) -> VirtQMsgBuf {
+fn alloc_msg_buf(mem: CAddr, vspace: CAddr) -> VirtQMsgBuf {
+    let region = mmap::allocate_raw(Layout::new::<MemoryPage>()).unwrap();
     let page1 = caddr_alloc::alloc_caddr();
     liblunatix::ipc::mem::derive(mem, page1, CapabilityVariant::Page, None).unwrap();
     liblunatix::ipc::page::map_page(
         page1,
         vspace,
         mem,
-        addr as usize,
+        region.start as usize,
         MapFlags::READ | MapFlags::WRITE,
     )
     .unwrap();
 
     return VirtQMsgBuf {
-        buf: unsafe { core::slice::from_raw_parts_mut(addr, 4096) },
+        buf: unsafe { core::slice::from_raw_parts_mut(region.start, 4096) },
         page: page1,
         paddr: liblunatix::ipc::page::get_paddr(page1).unwrap(),
     };
@@ -422,15 +416,13 @@ pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CA
         let irq = caddr_alloc::alloc_caddr();
         liblunatix::ipc::irq_control::irq_control_claim(irq_control, 0x07, irq, irq_notif).unwrap();
 
-        let ctrl_q =
-            virtio::queue_setup(device, 0, mem, vspace, 0x34_0000_0000 as *mut u8).unwrap();
-        let cursor_q =
-            virtio::queue_setup(device, 1, mem, vspace, 0x35_0000_0000 as *mut u8).unwrap();
+        let ctrl_q = virtio::queue_setup(device, 0, mem, vspace).unwrap();
+        let cursor_q = virtio::queue_setup(device, 1, mem, vspace).unwrap();
 
         device.finish_setup(status);
 
-        let req_buf = alloc_msg_buf(mem, vspace, 0x36_000_0000 as *mut u8);
-        let res_buf = alloc_msg_buf(mem, vspace, 0x37_000_0000 as *mut u8);
+        let req_buf = alloc_msg_buf(mem, vspace);
+        let res_buf = alloc_msg_buf(mem, vspace);
         GpuDriver {
             device,
             ctrl_q,
@@ -522,9 +514,11 @@ impl GpuDriver {
         }
         assert_phys_cont(&pages);
         let phys_addr = liblunatix::ipc::page::get_paddr(pages[0]).unwrap();
-        let fb_start = 0x38_000_0000 as *mut u8;
+        let fb_region =
+            mmap::allocate_raw(Layout::from_size_align(PAGESIZE * page_count, 4096).unwrap())
+                .unwrap();
         for (i, page) in pages.iter().enumerate() {
-            let addr = unsafe { fb_start.add(i * PAGESIZE) };
+            let addr = unsafe { fb_region.start.add(i * PAGESIZE) };
             liblunatix::ipc::page::map_page(
                 *page,
                 vspace,
@@ -536,7 +530,7 @@ impl GpuDriver {
         }
         let fb_buf = unsafe {
             core::slice::from_raw_parts_mut(
-                fb_start.cast::<u32>(),
+                fb_region.start.cast::<u32>(),
                 bytes / core::mem::size_of::<u32>(),
             )
         };

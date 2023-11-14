@@ -1,18 +1,19 @@
 #![no_std]
 
+use core::alloc::Layout;
 use core::panic;
 
 use io::read::Reader;
 use virtio::{DeviceFeaturesLow, DeviceId, VirtDevice};
 
 use caddr_alloc;
-use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
+use liblunatix::{prelude::syscall_abi::identify::CapabilityVariant, MemoryPage};
 
 use p9::{
     P9FileFlags, P9FileMode, P9Qid, P9RequestBuilder, RClunk, ROpen, RRead, RVersion, RWalk,
-    Response, Stat, TAttach, TClunk, TOpen, TRead, TVersion, TWalk,
+    Response, TAttach, TClunk, TOpen, TRead, TVersion, TWalk,
 };
 use virtio::{VirtQ, VirtQMsgBuf};
 
@@ -21,38 +22,38 @@ const VIRTIO_DEVICE_LEN: usize = 0x1000;
 
 /// Allocate two buffers from the memory capability that are used for storing the actual P9 messages
 fn prepare_msg_bufs(mem: CAddr, vspace: CAddr) -> (VirtQMsgBuf, VirtQMsgBuf) {
-    const BUF1: *mut u8 = 0x30_0000_0000usize as *mut u8;
+    let buf_region = mmap::allocate_raw(Layout::new::<MemoryPage>()).unwrap();
     let page1 = caddr_alloc::alloc_caddr();
     liblunatix::ipc::mem::derive(mem, page1, CapabilityVariant::Page, None).unwrap();
     liblunatix::ipc::page::map_page(
         page1,
         vspace,
         mem,
-        BUF1 as usize,
+        buf_region.start as usize,
         MapFlags::READ | MapFlags::WRITE,
     )
     .unwrap();
 
-    const BUF2: *mut u8 = (0x30_0000_0000usize + 4096usize) as *mut u8;
+    let buf2_region = mmap::allocate_raw(Layout::new::<MemoryPage>()).unwrap();
     let page2 = caddr_alloc::alloc_caddr();
     liblunatix::ipc::mem::derive(mem, page2, CapabilityVariant::Page, None).unwrap();
     liblunatix::ipc::page::map_page(
         page2,
         vspace,
         mem,
-        BUF2 as usize,
+        buf2_region.start as usize,
         MapFlags::READ | MapFlags::WRITE,
     )
     .unwrap();
 
     (
         VirtQMsgBuf {
-            buf: unsafe { core::slice::from_raw_parts_mut(BUF1, 4096) },
+            buf: unsafe { core::slice::from_raw_parts_mut(buf_region.start, buf_region.bytes) },
             page: page1,
             paddr: liblunatix::ipc::page::get_paddr(page1).unwrap(),
         },
         VirtQMsgBuf {
-            buf: unsafe { core::slice::from_raw_parts_mut(BUF2, 4096) },
+            buf: unsafe { core::slice::from_raw_parts_mut(buf2_region.start, buf2_region.bytes) },
             page: page2,
             paddr: liblunatix::ipc::page::get_paddr(page2).unwrap(),
         },
@@ -64,7 +65,6 @@ pub fn init_9p_driver(
     vspace: CAddr,
     devmem: CAddr,
     irq_control: CAddr,
-    queue_base_ptr: *mut u8,
 ) -> P9Driver<'static> {
     liblunatix::ipc::devmem::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN)
         .unwrap();
@@ -85,7 +85,7 @@ pub fn init_9p_driver(
         let irq = caddr_alloc::alloc_caddr();
         liblunatix::ipc::irq_control::irq_control_claim(irq_control, 0x08, irq, irq_notif).unwrap();
 
-        let queue = virtio::queue_setup(device, 0, mem, vspace, queue_base_ptr).unwrap();
+        let queue = virtio::queue_setup(device, 0, mem, vspace).unwrap();
         let (req_buf, resp_buf) = prepare_msg_bufs(mem, vspace);
 
         device.finish_setup(status);

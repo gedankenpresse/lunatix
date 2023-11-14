@@ -13,5 +13,6 @@ license-file.workspace = true
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
 io = { version = "0.1.0", path = "../io" }
 liblunatix = { version = "0.1.0", path = "../liblunatix" }
+mmap = { version = "0.1.0", path = "../mmap" }
 p9 = { version = "0.1.0", path = "../p9" }
 virtio = { version = "0.1.0", path = "../virtio" }
