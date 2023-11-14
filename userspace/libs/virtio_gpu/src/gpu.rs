@@ -11,8 +11,6 @@ use liblunatix::{
 
 use virtio::{DescriptorFlags, DeviceId, VirtDevice, VirtQ, VirtQMsgBuf};
 
-use crate::CSPACE_BITS;
-
 const VIRTIO_DEVICE: usize = 0x10007000;
 const VIRTIO_DEVICE_LEN: usize = 0x1000;
 
@@ -468,6 +466,7 @@ impl GpuDriver {
         scanout: u32,
         width: u32,
         height: u32,
+        cspace_bits: usize,
     ) -> GpuFramebuffer {
         let bytes = width as usize * height as usize * 4;
         const PAGESIZE: usize = 4096;
@@ -504,7 +503,7 @@ impl GpuDriver {
         let mut pages = vec![];
         for i in 0..page_count {
             let page_addr = CAddr::builder()
-                .part(fb_cspace.raw(), CSPACE_BITS)
+                .part(fb_cspace.raw(), cspace_bits)
                 .part(i, FB_BITS)
                 .finish();
             // println!("{:064b} page cspace addr", page_addr);

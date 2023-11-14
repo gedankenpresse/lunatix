@@ -191,6 +191,7 @@ dependencies = [
  "regs",
  "uart_driver",
  "virtio",
+ "virtio_gpu",
  "virtio_p9",
 ]
 
@@ -479,6 +480,18 @@ dependencies = [
  "liblunatix",
  "mmap",
  "regs",
+]
+
+[[package]]
+name = "virtio_gpu"
+version = "0.1.0"
+dependencies = [
+ "caddr_alloc",
+ "embedded-graphics",
+ "liblunatix",
+ "log",
+ "mmap",
+ "virtio",
 ]
 
 [[package]]

@@ -4,21 +4,15 @@
 extern crate alloc;
 
 mod commands;
-mod draw;
 mod elfloader;
-mod gpu;
 mod logger;
 mod sched;
 mod shell;
 mod sifive_uart;
 mod static_once_cell;
 mod static_vec;
-mod vga;
 use crate::sifive_uart::SifiveUartMM;
-use crate::vga::{VGABuffer, VGAChar};
 
-use alloc::boxed::Box;
-use alloc::vec;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
@@ -243,35 +237,16 @@ fn main() {
     let p9 = init_9p_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
     let _ = FS.0.borrow_mut().insert(p9);
 
-    let mut gpu = gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
-    let display = gpu.get_displays()[0].clone();
-    let width = display.rect.width.get();
-    let height = display.rect.height.get();
-    println!("width: {width}, height: {height}");
-    let fb = gpu.create_resource(CADDR_MEM, CADDR_VSPACE, 0xdeadbeef, 0, width, height);
-
-    let vga_width = fb.width / 7;
-    let vga_height = (fb.height / 14) - 2;
-    let vga_buf = vec![VGAChar::default(); (vga_width * vga_height) as usize];
-    let vga = VGABuffer {
-        buf: vga_buf,
-        width: vga_width,
-        height: vga_height,
-    };
-    let vga_writer = vga::VGAWriter {
-        vga,
-        pos_x: 0,
-        pos_y: 0,
-    };
-    let fb_writer = vga::FramebufferWriter {
-        gpu,
-        fb,
-        vga: vga_writer,
-    };
-    let static_vga_writer = Box::leak(Box::new(fb_writer));
+    let gpu_writer = virtio_gpu::create_gpu_writer(
+        CADDR_MEM,
+        CADDR_VSPACE,
+        CADDR_DEVMEM,
+        CADDR_IRQ_CONTROL,
+        CSPACE_BITS,
+    );
     unsafe {
         use liblunatix::prelude::SYS_WRITER;
-        let _ = SYS_WRITER.insert(static_vga_writer);
+        let _ = SYS_WRITER.insert(gpu_writer);
     };
 
     shell::shell(&mut EchoingByteReader(stdin));

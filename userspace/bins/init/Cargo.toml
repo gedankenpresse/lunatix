@@ -26,6 +26,7 @@ virtio_p9 = { version = "0.1.0", path = "../../libs/virtio_p9" }
 virtio = { version = "0.1.0", path = "../../libs/virtio" }
 embedded-graphics = "0.8.1"
 mmap = { version = "0.1.0", path = "../../libs/mmap" }
+virtio_gpu = { version = "0.1.0", path = "../../libs/virtio_gpu" }
 
 [build-dependencies]
 cc = "1.0.79"

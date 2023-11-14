@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use embedded_graphics::{
     pixelcolor,
     prelude::{DrawTarget, OriginDimensions, RgbColor, Size},
