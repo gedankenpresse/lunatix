@@ -1,5 +1,5 @@
 [package]
-name = "virtio_gpu"
+name = "virtio_input"
 authors.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -11,7 +11,7 @@ edition.workspace = true
 
 [dependencies]
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
-embedded-graphics = "0.8.1"
+io = { version = "0.1.0", path = "../io" }
 liblunatix = { version = "0.1.0", path = "../liblunatix" }
 little_endian = { version = "0.1.0", path = "../little_endian" }
 log = "0.4.20"

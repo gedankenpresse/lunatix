@@ -244,11 +244,20 @@ fn main() {
         CADDR_IRQ_CONTROL,
         CSPACE_BITS,
     );
+
     unsafe {
         use liblunatix::prelude::SYS_WRITER;
         let _ = SYS_WRITER.insert(gpu_writer);
     };
 
-    shell::shell(&mut EchoingByteReader(stdin));
+    let input_driver =
+        virtio_input::init_input_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
+
+    let byte_reader = virtio_input::VirtioByteReader {
+        input: input_driver,
+        shift: false,
+    };
+
+    shell::shell(&mut EchoingByteReader(byte_reader));
     println!("Init task says good bye 👋");
 }

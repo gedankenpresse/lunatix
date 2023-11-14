@@ -4,7 +4,7 @@ use core::alloc::Layout;
 use core::panic;
 
 use io::read::Reader;
-use virtio::{DeviceFeaturesLow, DeviceId, VirtDevice};
+use virtio::{DeviceFeaturesLow, DeviceId, VirtDeviceMM};
 
 use caddr_alloc;
 use liblunatix::prelude::syscall_abi::MapFlags;
@@ -69,7 +69,7 @@ pub fn init_9p_driver(
     liblunatix::ipc::devmem::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN)
         .unwrap();
     let mut driver = unsafe {
-        let device = VirtDevice::at(VIRTIO_DEVICE as *mut VirtDevice);
+        let device = VirtDeviceMM::at(VIRTIO_DEVICE as *mut VirtDeviceMM);
         assert_eq!(device.device_id.read(), DeviceId::NINEP_TRANSPORT);
 
         // init device according to the docs
@@ -116,7 +116,7 @@ pub fn init_9p_driver(
 }
 
 pub struct P9Driver<'mm> {
-    device: &'mm VirtDevice,
+    device: &'mm VirtDeviceMM,
     queue: VirtQ,
     noti: CAddr,
     irq: CAddr,

@@ -11,7 +11,7 @@ pub struct RawRegion {
 }
 
 pub fn allocate_raw(layout: Layout) -> Result<RawRegion, ()> {
-    log::info!("mmap alloc: {:?}, start: {:p}", &layout, unsafe {
+    log::debug!("mmap alloc: {:?}, start: {:p}", &layout, unsafe {
         MMAP_ALLOC
     });
     assert!(layout.size() > 0);
@@ -34,6 +34,6 @@ pub fn allocate_raw(layout: Layout) -> Result<RawRegion, ()> {
         start,
         bytes: layout.size(),
     };
-    log::info!("result: {:0x?}", &res);
+    log::debug!("result: {:0x?}", &res);
     Ok(res)
 }

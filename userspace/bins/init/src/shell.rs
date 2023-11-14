@@ -31,6 +31,11 @@ fn read_cmd<'b>(reader: &mut dyn ByteReader, buf: &'b mut [u8]) -> &'b str {
 
             // handle carriage return
             '\x0d' => {
+                print!("\n");
+                return core::str::from_utf8(&buf[0..pos as usize])
+                    .expect("could not interpret char buffer as string");
+            }
+            '\n' => {
                 return core::str::from_utf8(&buf[0..pos as usize])
                     .expect("could not interpret char buffer as string");
             }
@@ -76,8 +81,6 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
 ];
 
 fn process_cmd(input: &str) {
-    print!("\n");
-
     let Some(cmd) = KNOWN_COMMANDS
         .iter()
         .find(|i| input.starts_with(i.get_name()))

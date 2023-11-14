@@ -192,6 +192,7 @@ dependencies = [
  "uart_driver",
  "virtio",
  "virtio_gpu",
+ "virtio_input",
  "virtio_p9",
 ]
 
@@ -268,6 +269,10 @@ version = "0.1.0"
 dependencies = [
  "syscall_abi",
 ]
+
+[[package]]
+name = "little_endian"
+version = "0.1.0"
 
 [[package]]
 name = "log"
@@ -489,6 +494,20 @@ dependencies = [
  "caddr_alloc",
  "embedded-graphics",
  "liblunatix",
+ "little_endian",
+ "log",
+ "mmap",
+ "virtio",
+]
+
+[[package]]
+name = "virtio_input"
+version = "0.1.0"
+dependencies = [
+ "caddr_alloc",
+ "io",
+ "liblunatix",
+ "little_endian",
  "log",
  "mmap",
  "virtio",

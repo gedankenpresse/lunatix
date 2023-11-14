@@ -1,0 +1,12 @@
+[package]
+name = "little_endian"
+authors.workspace = true
+repository.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

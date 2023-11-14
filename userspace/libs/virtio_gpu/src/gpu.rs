@@ -9,7 +9,8 @@ use liblunatix::{
     println, MemoryPage,
 };
 
-use virtio::{DescriptorFlags, DeviceId, VirtDevice, VirtQ, VirtQMsgBuf};
+use little_endian::LE;
+use virtio::{DescriptorFlags, DeviceId, VirtDeviceMM, VirtQ, VirtQMsgBuf};
 
 const VIRTIO_DEVICE: usize = 0x10007000;
 const VIRTIO_DEVICE_LEN: usize = 0x1000;
@@ -76,62 +77,6 @@ back_to_enum_u32! {
         RESP_ERR_INVALID_PARAMETER,
     }
 
-}
-pub trait LittleEndian {
-    fn from_le(t: Self) -> Self;
-    fn to_le(t: Self) -> Self;
-}
-
-impl LittleEndian for u64 {
-    fn from_le(t: Self) -> Self {
-        u64::from_le(t)
-    }
-
-    fn to_le(t: Self) -> Self {
-        u64::to_le(t)
-    }
-}
-
-impl LittleEndian for u32 {
-    fn from_le(t: Self) -> Self {
-        u32::from_le(t)
-    }
-
-    fn to_le(t: Self) -> Self {
-        u32::to_le(t)
-    }
-}
-
-#[repr(transparent)]
-#[derive(Clone)]
-pub struct LE<T: LittleEndian>(T);
-
-impl<T: LittleEndian + Copy + core::fmt::Debug> core::fmt::Debug for LE<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("LE").field(&T::from_le(self.0)).finish()
-    }
-}
-
-impl<T: LittleEndian> LE<T> {
-    fn new(v: T) -> Self {
-        LE(T::to_le(v))
-    }
-}
-
-impl<T: LittleEndian + Copy> LE<T> {
-    pub fn get(&self) -> T {
-        T::from_le(self.0)
-    }
-
-    pub fn set(&mut self, t: T) {
-        self.0 = T::to_le(t)
-    }
-}
-
-impl<T: LittleEndian + Default> Default for LE<T> {
-    fn default() -> Self {
-        Self::new(Default::default())
-    }
 }
 
 #[repr(C)]
@@ -287,7 +232,7 @@ struct RespDisplayInfo {
 
 #[allow(unused)]
 pub struct GpuDriver {
-    device: &'static mut VirtDevice,
+    device: &'static mut VirtDeviceMM,
     ctrl_q: VirtQ,
     cursor_q: VirtQ,
     noti: CAddr,
@@ -402,7 +347,7 @@ pub fn init_gpu_driver(mem: CAddr, vspace: CAddr, devmem: CAddr, irq_control: CA
     liblunatix::ipc::devmem::devmem_map(devmem, mem, vspace, VIRTIO_DEVICE, VIRTIO_DEVICE_LEN)
         .unwrap();
     let driver = unsafe {
-        let device = VirtDevice::at(VIRTIO_DEVICE as *mut VirtDevice);
+        let device = VirtDeviceMM::at(VIRTIO_DEVICE as *mut VirtDeviceMM);
         assert_eq!(device.device_id.read(), DeviceId::GPU_DEVICE);
         let mut status = device.init();
         status = device.negotiate_features(status, 0 as u64);

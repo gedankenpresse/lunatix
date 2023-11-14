@@ -87,7 +87,7 @@ bitflags! {
 ///
 /// See https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html#x1-1440002
 #[repr(C)]
-pub struct VirtDevice {
+pub struct VirtDeviceMM {
     pub magic: RO<u32>,
     pub version: RO<u32>,
     pub device_id: RO<DeviceId>,
@@ -99,7 +99,7 @@ pub struct VirtDevice {
     pub guest_feauture_sel: WO<u32>,
     guest_page_size: WO<u32>,
     _reserved1: RO<u32>,
-    queue_sel: WO<u32>,
+    pub queue_sel: WO<u32>,
     queue_num_max: RO<u32>,
     queue_num: WO<u32>,
     queue_align: WO<u32>,
@@ -107,15 +107,37 @@ pub struct VirtDevice {
     _reserved2: [RO<u32>; 3],
     pub queue_notify: WO<u32>,
     _reserved3: [RO<u32>; 3],
-    interrupt_status: RO<u32>,
-    interrupt_ack: WO<u32>,
+    pub interrupt_status: RO<u32>,
+    pub interrupt_ack: WO<u32>,
     _reserved4: [RO<u32>; 2],
     pub status: RW<u32>,
 }
 
-impl VirtDevice {
+pub struct VirtDevice<Config: 'static> {
+    pub mm: &'static mut VirtDeviceMM,
+    pub config: &'static mut Config,
+}
+
+impl<C> VirtDevice<C> {
+    pub unsafe fn at(addr: *mut VirtDeviceMM) -> VirtDevice<C> {
+        let mm = VirtDeviceMM::at(addr);
+        let config = addr.cast::<u8>().add(0x100).cast::<C>();
+        VirtDevice {
+            mm,
+            config: config.as_mut().unwrap(),
+        }
+    }
+}
+
+impl VirtDevice<()> {
+    pub unsafe fn at_no_config(addr: *mut VirtDeviceMM) -> Self {
+        VirtDevice::at(addr)
+    }
+}
+
+impl VirtDeviceMM {
     /// Create a proper handle to the memory mapped VirtIO device at `addr`
-    pub unsafe fn at(addr: *mut VirtDevice) -> &'static mut Self {
+    pub unsafe fn at(addr: *mut VirtDeviceMM) -> &'static mut Self {
         let device = &mut *addr;
         assert_eq!(device.magic.read(), VIRTIO_MAGIC);
         assert_eq!(device.version.read(), 0x1);
@@ -275,7 +297,6 @@ fn queue_alloc(mem: CAddr, vspace: CAddr, region: RawRegion) -> Result<(*mut u8,
     const PAGESIZE: usize = 4096;
     assert_eq!(queue_bytes & (PAGESIZE - 1), 0);
     let pages = queue_bytes / PAGESIZE;
-    println!("queue alloc: pages {}", pages);
 
     // choose an arbitrary address to store the queue in...
     // Because this is hardcoded, we can only alloc one queue
@@ -319,7 +340,7 @@ fn queue_alloc(mem: CAddr, vspace: CAddr, region: RawRegion) -> Result<(*mut u8,
     return Ok((addr, paddr.unwrap()));
 }
 
-pub fn queue_get_size(dev: &mut VirtDevice, queue_num: u32) -> Result<u32, ()> {
+pub fn queue_get_size(dev: &mut VirtDeviceMM, queue_num: u32) -> Result<u32, ()> {
     unsafe {
         dev.queue_sel.write(queue_num);
         assert_eq!(dev.queue_pfn.read(), 0);
@@ -351,7 +372,7 @@ pub fn queue_calc_layout(queue_len: usize) -> core::alloc::Layout {
 }
 
 pub fn queue_setup(
-    dev: &mut VirtDevice,
+    dev: &mut VirtDeviceMM,
     queue_num: u32,
     mem: CAddr,
     vspace: CAddr,
