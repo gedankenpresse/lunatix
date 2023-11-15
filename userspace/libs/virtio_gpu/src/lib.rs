@@ -4,6 +4,7 @@ use core::fmt::Write;
 
 use alloc::{boxed::Box, vec};
 use liblunatix::{prelude::CAddr, println};
+use vga::FramebufferWriter;
 
 use crate::vga::{VGABuffer, VGAChar};
 
@@ -19,7 +20,7 @@ pub fn create_gpu_writer(
     devmem: CAddr,
     irq_control: CAddr,
     cspace_bits: usize,
-) -> &'static mut dyn Write {
+) -> FramebufferWriter {
     let mut gpu = gpu::init_gpu_driver(mem, vspace, devmem, irq_control);
     let display = gpu.get_displays()[0].clone();
     let width = display.rect.width.get();
@@ -45,6 +46,6 @@ pub fn create_gpu_writer(
         fb,
         vga: vga_writer,
     };
-    let static_vga_writer = Box::leak(Box::new(fb_writer));
-    return static_vga_writer;
+
+    return fb_writer;
 }

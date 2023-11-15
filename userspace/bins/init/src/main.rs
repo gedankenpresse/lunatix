@@ -13,8 +13,10 @@ mod static_once_cell;
 mod static_vec;
 use crate::sifive_uart::SifiveUartMM;
 
+use alloc::boxed::Box;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
+use core::fmt::Write;
 use core::{cell::RefCell, panic::PanicInfo, sync::atomic::AtomicUsize};
 use fdt::{node::FdtNode, Fdt};
 use io::read::{ByteReader, EchoingByteReader};
@@ -23,6 +25,7 @@ use liblunatix::prelude::syscall_abi::system_reset::{ResetReason, ResetType};
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
 use liblunatix::println;
+use liblunatix::syscalls::print::SyscallWriter;
 use log::Level;
 use logger::Logger;
 use sifive_uart::SifiveUart;
@@ -228,6 +231,19 @@ pub static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
     cur: AtomicUsize::new(10),
 };
 
+pub struct Tee<A, B> {
+    first: A,
+    second: B,
+}
+
+impl<A: Write, B: Write> Write for Tee<A, B> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.first.write_str(s)?;
+        self.second.write_str(s)?;
+        Ok(())
+    }
+}
+
 fn main() {
     unsafe { caddr_alloc::set_global_caddr_allocator(&CADDR_ALLOC) };
     ALLOC.get_or_init(|| unsafe { alloc_init(32, 0x10_0000 as *mut u8) });
@@ -247,8 +263,13 @@ fn main() {
     );
 
     unsafe {
+        let both = Tee {
+            first: SyscallWriter {},
+            second: gpu_writer,
+        };
+        let writer = Box::leak(Box::new(both));
         use liblunatix::prelude::SYS_WRITER;
-        let _ = SYS_WRITER.insert(gpu_writer);
+        let _ = SYS_WRITER.insert(writer);
     };
 
     let input_driver =
@@ -256,7 +277,7 @@ fn main() {
 
     let byte_reader = virtio_input::VirtioByteReader {
         input: input_driver,
-        keyboard: virtio_input::keyboards::QuertzKeyboard::create(),
+        keyboard: virtio_input::keyboards::Neo2Keyboard::new(),
     };
 
     shell::shell(&mut EchoingByteReader(byte_reader));

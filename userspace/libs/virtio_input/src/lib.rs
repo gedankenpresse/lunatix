@@ -2,6 +2,7 @@
 
 use io::read::ByteReader;
 
+pub mod event_codes;
 pub mod input;
 pub mod keyboards;
 

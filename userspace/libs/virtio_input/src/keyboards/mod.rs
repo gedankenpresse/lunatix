@@ -10,3 +10,6 @@ pub trait CreateKeyboard {
 
 mod quertz;
 pub use quertz::QuertzKeyboard;
+
+mod neo2;
+pub use neo2::Neo2Keyboard;
