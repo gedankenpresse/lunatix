@@ -42,7 +42,9 @@ Destroy related tasks:
 - [x] load binaries from files
 - [x] render to screen (virtio)
 - [x] add allocation logic for address mapping (welche addresse hardcode ich heute?)
-- [ ] read from virtio human input device
+- [x] read from virtio human input device
+- [ ] better keyboard layouts
+- [ ] read keyboard layout from file
 - [ ] flesh out scheduler so that a process is executed multiple times
 - [ ] document (and maybe reorganize) address space layout
 - [ ] VirtIO from device tree
