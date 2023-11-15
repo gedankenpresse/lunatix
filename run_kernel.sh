@@ -8,7 +8,7 @@ qemu-system-riscv64 -s -m 1G \
     -kernel u-boot/u-boot.bin \
     -fsdev local,security_model=mapped-xattr,id=guest_root,readonly=on,path=$D/guest_root \
     -device virtio-9p-device,fsdev=guest_root,mount_tag=/ \
-    -device virtio-gpu-device \
+    -device virtio-gpu-device,xres=640,yres=480 \
     -device virtio-keyboard-device \
     -device loader,addr=0x84000000,force-raw=on,file="$1" \
     -device loader,addr=0x84800000,force-raw=on,file="$2"

@@ -1,12 +1,13 @@
 #![no_std]
 
-use core::fmt::Write;
+use core::cell::RefCell;
 
-use alloc::{boxed::Box, vec};
+use alloc::{rc::Rc, vec};
+use gpu::GpuDriver;
 use liblunatix::{prelude::CAddr, println};
-use vga::FramebufferWriter;
+use vga::FramebufferFlushWriter;
 
-use crate::vga::{VGABuffer, VGAChar};
+use crate::vga::{Pos, VGABuffer, VGAChar};
 
 extern crate alloc;
 
@@ -15,18 +16,18 @@ pub mod gpu;
 pub mod vga;
 
 pub fn create_gpu_writer(
+    gpu: Rc<RefCell<GpuDriver>>,
     mem: CAddr,
     vspace: CAddr,
-    devmem: CAddr,
-    irq_control: CAddr,
     cspace_bits: usize,
-) -> FramebufferWriter {
-    let mut gpu = gpu::init_gpu_driver(mem, vspace, devmem, irq_control);
-    let display = gpu.get_displays()[0].clone();
+) -> FramebufferFlushWriter {
+    let mut driver = gpu.borrow_mut();
+    let display = driver.get_displays()[0].clone();
     let width = display.rect.width.get();
     let height = display.rect.height.get();
     println!("width: {width}, height: {height}");
-    let fb = gpu.create_resource(mem, vspace, 0xdeadbeef, 0, width, height, cspace_bits);
+    let fb = driver.create_resource(mem, vspace, 0xdeadbeef, 0, width, height, cspace_bits);
+    drop(driver);
 
     let vga_width = fb.width / 7;
     let vga_height = (fb.height / 14) - 2;
@@ -36,15 +37,13 @@ pub fn create_gpu_writer(
         width: vga_width,
         height: vga_height,
     };
-    let vga_writer = vga::VGAWriter {
-        vga,
-        pos_x: 0,
-        pos_y: 0,
-    };
-    let fb_writer = vga::FramebufferWriter {
+    let fb_writer = vga::FramebufferFlushWriter {
         gpu,
-        fb,
-        vga: vga_writer,
+        fb_writer: vga::FramebufferWriter {
+            pos: Pos::default(),
+            fb,
+            vga,
+        },
     };
 
     return fb_writer;

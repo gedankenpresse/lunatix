@@ -1,4 +1,6 @@
-use alloc::vec::Vec;
+use core::{cell::RefCell, fmt::Write};
+
+use alloc::{rc::Rc, vec::Vec};
 use embedded_graphics::{pixelcolor, prelude::DrawTarget};
 
 use crate::{
@@ -6,46 +8,41 @@ use crate::{
     gpu::{GpuDriver, GpuFramebuffer},
 };
 
-pub struct FramebufferWriter {
-    pub gpu: GpuDriver,
-    pub fb: GpuFramebuffer,
-    pub vga: VGAWriter,
+pub struct FramebufferFlushWriter {
+    pub gpu: Rc<RefCell<GpuDriver>>,
+    pub fb_writer: FramebufferWriter,
 }
 
-impl FramebufferWriter {
+impl FramebufferFlushWriter {
     fn flush(&mut self) {
-        let mut target = DrawBuffer {
-            buf: &mut self.fb.buf,
-            width: self.fb.width,
-            height: self.fb.height,
-        };
-        render_vga_buffer(&mut target, &mut self.vga.vga).unwrap();
-        self.gpu.draw_resource(&self.fb);
+        self.gpu.borrow_mut().draw_resource(&self.fb_writer.fb);
     }
 }
 
-impl core::fmt::Write for FramebufferWriter {
+impl Write for FramebufferFlushWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.vga.write_str(s)?;
+        self.fb_writer.write_str(s)?;
         self.flush();
         Ok(())
     }
 
     fn write_char(&mut self, c: char) -> core::fmt::Result {
-        self.vga.write_str(c.encode_utf8(&mut [0; 4]))
+        self.fb_writer.write_char(c)?;
+        self.flush();
+        Ok(())
     }
 
     fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        core::fmt::write(&mut self.vga, args)?;
+        self.fb_writer.write_fmt(args)?;
         self.flush();
         Ok(())
     }
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
-pub struct VGAChar {
-    pub char: u8,
-    pub damaged: bool,
+#[derive(Default)]
+pub struct Pos {
+    x: u32,
+    y: u32,
 }
 
 pub struct VGABuffer {
@@ -54,14 +51,21 @@ pub struct VGABuffer {
     pub height: u32,
 }
 
-pub struct VGAWriter {
+pub struct FramebufferWriter {
+    pub fb: GpuFramebuffer,
     pub vga: VGABuffer,
-    pub pos_x: u32,
-    pub pos_y: u32,
+    pub pos: Pos,
 }
 
-impl VGAWriter {
+impl FramebufferWriter {
     fn scroll(&mut self) {
+        let range = self.vga.width as usize..self.vga.buf.len();
+        self.vga.buf.copy_within(range, 0);
+
+        let lineheight = 14;
+        let range = self.fb.width as usize * lineheight..self.fb.buf.len();
+        self.fb.buf.copy_within(range, 0);
+        /*
         for line in 1..self.vga.height {
             for col in 0..self.vga.width {
                 let this = line * self.vga.width + col;
@@ -70,42 +74,55 @@ impl VGAWriter {
                 self.vga.buf[prev as usize].damaged = true;
             }
         }
+        */
         for col in 0..self.vga.width {
             let pos = (self.vga.height - 1) * self.vga.width + col;
             self.vga.buf[pos as usize].char = b' ';
             self.vga.buf[pos as usize].damaged = true;
         }
-        self.pos_y = self.vga.height - 1;
+        self.pos.y = self.vga.height - 1;
     }
 }
 
-impl core::fmt::Write for VGAWriter {
+impl core::fmt::Write for FramebufferWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for &b in s.as_bytes() {
             match b {
                 b'\n' => {
-                    self.pos_x = 0;
-                    self.pos_y += 1;
-                    if self.pos_y >= self.vga.height {
+                    self.pos.x = 0;
+                    self.pos.y += 1;
+                    if self.pos.y >= self.vga.height {
                         self.scroll();
                     }
                 }
                 other => {
-                    let idx = self.pos_y * self.vga.width + self.pos_x;
+                    let idx = self.pos.y * self.vga.width + self.pos.x;
                     self.vga.buf[idx as usize].char = other;
                     self.vga.buf[idx as usize].damaged = true;
-                    self.pos_x = (self.pos_x + 1) % self.vga.width;
-                    if self.pos_x == 0 {
-                        self.pos_y += 1;
+                    self.pos.x = (self.pos.x + 1) % self.vga.width;
+                    if self.pos.x == 0 {
+                        self.pos.y += 1;
                     }
-                    if self.pos_y >= self.vga.height {
+                    if self.pos.y >= self.vga.height {
                         self.scroll();
                     }
                 }
             }
         }
+        let mut draw = DrawBuffer {
+            buf: self.fb.buf,
+            width: self.fb.width,
+            height: self.fb.height,
+        };
+        render_vga_buffer(&mut draw, &mut self.vga).unwrap();
         Ok(())
     }
+}
+
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub struct VGAChar {
+    pub char: u8,
+    pub damaged: bool,
 }
 
 pub fn render_vga_buffer<'b, E, T: DrawTarget<Color = pixelcolor::Rgb888, Error = E>>(

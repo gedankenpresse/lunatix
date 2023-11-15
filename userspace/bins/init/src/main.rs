@@ -14,6 +14,7 @@ mod static_vec;
 use crate::sifive_uart::SifiveUartMM;
 
 use alloc::boxed::Box;
+use alloc::rc::Rc;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
 use core::fmt::Write;
@@ -31,7 +32,6 @@ use logger::Logger;
 use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
-use virtio_input::keyboards::CreateKeyboard;
 use virtio_p9::{init_9p_driver, P9Driver};
 
 static LOGGER: Logger = Logger::new(Level::Info);
@@ -242,6 +242,18 @@ impl<A: Write, B: Write> Write for Tee<A, B> {
         self.second.write_str(s)?;
         Ok(())
     }
+
+    fn write_char(&mut self, c: char) -> core::fmt::Result {
+        self.first.write_char(c)?;
+        self.second.write_char(c)?;
+        Ok(())
+    }
+
+    fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
+        self.first.write_fmt(args)?;
+        self.second.write_fmt(args)?;
+        Ok(())
+    }
 }
 
 fn main() {
@@ -249,18 +261,16 @@ fn main() {
     ALLOC.get_or_init(|| unsafe { alloc_init(32, 0x10_0000 as *mut u8) });
     let dev_tree_address: usize = 0x20_0000_0000;
     let dt = unsafe { Fdt::from_ptr(dev_tree_address as *const u8).unwrap() };
-    let stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
+    let _stdin = init_stdin(&dt.chosen().stdout().expect("no stdout found")).unwrap();
 
     let p9 = init_9p_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
     let _ = FS.0.borrow_mut().insert(p9);
 
-    let gpu_writer = virtio_gpu::create_gpu_writer(
-        CADDR_MEM,
-        CADDR_VSPACE,
-        CADDR_DEVMEM,
-        CADDR_IRQ_CONTROL,
-        CSPACE_BITS,
-    );
+    let gpu_driver =
+        virtio_gpu::gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
+    let gpu_driver = Rc::new(RefCell::new(gpu_driver));
+    let gpu_writer =
+        virtio_gpu::create_gpu_writer(gpu_driver.clone(), CADDR_MEM, CADDR_VSPACE, CSPACE_BITS);
 
     unsafe {
         let both = Tee {
