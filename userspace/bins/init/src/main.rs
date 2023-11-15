@@ -28,6 +28,7 @@ use logger::Logger;
 use sifive_uart::SifiveUart;
 use static_once_cell::StaticOnceCell;
 use uart_driver::{MmUart, Uart};
+use virtio_input::keyboards::CreateKeyboard;
 use virtio_p9::{init_9p_driver, P9Driver};
 
 static LOGGER: Logger = Logger::new(Level::Info);
@@ -255,7 +256,7 @@ fn main() {
 
     let byte_reader = virtio_input::VirtioByteReader {
         input: input_driver,
-        shift: false,
+        keyboard: virtio_input::keyboards::QuertzKeyboard::create(),
     };
 
     shell::shell(&mut EchoingByteReader(byte_reader));
