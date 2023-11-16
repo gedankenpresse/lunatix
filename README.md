@@ -1,3 +1,22 @@
+## Setup
+
+- Install rust. Use whichever method you like; it is well documented.
+
+- Install qemu:
+  ```shell
+  pacman -S qemu-emulators-full
+  ```
+
+- Compile our code:
+  ```shell
+  make all
+  ```
+
+- Run the OS:
+  ```shell
+  cargo run
+  ```
+
 ## TODOs
 
 ### Kernel
