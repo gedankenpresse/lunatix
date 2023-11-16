@@ -1,3 +1,22 @@
+## Setup
+
+- Install rust. Use whichever method you like; it is well documented.
+
+- Install qemu:
+  ```shell
+  pacman -S qemu-emulators-full
+  ```
+
+- Compile our code:
+  ```shell
+  make all
+  ```
+
+- Run the OS:
+  ```shell
+  cargo run
+  ```
+
 ## TODOs
 
 ### Kernel
@@ -40,8 +59,11 @@ Destroy related tasks:
 - [x] BUG: virtio: free descriptors after usage
 - [x] add global alloc
 - [x] load binaries from files
+- [x] render to screen (virtio)
+- [x] add allocation logic for address mapping (welche addresse hardcode ich heute?)
+- [x] read from virtio human input device
+- [ ] better keyboard layouts
+- [ ] read keyboard layout from file
 - [ ] flesh out scheduler so that a process is executed multiple times
-- [ ] render to screen (pci?)
 - [ ] document (and maybe reorganize) address space layout
-- [ ] add allocation logic for address mapping (welche addresse hardcode ich heute?)
 - [ ] VirtIO from device tree

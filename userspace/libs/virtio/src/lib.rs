@@ -1,10 +1,13 @@
 #![no_std]
 
+use core::alloc::Layout;
+
 use bitflags::bitflags;
 use caddr_alloc;
-use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::MapFlags;
 use liblunatix::prelude::CAddr;
+use liblunatix::{prelude::syscall_abi::identify::CapabilityVariant, println};
+use mmap::RawRegion;
 use regs::{RO, RW, WO};
 
 pub const VIRTIO_MAGIC: u32 = 0x74726976;
@@ -84,7 +87,7 @@ bitflags! {
 ///
 /// See https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html#x1-1440002
 #[repr(C)]
-pub struct VirtDevice {
+pub struct VirtDeviceMM {
     pub magic: RO<u32>,
     pub version: RO<u32>,
     pub device_id: RO<DeviceId>,
@@ -96,7 +99,7 @@ pub struct VirtDevice {
     pub guest_feauture_sel: WO<u32>,
     guest_page_size: WO<u32>,
     _reserved1: RO<u32>,
-    queue_sel: WO<u32>,
+    pub queue_sel: WO<u32>,
     queue_num_max: RO<u32>,
     queue_num: WO<u32>,
     queue_align: WO<u32>,
@@ -104,15 +107,37 @@ pub struct VirtDevice {
     _reserved2: [RO<u32>; 3],
     pub queue_notify: WO<u32>,
     _reserved3: [RO<u32>; 3],
-    interrupt_status: RO<u32>,
-    interrupt_ack: WO<u32>,
+    pub interrupt_status: RO<u32>,
+    pub interrupt_ack: WO<u32>,
     _reserved4: [RO<u32>; 2],
     pub status: RW<u32>,
 }
 
-impl VirtDevice {
+pub struct VirtDevice<Config: 'static> {
+    pub mm: &'static mut VirtDeviceMM,
+    pub config: &'static mut Config,
+}
+
+impl<C> VirtDevice<C> {
+    pub unsafe fn at(addr: *mut VirtDeviceMM) -> VirtDevice<C> {
+        let mm = VirtDeviceMM::at(addr);
+        let config = addr.cast::<u8>().add(0x100).cast::<C>();
+        VirtDevice {
+            mm,
+            config: config.as_mut().unwrap(),
+        }
+    }
+}
+
+impl VirtDevice<()> {
+    pub unsafe fn at_no_config(addr: *mut VirtDeviceMM) -> Self {
+        VirtDevice::at(addr)
+    }
+}
+
+impl VirtDeviceMM {
     /// Create a proper handle to the memory mapped VirtIO device at `addr`
-    pub unsafe fn at(addr: *mut VirtDevice) -> &'static mut Self {
+    pub unsafe fn at(addr: *mut VirtDeviceMM) -> &'static mut Self {
         let device = &mut *addr;
         assert_eq!(device.magic.read(), VIRTIO_MAGIC);
         assert_eq!(device.version.read(), 0x1);
@@ -200,6 +225,7 @@ impl Descriptor {
     pub fn free(&mut self) {
         self.length = 0;
         self.address = 0;
+        self.flags = 0;
     }
 
     pub fn describe_response(&mut self, resp_buf: &VirtQMsgBuf) {
@@ -241,7 +267,7 @@ pub struct VirtQUsed {
     pub avail_event: &'static mut u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct VirtQUsedElem {
     pub id: u32,
@@ -265,12 +291,9 @@ impl VirtQ {
     }
 }
 
-fn queue_alloc(
-    mem: CAddr,
-    vspace: CAddr,
-    base_ptr: *mut u8,
-    queue_bytes: usize,
-) -> Result<(*mut u8, usize), ()> {
+fn queue_alloc(mem: CAddr, vspace: CAddr, region: RawRegion) -> Result<(*mut u8, usize), ()> {
+    let queue_bytes = region.bytes;
+    let base_ptr = region.start;
     const PAGESIZE: usize = 4096;
     assert_eq!(queue_bytes & (PAGESIZE - 1), 0);
     let pages = queue_bytes / PAGESIZE;
@@ -317,13 +340,7 @@ fn queue_alloc(
     return Ok((addr, paddr.unwrap()));
 }
 
-pub fn queue_setup(
-    dev: &mut VirtDevice,
-    queue_num: u32,
-    mem: CAddr,
-    vspace: CAddr,
-    base_ptr: *mut u8,
-) -> Result<VirtQ, ()> {
+pub fn queue_get_size(dev: &mut VirtDeviceMM, queue_num: u32) -> Result<u32, ()> {
     unsafe {
         dev.queue_sel.write(queue_num);
         assert_eq!(dev.queue_pfn.read(), 0);
@@ -336,15 +353,10 @@ pub fn queue_setup(
         }
         max_items
     };
+    Ok(max_items)
+}
 
-    let queue_len = core::cmp::min(max_items as usize, 256);
-
-    const PAGESIZE: usize = 4096;
-    unsafe {
-        dev.queue_num.write(queue_len as u32);
-        dev.queue_align.write(PAGESIZE as u32);
-    }
-
+pub fn queue_calc_layout(queue_len: usize) -> core::alloc::Layout {
     let desc_sz = 16 * queue_len;
     let avail_sz = 6 + 2 * queue_len;
     let used_sz = 6 + 8 * queue_len;
@@ -355,7 +367,37 @@ pub fn queue_setup(
         return pages * PAGESIZE;
     }
     let queue_bytes = align(desc_sz + avail_sz) + align(used_sz);
-    let (queue_buf, paddr) = queue_alloc(mem, vspace, base_ptr, queue_bytes)?;
+    let layout = core::alloc::Layout::from_size_align(queue_bytes, 4096).unwrap();
+    return layout;
+}
+
+pub fn queue_setup(
+    dev: &mut VirtDeviceMM,
+    queue_num: u32,
+    mem: CAddr,
+    vspace: CAddr,
+) -> Result<VirtQ, ()> {
+    let max_items = queue_get_size(dev, queue_num)?;
+    let queue_len = core::cmp::min(max_items as usize, 256);
+    let queue_layout = queue_calc_layout(queue_len);
+
+    const PAGESIZE: usize = 4096;
+    unsafe {
+        dev.queue_num.write(queue_len as u32);
+        dev.queue_align.write(queue_layout.align() as u32);
+    }
+
+    let desc_sz = 16 * queue_len;
+    let avail_sz = 6 + 2 * queue_len;
+
+    fn align(s: usize) -> usize {
+        const PAGESIZE: usize = 4096;
+        let pages = (s + (PAGESIZE - 1)) / PAGESIZE;
+        return pages * PAGESIZE;
+    }
+
+    let queue_region = mmap::allocate_raw(queue_layout).unwrap();
+    let (queue_buf, paddr) = queue_alloc(mem, vspace, queue_region)?;
 
     assert_eq!(paddr % PAGESIZE, 0);
     unsafe {

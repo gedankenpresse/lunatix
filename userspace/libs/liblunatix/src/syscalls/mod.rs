@@ -4,7 +4,7 @@ mod exit;
 mod identify;
 mod send;
 #[macro_use]
-mod print;
+pub mod print;
 mod call;
 mod system_reset;
 mod wait_on;
@@ -19,7 +19,7 @@ pub use copy::copy;
 pub use destroy::destroy;
 pub use exit::exit;
 pub use identify::identify;
-pub use print::{_print, print, put_c};
+pub use print::{print, put_c};
 pub use r#yield::r#yield;
 pub use send::send;
 pub use system_reset::system_reset;

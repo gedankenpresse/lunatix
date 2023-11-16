@@ -46,7 +46,9 @@ impl CSpace {
 
     /// How many bits of a CAddr this CSpace requires to index all its slots.
     pub fn addr_bits(&self) -> usize {
-        let mut len = self.slots.len();
+        // TODO: fix this, because it might still cause of by one with
+        // empty cspaces or similar non power of 2 stuff
+        let mut len = self.slots.len() - 1;
         let mut n_shifts = 0;
 
         while len != 0 {

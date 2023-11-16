@@ -43,6 +43,7 @@ fn devmem_map(
         return Err(SyscallError::InvalidArg);
     };
     let entry = entry.borrow().unwrap();
+    log::info!("mapping devmem entry: {:x?} {:x?}", &entry.base, &entry.len);
 
     for offset in (0..len).step_by(PAGESIZE) {
         vspace

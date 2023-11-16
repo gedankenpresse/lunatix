@@ -1,18 +1,19 @@
 [package]
-name = "virtio_p9"
+name = "virtio_gpu"
 authors.workspace = true
 repository.workspace = true
+license-file.workspace = true
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
-publish.workspace = true
-license-file.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 caddr_alloc = { version = "0.1.0", path = "../caddr_alloc" }
-io = { version = "0.1.0", path = "../io" }
+embedded-graphics = "0.8.1"
 liblunatix = { version = "0.1.0", path = "../liblunatix" }
+little_endian = { version = "0.1.0", path = "../little_endian" }
+log = "0.4.20"
 mmap = { version = "0.1.0", path = "../mmap" }
-p9 = { version = "0.1.0", path = "../p9" }
 virtio = { version = "0.1.0", path = "../virtio" }
