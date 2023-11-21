@@ -33,6 +33,7 @@ use syscall_abi::r#yield::Yield;
 use syscall_abi::system_reset::SystemReset;
 
 use crate::syscalls::call::CallHandler;
+use crate::syscalls::copy::CopyHandler;
 use crate::syscalls::destroy::DestroyHandler;
 use crate::syscalls::exit::ExitHandler;
 use crate::syscalls::handler_trait::{RawSyscallHandler, SyscallHandler};
@@ -127,6 +128,10 @@ pub fn handle_syscall(
             handle_specific_syscall(DestroyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
+        syscall_abi::copy::Copy::SYSCALL_NO => {
+            handle_specific_syscall(CopyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
         // raw syscalls
         WaitOn::SYSCALL_NO => WaitOnHandler.handle(kernel_ctx, &mut syscall_ctx, raw_args),
 
@@ -139,17 +144,6 @@ pub fn handle_syscall(
 
             // actually handle the specific syscall
             let (res, schedule): (RawSyscallReturn, Schedule) = match syscall_no {
-                /* COPY SYSCALL */
-                // TODO Update syscall_abi to include copy
-                20 => {
-                    let result = copy::sys_copy(kernel_ctx, task, &raw_args);
-                    let response = match result {
-                        Ok(()) => Ok(NoValue),
-                        Err(e) => Err(e),
-                    };
-                    (response.into_response(), Schedule::Keep)
-                }
-
                 _no => {
                     log::warn!(
                         "received unknown syscall {} with args {:x?}",

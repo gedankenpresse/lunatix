@@ -1,36 +1,51 @@
 use derivation_tree::tree::CursorRefMut;
+use syscall_abi::copy::Copy;
+use syscall_abi::{NoValue, SyscallBinding};
 
+use crate::sched::Schedule;
+use crate::syscalls::handler_trait::SyscallHandler;
+use crate::syscalls::SyscallContext;
 use crate::{
     caps::{self, Capability, SyscallError},
     KernelContext,
 };
 
-pub fn sys_copy(
-    _ctx: &mut KernelContext,
-    task: &mut CursorRefMut<'_, '_, Capability>,
-    args: &[usize; 7],
-) -> Result<(), SyscallError> {
-    log::debug!("copy args: {:?}", args);
-    let task = task.get_inner_task().unwrap();
-    let mut cspace = task.get_cspace();
-    let cspace = cspace.get_shared().unwrap();
-    let cspace = cspace.get_inner_cspace().unwrap();
+pub(super) struct CopyHandler;
 
-    let src = unsafe {
-        cspace
-            .resolve_caddr(args[0].into())
-            .ok_or(SyscallError::InvalidCAddr)?
-            .as_ref()
-            .unwrap()
-    };
-    let target = unsafe {
-        cspace
-            .resolve_caddr(args[1].into())
-            .ok_or(SyscallError::InvalidCAddr)?
-            .as_mut()
-            .unwrap()
-    };
+impl SyscallHandler for CopyHandler {
+    type Syscall = Copy;
 
-    unsafe { caps::copy(src, target) };
-    Ok(())
+    fn handle(
+        &mut self,
+        kernel_ctx: &mut KernelContext,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
+    ) -> (
+        Schedule,
+        <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,
+    ) {
+        let task = syscall_ctx.task.get_inner_task().unwrap();
+        let mut cspace = task.get_cspace();
+        let cspace = cspace.get_shared().unwrap();
+        let cspace = cspace.get_inner_cspace().unwrap();
+
+        let src = unsafe {
+            cspace
+                .resolve_caddr(args.src)
+                .unwrap() // TODO handle error by returning InvalidCAddr
+                .as_ref()
+                .unwrap()
+        };
+        let target = unsafe {
+            cspace
+                .resolve_caddr(args.dst)
+                .unwrap() // TODO handle error by returning InvalidCAddr
+                .as_mut()
+                .unwrap()
+        };
+
+        unsafe { caps::copy(src, target) };
+
+        (Schedule::Keep, Ok(NoValue))
+    }
 }

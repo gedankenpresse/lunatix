@@ -1,9 +1,11 @@
-use syscall_abi::{CAddr, FromRawSysResponse, NoValue, SyscallResult};
+use syscall_abi::copy::{Copy, CopyArgs};
+use syscall_abi::{CAddr, NoValue, SyscallResult};
 
-use crate::syscalls::raw_syscall;
+use crate::syscalls::syscall;
 
 pub fn copy(cap: CAddr, target: CAddr) -> SyscallResult<NoValue> {
-    const COPY: usize = 20;
-    let res = raw_syscall(COPY, cap.into(), target.into(), 0, 0, 0, 0, 0);
-    SyscallResult::from_response(res)
+    syscall::<Copy>(CopyArgs {
+        src: cap,
+        dst: target,
+    })
 }

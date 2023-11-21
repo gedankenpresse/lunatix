@@ -24,7 +24,6 @@ impl SyscallHandler for DestroyHandler {
         Schedule,
         <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,
     ) {
-        log::debug!("send args: {:?}", args);
         let task = syscall_ctx.task.get_inner_task().unwrap();
         let mut cspace = task.get_cspace();
         let cspace = cspace.get_shared().unwrap();

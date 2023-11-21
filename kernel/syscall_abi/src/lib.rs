@@ -25,7 +25,7 @@
 //! | [map_devmem](map_devmem::MapDevmem) | *17* | [MapDevmemArgs](map_devmem::MapDevmemArgs) | [NoValue](NoValue) | Map Device Memory
 //! | [send] | *18* |
 //! | [destroy](destroy::Destroy) | *19* | Destroy a capability |
-//! | [copy] | *20* |
+//! | [copy](copy::Copy) | *20* | Copy a capability |
 //! | [exit] | *22* |
 //! | [call] | *23* |
 //!
@@ -53,6 +53,7 @@
 
 pub mod caddr;
 pub mod call;
+pub mod copy;
 pub mod debug;
 pub mod destroy;
 mod errors;
