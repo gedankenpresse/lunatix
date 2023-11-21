@@ -17,29 +17,29 @@ mod wait_on;
 
 use crate::caps::Capability;
 use crate::sched::Schedule;
-use crate::syscalls::debug::sys_debug_log;
-use crate::syscalls::debug::sys_debug_putc;
+use crate::syscalls::debug::{DebugLogHandler, DebugPutcHandler};
 use crate::syscalls::identify::IdentifyHandler;
-use crate::syscalls::r#yield::sys_yield;
-use crate::syscalls::system_reset::sys_system_reset;
-use crate::syscalls::wait_on::sys_wait_on;
-use crate::syscalls::yield_to::sys_yield_to;
+use crate::syscalls::r#yield::YieldHandler;
+use crate::syscalls::system_reset::SystemResetHandler;
+use crate::syscalls::wait_on::WaitOnHandler;
+use crate::syscalls::yield_to::YieldToHandler;
 use crate::KernelContext;
 use derivation_tree::tree::CursorRefMut;
 use riscv::trap::TrapInfo;
-use syscall_abi::debug::{DebugLog, DebugLogArgs};
-use syscall_abi::debug::{DebugPutc, DebugPutcArgs};
-use syscall_abi::identify::{Identify, IdentifyArgs};
+use syscall_abi::debug::DebugLog;
+use syscall_abi::debug::DebugPutc;
+use syscall_abi::identify::Identify;
 use syscall_abi::r#yield::Yield;
-use syscall_abi::system_reset::{SystemReset, SystemResetArgs};
+use syscall_abi::system_reset::SystemReset;
 
-use crate::syscalls::exit::sys_exit;
-use crate::syscalls::handler_trait::SyscallHandler;
+use crate::syscalls::call::CallHandler;
+use crate::syscalls::exit::ExitHandler;
+use crate::syscalls::handler_trait::{RawSyscallHandler, SyscallHandler};
+use crate::syscalls::send::SendHandler;
 use syscall_abi::call::Call;
 use syscall_abi::exit::Exit;
-use syscall_abi::send::SendArgs;
-use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
-use syscall_abi::yield_to::{YieldTo, YieldToArgs};
+use syscall_abi::wait_on::WaitOn;
+use syscall_abi::yield_to::YieldTo;
 use syscall_abi::*;
 
 pub(self) struct SyscallContext<'trap_info, 'cursor, 'cursor_handle, 'cursor_set> {
@@ -82,14 +82,47 @@ pub fn handle_syscall(
         (syscall_no, args)
     };
 
+    let mut syscall_ctx = SyscallContext::from(trap_info, task);
+
     match syscall_no {
         // standardized syscalls
-        Identify::SYSCALL_NO => handle_specific_syscall(
-            IdentifyHandler,
-            kernel_ctx,
-            &mut SyscallContext::from(trap_info, task),
-            raw_args,
-        ),
+        DebugPutc::SYSCALL_NO => {
+            handle_specific_syscall(DebugPutcHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+        DebugLog::SYSCALL_NO => {
+            handle_specific_syscall(DebugLogHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        Identify::SYSCALL_NO => {
+            handle_specific_syscall(IdentifyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        YieldTo::SYSCALL_NO => {
+            handle_specific_syscall(YieldToHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        Yield::SYSCALL_NO => {
+            handle_specific_syscall(YieldHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        SystemReset::SYSCALL_NO => {
+            handle_specific_syscall(SystemResetHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        syscall_abi::send::Send::SYSCALL_NO => {
+            handle_specific_syscall(SendHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        Exit::SYSCALL_NO => {
+            handle_specific_syscall(ExitHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        Call::SYSCALL_NO => {
+            handle_specific_syscall(CallHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
+        // raw syscalls
+        WaitOn::SYSCALL_NO => WaitOnHandler.handle(kernel_ctx, &mut syscall_ctx, raw_args),
 
         _ => {
             {
@@ -100,69 +133,6 @@ pub fn handle_syscall(
 
             // actually handle the specific syscall
             let (res, schedule): (RawSyscallReturn, Schedule) = match syscall_no {
-                DebugPutc::SYSCALL_NO => (
-                    sys_debug_putc(DebugPutcArgs::try_from(raw_args).unwrap()).into_response(),
-                    Schedule::Keep,
-                ),
-
-                DebugLog::SYSCALL_NO => (
-                    sys_debug_log(DebugLogArgs::try_from(raw_args).unwrap()).into_response(),
-                    Schedule::Keep,
-                ),
-
-                // AssignIpcBuffer::SYSCALL_NO => {
-                //     log::debug!(
-                //         "handling assign_ipc_buffer syscall with args {:?}",
-                //         AssignIpcBufferArgs::try_from(args).unwrap()
-                //     );
-                //     let result = sys_assign_ipc_buffer(task, AssignIpcBufferArgs::try_from(args).unwrap());
-                //     log::debug!("assign_ipc_buffer syscall result is {:?}", result);
-                //     (result.into_response(), Schedule::Keep)
-                // }
-                YieldTo::SYSCALL_NO => {
-                    log::debug!(
-                        "handling yield_to syscall with args {:?}",
-                        YieldToArgs::from(raw_args)
-                    );
-                    let (result, schedule) = sys_yield_to(task, YieldToArgs::from(raw_args));
-                    log::debug!("yield_to result is {:?}", result);
-                    (result.into_response(), schedule)
-                }
-
-                Yield::SYSCALL_NO => {
-                    log::debug!("handling yield syscall",);
-                    let (result, schedule) = sys_yield(NoValue);
-                    log::debug!("yield result is {:?}", result);
-                    (result.into_response(), schedule)
-                }
-
-                WaitOn::SYSCALL_NO => {
-                    let args = WaitOnArgs::from(raw_args);
-                    log::debug!("handling wait_on syscall with args {:?}", args);
-                    let (result, schedule) = sys_wait_on(task, args);
-                    log::debug!(
-                        "wait_on result is {:?} with schedule {:?}",
-                        result,
-                        schedule
-                    );
-                    (result.into_response(), schedule)
-                }
-
-                SystemReset::SYSCALL_NO => {
-                    let args = SystemResetArgs::from(raw_args);
-                    log::debug!("handling system_reset syscall with args {:?}", args);
-                    sys_system_reset(args);
-                }
-
-                /* SEND SYSCALL */
-                syscall_abi::send::Send::SYSCALL_NO => {
-                    let args = SendArgs::from(raw_args);
-                    log::debug!("handling send syscall with args {:?}", args);
-                    let result = send::sys_send(kernel_ctx, task, args);
-                    log::debug!("send result is {:?}", result);
-                    (result.into_response(), Schedule::Keep)
-                }
-
                 /* DESTROY SYSCALL */
                 // TODO Update syscall_abi to include destroy
                 19 => {
@@ -183,21 +153,6 @@ pub fn handle_syscall(
                         Err(e) => Err(e),
                     };
                     (response.into_response(), Schedule::Keep)
-                }
-
-                Exit::SYSCALL_NO => {
-                    log::debug!("handling exit syscall");
-                    let task = task.get_inner_task().unwrap();
-                    sys_exit(task);
-                    (Default::default(), Schedule::RunInit)
-                }
-
-                Call::SYSCALL_NO => {
-                    let args = <Call as SyscallBinding>::CallArgs::from(raw_args);
-                    log::debug!("handling call syscall with args {:?}", args);
-                    let result = call::sys_call(kernel_ctx, task, args);
-                    log::debug!("call result is {:?}", result);
-                    (result.into_response(), Schedule::Keep)
                 }
 
                 _no => {
@@ -236,13 +191,13 @@ fn handle_specific_syscall<Handler: SyscallHandler>(
         .unwrap_or_else(|_| panic!("could not decode syscall args"));
 
     // execute the handler
-    log::debug!(
+    log::trace!(
         "handling {} syscall with args {:x?}",
         core::any::type_name::<Handler::Syscall>(),
         args
     );
     let (schedule, result) = handler.handle(kernel_ctx, syscall_ctx, args);
-    log::debug!(
+    log::trace!(
         "{} syscall result is {:x?} with new schedule {:?}",
         core::any::type_name::<Handler::Syscall>(),
         result,

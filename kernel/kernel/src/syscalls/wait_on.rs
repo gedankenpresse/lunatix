@@ -1,54 +1,67 @@
 use crate::caps::task::TaskExecutionState;
 use crate::caps::{Capability, NotificationIface, Tag, TaskIface};
 use crate::sched::Schedule;
-use crate::syscalls::utils;
+use crate::syscalls::handler_trait::RawSyscallHandler;
+use crate::syscalls::{utils, SyscallContext};
+use crate::KernelContext;
 use derivation_tree::tree::CursorRefMut;
 use derivation_tree::AsStaticMut;
-use syscall_abi::wait_on::WaitOn;
-use syscall_abi::{NoValue, SyscallBinding, SyscallError};
+use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
+use syscall_abi::{IntoRawSysRepsonse, NoValue, RawSyscallArgs, SyscallBinding, SyscallError};
 
-pub(super) fn sys_wait_on(
-    task_cap: &mut CursorRefMut<'_, '_, Capability>,
-    args: <WaitOn as SyscallBinding>::CallArgs,
-) -> (<WaitOn as SyscallBinding>::Return, Schedule) {
-    // get basic caps from task
-    let task_cap_ptr = task_cap.as_static_mut() as *mut Capability;
-    let task = task_cap.get_inner_task().unwrap();
-    let mut cspace = task.get_cspace();
-    let cspace = cspace.get_shared().unwrap();
-    let cspace = cspace.get_inner_cspace().unwrap();
+pub(super) struct WaitOnHandler;
 
-    // get valid notification from cspace
-    let notification_cap =
-        unsafe { utils::lookup_cap(cspace, args.notification, Tag::Notification) }.unwrap();
+impl RawSyscallHandler for WaitOnHandler {
+    type Syscall = WaitOn;
 
-    let value = NotificationIface.take_value(notification_cap);
-    if value == 0 {
-        // notification did not contain anything so the task needs to be blocked
-        unsafe {
-            NotificationIface.add_to_wait_set(notification_cap, task_cap_ptr);
-        }
-        let mut task_state = task.state.borrow_mut();
-        task_state.execution_state = TaskExecutionState::Waiting;
-        task_state.waiting_on = Some(notification_cap as *const Capability);
+    fn handle(
+        &mut self,
+        kernel_ctx: &mut KernelContext,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        raw_args: RawSyscallArgs,
+    ) -> Schedule {
+        // parse arguments
+        let args = WaitOnArgs::try_from(raw_args).unwrap();
 
-        // bump down program counter by one instruction so that the same syscall is executed again once the
-        // notification triggers.
-        // this has the effect of then executing the branch below to construct a valid return value
-        task_state.frame.start_pc -= 4;
+        // get basic caps from task
+        let task_cap_ptr = syscall_ctx.task.as_static_mut() as *mut Capability;
+        let task = syscall_ctx.task.get_inner_task().unwrap();
+        let mut cspace = task.get_cspace();
+        let cspace = cspace.get_shared().unwrap();
+        let cspace = cspace.get_inner_cspace().unwrap();
 
-        (Err(SyscallError::WouldBlock), Schedule::RunInit)
-    } else {
-        // notification already has a value so we ensure that the task is not blocked anymore and return that value
-        unsafe {
-            NotificationIface.remove_from_wait_set(notification_cap, task_cap_ptr);
-        }
-        {
+        // get valid notification from cspace
+        let notification_cap =
+            unsafe { utils::lookup_cap(cspace, args.notification, Tag::Notification) }.unwrap();
+
+        let value = NotificationIface.take_value(notification_cap);
+        if value == 0 {
+            // notification did not contain anything so the task needs to be blocked
+            unsafe {
+                NotificationIface.add_to_wait_set(notification_cap, task_cap_ptr);
+            }
             let mut task_state = task.state.borrow_mut();
-            task_state.waiting_on = None;
-        }
-        TaskIface.wake(task_cap);
+            task_state.execution_state = TaskExecutionState::Waiting;
+            task_state.waiting_on = Some(notification_cap as *const Capability);
+            task_state.frame.start_pc = syscall_ctx.trap_info.epc;
 
-        (Ok(NoValue), Schedule::Keep)
+            Schedule::RunInit
+        } else {
+            // notification already has a value so we ensure that the task is not blocked anymore and return that value
+            unsafe {
+                NotificationIface.remove_from_wait_set(notification_cap, task_cap_ptr);
+            }
+            {
+                let mut task_state = task.state.borrow_mut();
+                task_state.waiting_on = None;
+                task_state.frame.start_pc = syscall_ctx.trap_info.epc + 4;
+                task_state
+                    .frame
+                    .write_syscall_return(Ok(NoValue).into_response())
+            }
+            TaskIface.wake(syscall_ctx.task);
+
+            Schedule::Keep
+        }
     }
 }

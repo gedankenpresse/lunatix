@@ -125,6 +125,7 @@ mod test {
 }
 
 // Definitions for the `debug_putc` syscall
+#[deprecated]
 pub struct DebugPutc;
 
 #[derive(Debug, Eq, PartialEq)]
