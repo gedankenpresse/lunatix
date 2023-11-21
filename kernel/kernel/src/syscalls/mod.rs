@@ -88,99 +88,50 @@ pub fn handle_syscall(
     let mut syscall_ctx = SyscallContext::from(trap_info, task);
 
     match syscall_no {
-        // standardized syscalls
+        // handle syscalls
         DebugPutc::SYSCALL_NO => {
-            wrap_handler(DebugPutcHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            DebugPutcHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
         }
-        DebugLog::SYSCALL_NO => {
-            wrap_handler(DebugLogHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-
-        Identify::SYSCALL_NO => {
-            wrap_handler(IdentifyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-
-        YieldTo::SYSCALL_NO => wrap_handler(YieldToHandler, kernel_ctx, &mut syscall_ctx, raw_args),
-
-        Yield::SYSCALL_NO => wrap_handler(YieldHandler, kernel_ctx, &mut syscall_ctx, raw_args),
-
+        DebugLog::SYSCALL_NO => DebugLogHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        Identify::SYSCALL_NO => IdentifyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        YieldTo::SYSCALL_NO => YieldToHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        Yield::SYSCALL_NO => YieldHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
         SystemReset::SYSCALL_NO => {
-            wrap_handler(SystemResetHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            SystemResetHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
         }
-
         syscall_abi::send::Send::SYSCALL_NO => {
-            wrap_handler(SendHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            SendHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
         }
-
-        Exit::SYSCALL_NO => wrap_handler(ExitHandler, kernel_ctx, &mut syscall_ctx, raw_args),
-
-        Call::SYSCALL_NO => wrap_handler(CallHandler, kernel_ctx, &mut syscall_ctx, raw_args),
-
-        Destroy::SYSCALL_NO => wrap_handler(DestroyHandler, kernel_ctx, &mut syscall_ctx, raw_args),
-
+        Exit::SYSCALL_NO => ExitHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        Call::SYSCALL_NO => CallHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        Destroy::SYSCALL_NO => DestroyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
         syscall_abi::copy::Copy::SYSCALL_NO => {
-            wrap_handler(CopyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            CopyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
         }
+        WaitOn::SYSCALL_NO => WaitOnHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
 
-        // raw syscalls
-        WaitOn::SYSCALL_NO => WaitOnHandler.handle(kernel_ctx, &mut syscall_ctx, raw_args),
-
-        _ => {
-            log::warn!(
-                "received unknown syscall {} with args {:x?}",
-                syscall_no,
-                raw_args
-            );
-
-            // write error into task
-            let mut task_state = task.get_inner_task().unwrap().state.borrow_mut();
-            task_state.frame.write_syscall_return(
-                SyscallResult::<NoValue>::Err(SyscallError::UnknownSyscall).into_response(),
-            );
-            task_state.frame.start_pc = trap_info.epc + 4;
-
-            Schedule::Keep
-        }
+        // handle an unknown syscall
+        _ => handle_unknown_syscall(&mut syscall_ctx, syscall_no, raw_args),
     }
 }
 
-fn wrap_handler<Handler: SyscallHandler>(
-    mut handler: Handler,
-    kernel_ctx: &mut KernelContext,
-    syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+fn handle_unknown_syscall(
+    ctx: &SyscallContext,
+    syscall_no: usize,
     raw_args: RawSyscallArgs,
 ) -> Schedule {
-    // parse syscall arguments
-    let args = <Handler::Syscall as SyscallBinding>::CallArgs::try_from(raw_args)
-        .unwrap_or_else(|_| panic!("could not decode syscall args"));
-
-    // execute the handler
-    log::trace!(
-        "handling {} syscall with args {:x?}",
-        core::any::type_name::<Handler::Syscall>(),
-        args
-    );
-    let (schedule, result) = handler.handle(kernel_ctx, syscall_ctx, args);
-    log::trace!(
-        "{} syscall result is {:x?} with new schedule {:?}",
-        core::any::type_name::<Handler::Syscall>(),
-        result,
-        schedule
+    log::warn!(
+        "received unknown syscall {} with args {:x?}",
+        syscall_no,
+        raw_args
     );
 
-    // write the result back to userspace
-    let mut task_state = syscall_ctx
-        .task
-        .get_inner_task()
-        .unwrap()
-        .state
-        .borrow_mut();
-    task_state
-        .frame
-        .write_syscall_return(result.into_response());
+    // write error into task
+    let mut task_state = ctx.task.get_inner_task().unwrap().state.borrow_mut();
+    task_state.frame.write_syscall_return(
+        SyscallResult::<NoValue>::Err(SyscallError::UnknownSyscall).into_response(),
+    );
+    task_state.frame.start_pc = ctx.trap_info.epc + 4;
 
-    // increase the tasks program counter
-    task_state.frame.start_pc = syscall_ctx.trap_info.epc + 4;
-
-    schedule
+    Schedule::Keep
 }

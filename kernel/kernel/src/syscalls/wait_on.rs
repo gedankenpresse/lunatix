@@ -14,7 +14,7 @@ pub(super) struct WaitOnHandler;
 impl RawSyscallHandler for WaitOnHandler {
     type Syscall = WaitOn;
 
-    fn handle(
+    fn handle_raw(
         &mut self,
         kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
