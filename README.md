@@ -42,6 +42,7 @@ General Stuff:
 - [ ] BUG: kernel should refuse to map addresses that have the 39th vaddress bit set to 1
 - [ ] BUG: kernel loader can't load debug kernel: panicked at 'range end index 8636784 out of range for slice of length 8388608', /3/xmas-elf-0.8.0/src/sections.rs:38:57
 - [ ] move device tree to top of init virtual memory
+- [ ] Refactor Allocators crate to use alloc api once that is in rust stable
 
 Destroy related tasks:
 - [x] implement destroy for more caps (maybe add a simple drop to CapCounted?)
