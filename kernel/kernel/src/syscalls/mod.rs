@@ -90,86 +90,61 @@ pub fn handle_syscall(
     match syscall_no {
         // standardized syscalls
         DebugPutc::SYSCALL_NO => {
-            handle_specific_syscall(DebugPutcHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(DebugPutcHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
         DebugLog::SYSCALL_NO => {
-            handle_specific_syscall(DebugLogHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(DebugLogHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
         Identify::SYSCALL_NO => {
-            handle_specific_syscall(IdentifyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(IdentifyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
-        YieldTo::SYSCALL_NO => {
-            handle_specific_syscall(YieldToHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
+        YieldTo::SYSCALL_NO => wrap_handler(YieldToHandler, kernel_ctx, &mut syscall_ctx, raw_args),
 
-        Yield::SYSCALL_NO => {
-            handle_specific_syscall(YieldHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
+        Yield::SYSCALL_NO => wrap_handler(YieldHandler, kernel_ctx, &mut syscall_ctx, raw_args),
 
         SystemReset::SYSCALL_NO => {
-            handle_specific_syscall(SystemResetHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(SystemResetHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
         syscall_abi::send::Send::SYSCALL_NO => {
-            handle_specific_syscall(SendHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(SendHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
-        Exit::SYSCALL_NO => {
-            handle_specific_syscall(ExitHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
+        Exit::SYSCALL_NO => wrap_handler(ExitHandler, kernel_ctx, &mut syscall_ctx, raw_args),
 
-        Call::SYSCALL_NO => {
-            handle_specific_syscall(CallHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
+        Call::SYSCALL_NO => wrap_handler(CallHandler, kernel_ctx, &mut syscall_ctx, raw_args),
 
-        Destroy::SYSCALL_NO => {
-            handle_specific_syscall(DestroyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
-        }
+        Destroy::SYSCALL_NO => wrap_handler(DestroyHandler, kernel_ctx, &mut syscall_ctx, raw_args),
 
         syscall_abi::copy::Copy::SYSCALL_NO => {
-            handle_specific_syscall(CopyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+            wrap_handler(CopyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
         // raw syscalls
         WaitOn::SYSCALL_NO => WaitOnHandler.handle(kernel_ctx, &mut syscall_ctx, raw_args),
 
         _ => {
-            {
-                // increase the tasks program counter
-                let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
-                task_state.frame.start_pc = trap_info.epc + 4;
-            }
+            log::warn!(
+                "received unknown syscall {} with args {:x?}",
+                syscall_no,
+                raw_args
+            );
 
-            // actually handle the specific syscall
-            let (res, schedule): (RawSyscallReturn, Schedule) = match syscall_no {
-                _no => {
-                    log::warn!(
-                        "received unknown syscall {} with args {:x?}",
-                        syscall_no,
-                        raw_args
-                    );
-                    (
-                        [SyscallError::UnknownSyscall as usize, 0, 0, 0, 0, 0, 0, 0],
-                        Schedule::Keep,
-                    )
-                }
-            };
+            // write error into task
+            let mut task_state = task.get_inner_task().unwrap().state.borrow_mut();
+            task_state.frame.write_syscall_return(
+                SyscallResult::<NoValue>::Err(SyscallError::UnknownSyscall).into_response(),
+            );
+            task_state.frame.start_pc = trap_info.epc + 4;
 
-            // write the result back to userspace
-            if res[0] != SyscallError::WouldBlock as usize {
-                let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
-                let tf = &mut task_state.frame;
-                tf.write_syscall_return(res);
-            }
-
-            schedule
+            Schedule::Keep
         }
     }
 }
 
-fn handle_specific_syscall<Handler: SyscallHandler>(
+fn wrap_handler<Handler: SyscallHandler>(
     mut handler: Handler,
     kernel_ctx: &mut KernelContext,
     syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
