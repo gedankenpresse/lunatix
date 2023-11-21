@@ -24,7 +24,7 @@
 //! | [system_reset](system_reset::SystemReset) | *16* | [SystemResetArgs](system_reset::SystemResetArgs) | [NoValue](NoValue) | Schedule a hardware reset |
 //! | [map_devmem](map_devmem::MapDevmem) | *17* | [MapDevmemArgs](map_devmem::MapDevmemArgs) | [NoValue](NoValue) | Map Device Memory
 //! | [send] | *18* |
-//! | [destroy] | *19* |
+//! | [destroy](destroy::Destroy) | *19* | Destroy a capability |
 //! | [copy] | *20* |
 //! | [exit] | *22* |
 //! | [call] | *23* |
@@ -54,6 +54,7 @@
 pub mod caddr;
 pub mod call;
 pub mod debug;
+pub mod destroy;
 mod errors;
 pub mod exit;
 pub mod identify;

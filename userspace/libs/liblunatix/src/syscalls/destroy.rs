@@ -1,9 +1,8 @@
-use syscall_abi::{CAddr, FromRawSysResponse, NoValue, SyscallResult};
+use syscall_abi::destroy::{Destroy, DestroyArgs};
+use syscall_abi::{CAddr, NoValue, SyscallResult};
 
-use crate::syscalls::raw_syscall;
+use crate::syscalls::syscall;
 
 pub fn destroy(cap: CAddr) -> SyscallResult<NoValue> {
-    const DESTROY: usize = 19;
-    let res = raw_syscall(DESTROY, cap.into(), 0, 0, 0, 0, 0, 0);
-    SyscallResult::from_response(res)
+    syscall::<Destroy>(DestroyArgs { caddr: cap })
 }

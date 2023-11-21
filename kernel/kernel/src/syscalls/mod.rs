@@ -33,10 +33,12 @@ use syscall_abi::r#yield::Yield;
 use syscall_abi::system_reset::SystemReset;
 
 use crate::syscalls::call::CallHandler;
+use crate::syscalls::destroy::DestroyHandler;
 use crate::syscalls::exit::ExitHandler;
 use crate::syscalls::handler_trait::{RawSyscallHandler, SyscallHandler};
 use crate::syscalls::send::SendHandler;
 use syscall_abi::call::Call;
+use syscall_abi::destroy::Destroy;
 use syscall_abi::exit::Exit;
 use syscall_abi::wait_on::WaitOn;
 use syscall_abi::yield_to::YieldTo;
@@ -121,6 +123,10 @@ pub fn handle_syscall(
             handle_specific_syscall(CallHandler, kernel_ctx, &mut syscall_ctx, raw_args)
         }
 
+        Destroy::SYSCALL_NO => {
+            handle_specific_syscall(DestroyHandler, kernel_ctx, &mut syscall_ctx, raw_args)
+        }
+
         // raw syscalls
         WaitOn::SYSCALL_NO => WaitOnHandler.handle(kernel_ctx, &mut syscall_ctx, raw_args),
 
@@ -133,17 +139,6 @@ pub fn handle_syscall(
 
             // actually handle the specific syscall
             let (res, schedule): (RawSyscallReturn, Schedule) = match syscall_no {
-                /* DESTROY SYSCALL */
-                // TODO Update syscall_abi to include destroy
-                19 => {
-                    let result = destroy::sys_destroy(kernel_ctx, task, &raw_args);
-                    let response = match result {
-                        Ok(()) => Ok(NoValue),
-                        Err(e) => Err(e),
-                    };
-                    (response.into_response(), Schedule::Keep)
-                }
-
                 /* COPY SYSCALL */
                 // TODO Update syscall_abi to include copy
                 20 => {
