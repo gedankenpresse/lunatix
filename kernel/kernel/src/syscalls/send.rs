@@ -4,13 +4,13 @@ use syscall_abi::{NoValue, SyscallBinding};
 
 use crate::{
     caps::{self, Capability, SyscallError},
-    SyscallContext,
+    KernelContext,
 };
 
 use super::ipc;
 
 pub(super) fn sys_send(
-    ctx: &mut SyscallContext,
+    ctx: &mut KernelContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: <Send as SyscallBinding>::CallArgs,
 ) -> <Send as SyscallBinding>::Return {

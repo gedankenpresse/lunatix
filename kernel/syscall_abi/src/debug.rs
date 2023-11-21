@@ -127,6 +127,7 @@ mod test {
 // Definitions for the `debug_putc` syscall
 pub struct DebugPutc;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct DebugPutcArgs(pub char);
 
 impl TryFrom<RawSyscallArgs> for DebugPutcArgs {

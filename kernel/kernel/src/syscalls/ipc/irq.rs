@@ -4,13 +4,13 @@ use syscall_abi::send::SendArgs;
 use crate::{
     arch_specific::plic::PLIC,
     caps::{self, CSpace, Capability, Irq, IrqControlIface, IrqIface, NotificationIface, Tag},
-    SyscallContext,
+    KernelContext,
 };
 
 use super::super::utils;
 
 pub fn irq_send(
-    ctx: &mut SyscallContext,
+    ctx: &mut KernelContext,
     cspace: &CSpace,
     irq: &Irq,
     args: &SendArgs,
@@ -39,7 +39,7 @@ pub(in crate::syscalls) fn sys_irq_complete(
 }
 
 pub fn irq_control_send(
-    ctx: &mut SyscallContext,
+    ctx: &mut KernelContext,
     cspace: &CSpace,
     irq_control: &mut Capability,
     args: &SendArgs,

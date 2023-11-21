@@ -39,7 +39,7 @@ pub static mut KERNEL_ROOT_PT: PhysConstPtr<PageTable> = PhysConstPtr::null();
 
 pub static mut KERNEL_ALLOCATOR: Option<KernelAlloc> = None;
 
-pub struct SyscallContext {
+pub struct KernelContext {
     pub plic: &'static mut arch_specific::plic::PLIC,
 }
 
@@ -113,13 +113,13 @@ extern "C" fn kernel_main(
 
     prepare_userspace_handoff();
 
-    kernel_loop(derivation_tree, init_caps, &mut SyscallContext { plic });
+    kernel_loop(derivation_tree, init_caps, &mut KernelContext { plic });
 }
 
 fn kernel_loop(
     derivation_tree: Box<DerivationTree<Capability>>,
     mut init_caps: InitCaps,
-    ctx: &mut SyscallContext,
+    ctx: &mut KernelContext,
 ) {
     use crate::init::{prepare_task, yield_to_task};
     log::info!("🚀 launching init");
@@ -165,13 +165,7 @@ fn kernel_loop(
 
         match trap_info.cause {
             TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-                {
-                    let mut task_state =
-                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
-                    let tf = &mut task_state.frame;
-                    tf.start_pc = trap_info.epc + 4;
-                };
-                schedule = syscalls::handle_syscall(&mut active_task, ctx);
+                schedule = syscalls::handle_syscall(&mut active_task, &trap_info, ctx);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::trace!("⏰");

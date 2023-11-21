@@ -1,12 +1,12 @@
 use crate::caps::{Capability, Tag};
 use crate::syscalls::ipc::page::page_call;
-use crate::SyscallContext;
+use crate::KernelContext;
 use derivation_tree::tree::CursorRefMut;
 use syscall_abi::call::Call;
 use syscall_abi::{SyscallBinding, SyscallError};
 
 pub(super) fn sys_call(
-    _ctx: &mut SyscallContext,
+    _ctx: &mut KernelContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: <Call as SyscallBinding>::CallArgs,
 ) -> <Call as SyscallBinding>::Return {

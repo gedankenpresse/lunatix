@@ -2,11 +2,11 @@ use derivation_tree::tree::CursorRefMut;
 
 use crate::{
     caps::{self, Capability, SyscallError},
-    SyscallContext,
+    KernelContext,
 };
 
 pub fn sys_destroy(
-    _ctx: &mut SyscallContext,
+    _ctx: &mut KernelContext,
     task: &mut CursorRefMut<'_, '_, Capability>,
     args: &[usize; 7],
 ) -> Result<(), SyscallError> {
