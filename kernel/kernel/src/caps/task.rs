@@ -17,7 +17,7 @@ use super::Capability;
 use super::Tag;
 use super::Variant;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum TaskExecutionState {
     Running,
     Waiting,

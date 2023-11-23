@@ -45,6 +45,7 @@ impl SyscallHandler for IdentifyHandler {
             Tag::Notification => CapabilityVariant::Notification,
             Tag::Devmem => CapabilityVariant::Devmem,
             Tag::AsidControl => CapabilityVariant::AsidControl,
+            Tag::Endpoint => CapabilityVariant::Endpoint,
         };
 
         (Schedule::Keep, Ok(variant))

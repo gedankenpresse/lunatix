@@ -2,7 +2,7 @@
 #![no_main]
 
 use crate::caps::task::TaskExecutionState;
-use crate::caps::{Capability, IrqControlIface, KernelAlloc, NotificationIface};
+use crate::caps::{Capability, KernelAlloc, NotificationIface};
 use crate::init::InitCaps;
 use crate::sched::Schedule;
 use allocators::Box;
@@ -116,6 +116,21 @@ extern "C" fn kernel_main(
     kernel_loop(derivation_tree, init_caps, &mut KernelContext { plic });
 }
 
+fn maybe_task_wait(task: &Capability) {
+    let task = task.get_inner_task().unwrap();
+    let state = task.state.borrow().execution_state;
+    if state == TaskExecutionState::Waiting {
+        unsafe { asm!("wfi") };
+    }
+}
+
+fn task_set_pc(task: &mut Capability, pc: usize) {
+    let task = task.get_inner_task_mut().unwrap();
+    let mut task_state = task.state.borrow_mut();
+    let tf = &mut task_state.frame;
+    tf.start_pc = pc;
+}
+
 fn kernel_loop(
     derivation_tree: Box<DerivationTree<Capability>>,
     mut init_caps: InitCaps,
@@ -129,21 +144,7 @@ fn kernel_loop(
         match schedule {
             Schedule::RunInit => {
                 active_cursor = derivation_tree.get_node(&mut *init_caps.init_task).unwrap();
-
-                {
-                    let handle = active_cursor.get_shared().unwrap();
-                    if handle
-                        .get_inner_task()
-                        .unwrap()
-                        .state
-                        .borrow()
-                        .execution_state
-                        == TaskExecutionState::Waiting
-                    {
-                        unsafe { asm!("wfi") };
-                    }
-                }
-
+                maybe_task_wait(&active_cursor.get_shared().unwrap());
                 prepare_task(&mut active_cursor.get_exclusive().unwrap());
             }
             Schedule::Keep => {}
@@ -155,13 +156,9 @@ fn kernel_loop(
         };
 
         let mut active_task = active_cursor.get_exclusive().unwrap();
-        unsafe {
-            set_user_trap_handler();
-        }
+        unsafe { set_user_trap_handler() };
         let trap_info = yield_to_task(&mut active_task);
-        unsafe {
-            set_kernel_trap_handler();
-        }
+        unsafe { set_kernel_trap_handler() };
 
         match trap_info.cause {
             TrapEvent::Exception(Exception::EnvCallFromUMode) => {
@@ -171,30 +168,17 @@ fn kernel_loop(
                 log::trace!("⏰");
                 const MILLI: u64 = 10_000; // 10_000 * time_base (100 nanos) ;
                 set_next_timer(100 * MILLI).expect("Could not set new timer interrupt");
-                {
-                    let mut task_state =
-                        active_task.get_inner_task_mut().unwrap().state.borrow_mut();
-                    let tf = &mut task_state.frame;
-                    tf.start_pc = trap_info.epc;
-                };
-
+                task_set_pc(&mut active_task, trap_info.epc);
                 schedule = Schedule::RunInit;
             }
             TrapEvent::Interrupt(Interrupt::SupervisorExternalInterrupt) => {
                 let claim = ctx.plic.claim_next(1).expect("no claim available");
-
-                if let Some(notification) =
-                    IrqControlIface.get_irq_notification(&mut init_caps.irq_control, claim)
-                {
+                let irq_ctrl = init_caps.irq_control.get_inner_irq_control().unwrap();
+                if let Some(notification) = irq_ctrl.get_notification(claim) {
                     log::debug!("triggering notification for irq 0x{:x}", claim);
                     NotificationIface.notify(&notification.borrow());
                 }
-
-                {
-                    let mut task_state = active_task.get_inner_task().unwrap().state.borrow_mut();
-                    task_state.frame.start_pc = trap_info.epc;
-                }
-
+                task_set_pc(&mut active_task, trap_info.epc);
                 schedule = Schedule::Keep;
             }
             _ => {

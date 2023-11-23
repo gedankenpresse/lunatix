@@ -57,6 +57,13 @@ impl Correspondence for IrqControl {
     }
 }
 
+impl IrqControl {
+    /// Get the notification capability that handles the given interrupt source
+    pub fn get_notification(&self, source: u32) -> Option<&RefCell<Capability>> {
+        self.state.interrupt_lines.get(source as usize)
+    }
+}
+
 /// An interface for interacting with IrqControl capabilities
 #[derive(Copy, Clone)]
 pub struct IrqControlIface;
@@ -83,16 +90,6 @@ impl IrqControlIface {
         } else {
             Ok(irq_slot.deref_mut() as *mut Capability)
         }
-    }
-
-    /// Get the notification capability that handles the given interrupt source
-    pub fn get_irq_notification<'a>(
-        &self,
-        cap: &'a Capability,
-        source: u32,
-    ) -> Option<&'a RefCell<Capability>> {
-        let state = &cap.get_inner_irq_control().unwrap().state;
-        state.interrupt_lines.get(source as usize)
     }
 
     /// Initialize a new [`IrqControl`](IrqControl) capability that stores its internal state in kernel allocated memory.

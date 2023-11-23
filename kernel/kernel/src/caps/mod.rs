@@ -1,6 +1,7 @@
 pub mod asid;
 pub mod cspace;
 pub mod devmem;
+pub mod endpoint;
 pub mod irq;
 pub mod irq_control;
 pub mod memory;
@@ -28,6 +29,7 @@ pub use page::{Page, PageIface};
 pub use task::{Task, TaskIface};
 pub use vspace::{VSpace, VSpaceIface};
 
+use crate::caps::endpoint::Endpoint;
 pub use prelude::*;
 pub use syscall_abi::SyscallError;
 
@@ -48,6 +50,7 @@ pub enum Tag {
     Notification,
     Devmem,
     AsidControl,
+    Endpoint,
 }
 
 pub union Variant {
@@ -62,6 +65,7 @@ pub union Variant {
     notification: ManuallyDrop<Notification>,
     devmem: ManuallyDrop<Devmem>,
     asid_control: ManuallyDrop<AsidControl>,
+    endpoint: ManuallyDrop<Endpoint>,
 }
 
 pub struct Capability {
@@ -95,6 +99,7 @@ impl Correspondence for Capability {
             (Tag::Page, Tag::Page) => unsafe {
                 self.variant.page.corresponds_to(&other.variant.page)
             },
+            // TODO Properly add other variants
             _ => false,
         }
     }
@@ -235,6 +240,15 @@ cap_get_inner_mut!(
     asid_control,
     get_inner_asid_control,
     get_inner_asid_control_mut
+);
+
+cap_get_ref_mut!(Endpoint, Endpoint, get_endpoint, get_endpoint_mut);
+cap_get_inner_mut!(
+    Endpoint,
+    Endpoint,
+    endpoint,
+    get_inner_endpoint,
+    get_inner_endpoint_mut
 );
 
 pub struct CapRef<'a, T> {

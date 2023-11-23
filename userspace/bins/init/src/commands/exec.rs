@@ -62,7 +62,6 @@ impl Command for Exec {
             let mut elf_loader =
                 LunatixElfLoader::new(CADDR_MEM, CADDR_VSPACE, task_caps.vspace, 0x31_0000_0000);
             elf_binary.load(&mut elf_loader).unwrap();
-            log::debug!("3");
             elf_loader.remap_to_target_vspace();
 
             // setting task start params

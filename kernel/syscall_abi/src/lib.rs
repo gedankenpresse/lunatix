@@ -28,6 +28,7 @@
 //! | [copy](copy::Copy) | *20* | Copy a capability |
 //! | [exit] | *22* |
 //! | [call] | *23* |
+//! | [receive] | *24* |
 //!
 //! # Calling Conventions
 //!
@@ -60,6 +61,7 @@ mod errors;
 pub mod exit;
 pub mod identify;
 mod ipc_tag;
+pub mod receive;
 pub mod send;
 pub mod system_reset;
 mod traits;

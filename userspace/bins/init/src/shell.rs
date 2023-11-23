@@ -78,6 +78,7 @@ const KNOWN_COMMANDS: &[&'static dyn Command] = &[
     &commands::Cat,
     &commands::Ls,
     &commands::Exec,
+    &commands::EndpointEcho,
 ];
 
 fn process_cmd(input: &str) {

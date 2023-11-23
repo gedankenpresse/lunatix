@@ -50,8 +50,20 @@ pub trait FromRawSysResponse {
     fn from_response(raw: RawSyscallReturn) -> Self;
 }
 
+impl FromRawSysResponse for RawSyscallReturn {
+    fn from_response(raw: RawSyscallReturn) -> Self {
+        raw
+    }
+}
+
 pub trait IntoRawSysRepsonse {
     fn into_response(self) -> RawSyscallReturn;
+}
+
+impl IntoRawSysRepsonse for RawSyscallReturn {
+    fn into_response(self) -> RawSyscallReturn {
+        self
+    }
 }
 
 pub type SyscallResult<T> = Result<T, SyscallError>;

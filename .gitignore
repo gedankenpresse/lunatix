@@ -3,5 +3,9 @@
 
 /guest_root/hello_world
 /guest_root/walk_cspace
+/guest_root/echo_client
+/guest_root/echo_server
+/guest_root/echo_srv
+/guest_root/endpoint_echo
 *.dtb
 *.dtb.txt

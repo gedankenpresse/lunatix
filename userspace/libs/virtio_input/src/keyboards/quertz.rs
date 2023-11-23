@@ -4,17 +4,23 @@ use crate::{Event, EventType};
 
 use super::{CreateKeyboard, Keyboard};
 
-pub struct QuertzKeyboard {
+pub struct QwertzKeyboard {
     shift: bool,
 }
 
-impl CreateKeyboard for QuertzKeyboard {
+impl QwertzKeyboard {
+    pub fn new() -> Self {
+        Self { shift: false }
+    }
+}
+
+impl CreateKeyboard for QwertzKeyboard {
     fn create() -> Self {
         Self { shift: false }
     }
 }
 
-impl QuertzKeyboard {
+impl QwertzKeyboard {
     fn ascii_alpha(&self, c: u8) -> u8 {
         if self.shift {
             return (c as char).to_ascii_uppercase() as u8;
@@ -29,7 +35,7 @@ impl QuertzKeyboard {
 }
 
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h
-impl Keyboard for QuertzKeyboard {
+impl Keyboard for QwertzKeyboard {
     #[rustfmt::skip]
     fn process_evdev_event(&mut self, event: Event) -> Option<char> {
         match (self.shift, event) {

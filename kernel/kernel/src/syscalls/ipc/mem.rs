@@ -1,3 +1,4 @@
+use crate::caps::endpoint::EndpointIface;
 use crate::caps::{
     CSpace, CSpaceIface, Capability, NotificationIface, PageIface, SyscallError, Tag, TaskIface,
     VSpaceIface,
@@ -57,6 +58,7 @@ fn mem_derive(
         }
         CapabilityVariant::Devmem => todo!("cant derive devmem"),
         CapabilityVariant::AsidControl => todo!("cant derive asid_control"),
+        CapabilityVariant::Endpoint => EndpointIface.derive(mem, target_cap),
     }
     Ok(())
 }

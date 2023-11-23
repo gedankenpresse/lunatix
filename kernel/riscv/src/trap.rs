@@ -65,8 +65,12 @@ impl TrapFrame {
     ///
     /// These are the registers `x10`-`x17` as they are defined in the RISCV specification to be
     /// used for function arguments.
-    pub fn get_syscall_args(&mut self) -> &mut [usize] {
+    pub fn get_syscall_args_mut(&mut self) -> &mut [usize] {
         &mut self.general_purpose_regs[11..=17]
+    }
+
+    pub fn get_syscall_args(&self) -> &[usize] {
+        &self.general_purpose_regs[11..=17]
     }
 
     /// Write the return data of a syscall into the frames registers.

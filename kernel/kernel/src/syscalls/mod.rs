@@ -10,6 +10,7 @@ mod call;
 mod exit;
 mod handler_trait;
 mod ipc;
+mod receive;
 mod send;
 mod system_reset;
 mod utils;
@@ -30,13 +31,14 @@ use syscall_abi::debug::DebugLog;
 use syscall_abi::debug::DebugPutc;
 use syscall_abi::identify::Identify;
 use syscall_abi::r#yield::Yield;
+use syscall_abi::receive::Receive;
 use syscall_abi::system_reset::SystemReset;
 
 use crate::syscalls::call::CallHandler;
 use crate::syscalls::copy::CopyHandler;
 use crate::syscalls::destroy::DestroyHandler;
 use crate::syscalls::exit::ExitHandler;
-use crate::syscalls::handler_trait::{RawSyscallHandler, SyscallHandler};
+use crate::syscalls::handler_trait::RawSyscallHandler;
 use crate::syscalls::send::SendHandler;
 use syscall_abi::call::Call;
 use syscall_abi::destroy::Destroy;
@@ -44,6 +46,8 @@ use syscall_abi::exit::Exit;
 use syscall_abi::wait_on::WaitOn;
 use syscall_abi::yield_to::YieldTo;
 use syscall_abi::*;
+
+use self::receive::ReceiveHandler;
 
 pub(self) struct SyscallContext<'trap_info, 'cursor, 'cursor_handle, 'cursor_set> {
     pub task: &'cursor mut CursorRefMut<'cursor_handle, 'cursor_set, Capability>,
@@ -81,7 +85,7 @@ pub fn handle_syscall(
         let mut task_state = task.get_inner_task_mut().unwrap().state.borrow_mut();
         let tf = &mut task_state.frame;
         let syscall_no = tf.get_syscall_number();
-        let args: RawSyscallArgs = tf.get_syscall_args().try_into().unwrap();
+        let args: RawSyscallArgs = tf.get_syscall_args_mut().try_into().unwrap();
         (syscall_no, args)
     };
 
@@ -102,6 +106,7 @@ pub fn handle_syscall(
         syscall_abi::send::Send::SYSCALL_NO => {
             SendHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
         }
+        Receive::SYSCALL_NO => ReceiveHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
         Exit::SYSCALL_NO => ExitHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
         Call::SYSCALL_NO => CallHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
         Destroy::SYSCALL_NO => DestroyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),

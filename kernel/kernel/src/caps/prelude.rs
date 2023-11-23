@@ -1,3 +1,4 @@
+use crate::caps::endpoint::EndpointIface;
 use derivation_tree::caps::CapabilityIface;
 
 use super::{
@@ -21,6 +22,7 @@ pub unsafe fn destroy(target: &mut Capability) {
         crate::caps::Tag::Notification => NotificationIface.destroy(target),
         crate::caps::Tag::Devmem => DevmemIface.destroy(target),
         crate::caps::Tag::AsidControl => AsidControlIface.destroy(target),
+        crate::caps::Tag::Endpoint => EndpointIface.destroy(target),
     };
 }
 
@@ -37,5 +39,6 @@ pub unsafe fn copy(src: &Capability, dst: &mut Capability) {
         crate::caps::Tag::Notification => NotificationIface.copy(src, dst),
         crate::caps::Tag::Devmem => DevmemIface.copy(src, dst),
         crate::caps::Tag::AsidControl => AsidControlIface.copy(src, dst),
+        crate::caps::Tag::Endpoint => EndpointIface.copy(src, dst),
     };
 }

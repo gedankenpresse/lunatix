@@ -1,32 +1,35 @@
-use derivation_tree::tree::CursorRefMut;
-use syscall_abi::send::Send;
-use syscall_abi::{NoValue, SyscallBinding};
+use derivation_tree::AsStaticMut;
+use syscall_abi::send::{Send, SendArgs};
+use syscall_abi::{IntoRawSysRepsonse, NoValue, RawSyscallArgs};
 
 use crate::sched::Schedule;
-use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::SyscallContext;
 use crate::{
-    caps::{self, Capability, SyscallError},
+    caps::{self, SyscallError},
     KernelContext,
 };
 
+use super::handler_trait::RawSyscallHandler;
 use super::ipc;
 
 pub(super) struct SendHandler;
 
-impl SyscallHandler for SendHandler {
+impl RawSyscallHandler for SendHandler {
     type Syscall = Send;
 
-    fn handle(
+    fn handle_raw(
         &mut self,
         kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
-        args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
-    ) -> (
-        Schedule,
-        <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,
-    ) {
+        raw_args: RawSyscallArgs,
+    ) -> Schedule {
+        // <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,
+        let args = SendArgs::from(raw_args);
+        let task_ptr = syscall_ctx.task.as_static_mut() as *mut _;
         let task = syscall_ctx.task.get_inner_task().unwrap();
+
+        // increase the tasks program counter
+        task.state.borrow_mut().frame.start_pc = syscall_ctx.trap_info.epc + 4;
         let mut cspace = task.get_cspace();
         let cspace = cspace.get_shared().unwrap();
         let cspace = cspace.get_inner_cspace().unwrap();
@@ -61,11 +64,39 @@ impl SyscallHandler for SendHandler {
                 cap.get_inner_asid_control().unwrap(),
                 &args,
             ),
+            caps::Tag::Endpoint => {
+                log::debug!("handling endpoint send");
+                let (res, schedule) = ipc::endpoint::endpoint_send(
+                    task_ptr,
+                    task,
+                    cap,
+                    cap.get_inner_endpoint().unwrap(),
+                );
+                if let Some(res) = res {
+                    task.state
+                        .borrow_mut()
+                        .frame
+                        .write_syscall_return(res.into_response());
+                }
+                return schedule;
+            }
         };
 
         match result {
-            Ok(_) => (Schedule::Keep, Ok(NoValue)),
-            Err(e) => (Schedule::Keep, Err(e)),
+            Ok(_) => {
+                task.state
+                    .borrow_mut()
+                    .frame
+                    .write_syscall_return(Ok(NoValue).into_response());
+                Schedule::Keep
+            }
+            Err(e) => {
+                task.state
+                    .borrow_mut()
+                    .frame
+                    .write_syscall_return(Err::<NoValue, SyscallError>(e).into_response());
+                Schedule::Keep
+            }
         }
     }
 }

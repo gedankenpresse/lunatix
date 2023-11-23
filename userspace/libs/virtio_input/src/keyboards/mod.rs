@@ -9,7 +9,7 @@ pub trait CreateKeyboard {
 }
 
 mod quertz;
-pub use quertz::QuertzKeyboard;
+pub use quertz::QwertzKeyboard;
 
 mod neo2;
 pub use neo2::Neo2Keyboard;

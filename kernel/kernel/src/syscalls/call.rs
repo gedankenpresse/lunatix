@@ -47,6 +47,7 @@ impl SyscallHandler for CallHandler {
             Tag::Notification => todo!("call for notification unimplemented"),
             Tag::Devmem => todo!("call for devmem unimplemented"),
             Tag::AsidControl => todo!("call for asid-control unimplemented"),
+            Tag::Endpoint => todo!("call for endpoint unimplemented"),
         };
         (Schedule::Keep, result)
     }

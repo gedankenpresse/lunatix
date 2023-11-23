@@ -8,7 +8,7 @@ all: kernel apps u-boot/u-boot.bin qemu_virt.dtb.txt qemu_sifive_u.dtb.txt
 
 kernel: target/riscv64imac-unknown-none-elf/debug/kernel target/riscv64imac-unknown-none-elf/release/kernel_loader
 
-apps: guest_root/hello_world guest_root/walk_cspace
+apps: guest_root/hello_world guest_root/walk_cspace guest_root/echo_srv guest_root/echo_client
 
 clean:
 	rm -f guest_root/hello_world

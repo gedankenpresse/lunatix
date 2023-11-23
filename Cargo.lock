@@ -78,6 +78,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "echo_client"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "liblunatix",
+]
+
+[[package]]
+name = "echo_srv"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "liblunatix",
+]
+
+[[package]]
 name = "elfloader"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

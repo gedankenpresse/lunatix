@@ -2,6 +2,7 @@ mod copy;
 mod destroy;
 mod exit;
 mod identify;
+mod receive;
 mod send;
 #[macro_use]
 pub mod print;
@@ -21,6 +22,7 @@ pub use exit::exit;
 pub use identify::identify;
 pub use print::{print, put_c};
 pub use r#yield::r#yield;
+pub use receive::receive;
 pub use send::send;
 pub use system_reset::system_reset;
 pub use wait_on::wait_on;

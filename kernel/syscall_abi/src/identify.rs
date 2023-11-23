@@ -20,6 +20,7 @@ back_to_enum! {
         Notification = 8,
         Devmem = 9,
         AsidControl = 10,
+        Endpoint = 11,
     }
 }
 
