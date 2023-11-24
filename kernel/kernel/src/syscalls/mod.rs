@@ -49,18 +49,13 @@ use syscall_abi::*;
 
 use self::receive::ReceiveHandler;
 
-pub(self) struct SyscallContext<'t, 'h, 's> {
-    pub task: CursorRefMut<'h, 's, Capability>,
-    pub trap_info: &'t TrapInfo,
+pub(self) struct SyscallContext<'l, 'c> {
+    pub task: CursorRefMut<'l, 'c, Capability>,
+    pub trap_info: &'l TrapInfo,
 }
 
-impl<'trap_info, 'cursor, 'cursor_handle, 'cursor_set>
-    SyscallContext<'trap_info, 'cursor_handle, 'cursor_set>
-{
-    fn from(
-        trap_info: &'trap_info TrapInfo,
-        task: CursorRefMut<'cursor_handle, 'cursor_set, Capability>,
-    ) -> Self {
+impl<'l, 'cursor> SyscallContext<'l, 'cursor> {
+    fn from(trap_info: &'l TrapInfo, task: CursorRefMut<'l, 'cursor, Capability>) -> Self {
         Self { trap_info, task }
     }
 }

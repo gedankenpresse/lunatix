@@ -16,7 +16,7 @@ impl RawSyscallHandler for ReceiveHandler {
     fn handle_raw(
         &mut self,
         _kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut super::SyscallContext<'_, '_, '_>,
+        syscall_ctx: &mut super::SyscallContext<'_, '_>,
         raw_args: syscall_abi::RawSyscallArgs,
     ) -> Schedule {
         // <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,

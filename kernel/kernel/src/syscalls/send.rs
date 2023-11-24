@@ -20,7 +20,7 @@ impl RawSyscallHandler for SendHandler {
     fn handle_raw(
         &mut self,
         kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_>,
         raw_args: RawSyscallArgs,
     ) -> Schedule {
         // <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,

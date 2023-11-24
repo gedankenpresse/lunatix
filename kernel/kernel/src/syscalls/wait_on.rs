@@ -17,7 +17,7 @@ impl RawSyscallHandler for WaitOnHandler {
     fn handle_raw(
         &mut self,
         kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_>,
         raw_args: RawSyscallArgs,
     ) -> Schedule {
         // parse arguments
