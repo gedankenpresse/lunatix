@@ -13,7 +13,6 @@ pub(super) trait RawSyscallHandler {
         &mut self,
         kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
-        raw_args: RawSyscallArgs,
     ) -> Schedule;
 }
 
@@ -46,9 +45,9 @@ impl<Handler: SyscallHandler> RawSyscallHandler for Handler {
         &mut self,
         kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
-        raw_args: RawSyscallArgs,
     ) -> Schedule {
         // parse syscall arguments
+        let raw_args = syscall_ctx.get_raw_args();
         let args = <Handler::Syscall as SyscallBinding>::CallArgs::try_from(raw_args)
             .unwrap_or_else(|_| panic!("could not decode syscall args"));
 

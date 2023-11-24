@@ -4,10 +4,9 @@ use crate::sched::Schedule;
 use crate::syscalls::handler_trait::RawSyscallHandler;
 use crate::syscalls::{utils, SyscallContext};
 use crate::KernelContext;
-use derivation_tree::tree::CursorRefMut;
 use derivation_tree::AsStaticMut;
 use syscall_abi::wait_on::{WaitOn, WaitOnArgs};
-use syscall_abi::{IntoRawSysRepsonse, NoValue, RawSyscallArgs, SyscallBinding, SyscallError};
+use syscall_abi::{IntoRawSysRepsonse, NoValue};
 
 pub(super) struct WaitOnHandler;
 
@@ -16,11 +15,11 @@ impl RawSyscallHandler for WaitOnHandler {
 
     fn handle_raw(
         &mut self,
-        kernel_ctx: &mut KernelContext,
+        _kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
-        raw_args: RawSyscallArgs,
     ) -> Schedule {
         // parse arguments
+        let raw_args = syscall_ctx.get_raw_args();
         let args = WaitOnArgs::try_from(raw_args).unwrap();
 
         // get basic caps from task

@@ -21,9 +21,9 @@ impl RawSyscallHandler for SendHandler {
         &mut self,
         kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
-        raw_args: RawSyscallArgs,
     ) -> Schedule {
         // <<Self as SyscallHandler>::Syscall as SyscallBinding>::Return,
+        let raw_args = syscall_ctx.get_raw_args();
         let args = SendArgs::from(raw_args);
         let task_ptr = syscall_ctx.task.as_static_mut() as *mut _;
         let task = syscall_ctx.task.get_inner_task().unwrap();

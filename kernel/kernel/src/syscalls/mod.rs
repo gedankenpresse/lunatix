@@ -54,6 +54,21 @@ pub(self) struct SyscallContext<'l, 'c> {
     pub trap_info: &'l TrapInfo,
 }
 
+impl SyscallContext<'_, '_> {
+    fn get_raw_args(&self) -> RawSyscallArgs {
+        RawSyscallArgs::try_from(
+            self.task
+                .get_inner_task()
+                .unwrap()
+                .state
+                .borrow()
+                .frame
+                .get_syscall_args(),
+        )
+        .unwrap()
+    }
+}
+
 impl<'l, 'cursor> SyscallContext<'l, 'cursor> {
     fn from(trap_info: &'l TrapInfo, task: CursorRefMut<'l, 'cursor, Capability>) -> Self {
         Self { trap_info, task }
@@ -88,27 +103,19 @@ pub fn handle_syscall(
 
     match syscall_no {
         // handle syscalls
-        DebugPutc::SYSCALL_NO => {
-            DebugPutcHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-        DebugLog::SYSCALL_NO => DebugLogHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        Identify::SYSCALL_NO => IdentifyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        YieldTo::SYSCALL_NO => YieldToHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        Yield::SYSCALL_NO => YieldHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        SystemReset::SYSCALL_NO => {
-            SystemResetHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-        syscall_abi::send::Send::SYSCALL_NO => {
-            SendHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-        Receive::SYSCALL_NO => ReceiveHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        Exit::SYSCALL_NO => ExitHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        Call::SYSCALL_NO => CallHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        Destroy::SYSCALL_NO => DestroyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
-        syscall_abi::copy::Copy::SYSCALL_NO => {
-            CopyHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args)
-        }
-        WaitOn::SYSCALL_NO => WaitOnHandler.handle_raw(kernel_ctx, &mut syscall_ctx, raw_args),
+        DebugPutc::SYSCALL_NO => DebugPutcHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        DebugLog::SYSCALL_NO => DebugLogHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Identify::SYSCALL_NO => IdentifyHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        YieldTo::SYSCALL_NO => YieldToHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Yield::SYSCALL_NO => YieldHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        SystemReset::SYSCALL_NO => SystemResetHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        syscall_abi::send::Send::SYSCALL_NO => SendHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Receive::SYSCALL_NO => ReceiveHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Exit::SYSCALL_NO => ExitHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Call::SYSCALL_NO => CallHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        Destroy::SYSCALL_NO => DestroyHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        syscall_abi::copy::Copy::SYSCALL_NO => CopyHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
+        WaitOn::SYSCALL_NO => WaitOnHandler.handle_raw(kernel_ctx, &mut syscall_ctx),
 
         // handle an unknown syscall
         _ => handle_unknown_syscall(&mut syscall_ctx, syscall_no, raw_args),
