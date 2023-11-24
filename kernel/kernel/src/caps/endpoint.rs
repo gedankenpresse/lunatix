@@ -1,4 +1,4 @@
-use crate::caps::{CapCounted, Capability, Memory, Tag, Uninit, Variant};
+use crate::caps::{CapCounted, Capability, Tag, Uninit, Variant};
 use allocators::Box;
 use core::cell::RefCell;
 use core::mem::ManuallyDrop;
@@ -94,7 +94,7 @@ impl EndpointIface {
 impl CapabilityIface<Capability> for EndpointIface {
     type InitArgs = ();
 
-    fn init(&self, target: &mut impl AsStaticMut<Capability>, args: Self::InitArgs) {
+    fn init(&self, _target: &mut impl AsStaticMut<Capability>, _args: Self::InitArgs) {
         todo!()
     }
 

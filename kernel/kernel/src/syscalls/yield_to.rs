@@ -4,7 +4,6 @@ use crate::sched::Schedule;
 use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::SyscallContext;
 use crate::KernelContext;
-use derivation_tree::tree::CursorRefMut;
 use syscall_abi::yield_to::{TaskStatus, YieldTo};
 use syscall_abi::SyscallBinding;
 

@@ -1,18 +1,16 @@
-use derivation_tree::tree::CursorRefMut;
 use riscv::mem::ptrs::MappedConstPtr;
 use syscall_abi::call::CallArgs;
 use syscall_abi::send::SendArgs;
-use syscall_abi::{MapFlags, RawSyscallArgs, SyscallResult, SyscallReturnData};
+use syscall_abi::{MapFlags, SyscallResult, SyscallReturnData};
 
 use crate::{
-    caps::{page::map_page, CSpace, Capability, Page, SyscallError, Tag},
+    caps::{page::map_page, CSpace, Page, SyscallError, Tag},
     syscalls::utils,
 };
 
 pub fn page_send(cspace: &CSpace, page: &mut Page, args: &SendArgs) -> Result<(), SyscallError> {
     const MAP: usize = 0;
     const UNMAP: usize = 1;
-    const PADDR: usize = 2;
 
     match args.label() {
         MAP => {

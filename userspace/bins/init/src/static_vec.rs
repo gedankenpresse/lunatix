@@ -8,6 +8,7 @@ pub struct StaticVec<T, const N: usize> {
     length: usize,
 }
 
+#[allow(unused)]
 impl<T, const N: usize> StaticVec<T, N> {
     pub fn new() -> Self {
         let this = Self {

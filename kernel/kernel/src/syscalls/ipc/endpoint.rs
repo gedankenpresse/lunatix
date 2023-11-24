@@ -4,9 +4,7 @@ use crate::caps::{Capability, Task};
 use crate::sched::Schedule;
 use syscall_abi::receive::{Receive, ReceiveReturn};
 use syscall_abi::send::SendArgs;
-use syscall_abi::{
-    IntoRawSysRepsonse, NoValue, RawSyscallArgs, SyscallBinding, SyscallError, SyscallResult,
-};
+use syscall_abi::{IntoRawSysRepsonse, NoValue, RawSyscallArgs, SyscallBinding, SyscallResult};
 
 fn ipc_recieve_from(src_task: &Task) -> <Receive as SyscallBinding>::Return {
     let src_state = src_task.state.borrow();

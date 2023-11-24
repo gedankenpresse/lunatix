@@ -3,6 +3,7 @@ use riscv::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::pt::PageTable;
 use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
+use crate::caps::task::TaskExecutionState;
 use crate::{arch_specific::mmu, caps, virtmem};
 
 /// Initialize the currently active PageTable with virtual address mapping that is appropriate for kernel usage only.
@@ -46,8 +47,12 @@ pub fn yield_to_task(task: &mut caps::Capability) -> TrapInfo {
     let mut task = task.get_task_mut().unwrap();
     let task = task.as_mut();
     let mut state = task.state.borrow_mut();
+    // TODO: this assert should shouldn't be commented out, but currently that would lead to kernel crashes
+    //assert_eq!(state.execution_state, TaskExecutionState::Idle);
+    state.execution_state = TaskExecutionState::Running;
     log::trace!("restoring trap frame, entering user space: ➡️ 👤🌍");
     unsafe { trap_frame_load(&mut state.frame as *mut TrapFrame) };
+    state.execution_state = TaskExecutionState::Idle;
     log::trace!("returning to kernel, handling trap: ↩️ 🌱");
     TrapInfo::from_current_regs()
 }

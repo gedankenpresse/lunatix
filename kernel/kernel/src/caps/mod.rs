@@ -114,6 +114,7 @@ impl TreeNodeOps for Capability {
 macro_rules! cap_get_ref_mut {
     ($variant:ty, $tag:ident, $name:ident, $name_mut: ident) => {
         impl Capability {
+            #[allow(unused)]
             pub fn $name_mut<'a>(&'a mut self) -> Result<CapRefMut<'a, $variant>, ()> {
                 if self.tag == Tag::$tag {
                     Ok(CapRefMut {
@@ -125,6 +126,7 @@ macro_rules! cap_get_ref_mut {
                 }
             }
 
+            #[allow(unused)]
             pub fn $name<'a>(&'a self) -> Result<CapRef<'a, $variant>, ()> {
                 if self.tag == Tag::$tag {
                     Ok(CapRef {
@@ -142,6 +144,7 @@ macro_rules! cap_get_ref_mut {
 macro_rules! cap_get_inner_mut {
     ($typ:ty, $tag:ident, $variant:ident, $name:ident, $name_mut:ident) => {
         impl Capability {
+            #[allow(unused)]
             pub fn $name<'a>(&'a self) -> Result<&'a $typ, ()> {
                 if self.tag == Tag::$tag {
                     Ok(unsafe { &self.variant.$variant })
@@ -150,6 +153,7 @@ macro_rules! cap_get_inner_mut {
                 }
             }
 
+            #[allow(unused)]
             pub fn $name_mut<'a>(&'a mut self) -> Result<&'a mut $typ, ()> {
                 if self.tag == Tag::$tag {
                     Ok(unsafe { &mut self.variant.$variant })
