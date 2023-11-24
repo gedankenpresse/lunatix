@@ -14,7 +14,7 @@ impl SyscallHandler for IdentifyHandler {
     fn handle(
         &mut self,
         _kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (
         Schedule,

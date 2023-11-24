@@ -17,7 +17,7 @@ impl RawSyscallHandler for WaitOnHandler {
     fn handle_raw(
         &mut self,
         kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
         raw_args: RawSyscallArgs,
     ) -> Schedule {
         // parse arguments
@@ -59,7 +59,7 @@ impl RawSyscallHandler for WaitOnHandler {
                     .frame
                     .write_syscall_return(Ok(NoValue).into_response())
             }
-            TaskIface.wake(syscall_ctx.task);
+            TaskIface.wake(&syscall_ctx.task);
 
             Schedule::Keep
         }

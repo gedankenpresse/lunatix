@@ -49,17 +49,17 @@ use syscall_abi::*;
 
 use self::receive::ReceiveHandler;
 
-pub(self) struct SyscallContext<'trap_info, 'cursor, 'cursor_handle, 'cursor_set> {
-    pub task: &'cursor mut CursorRefMut<'cursor_handle, 'cursor_set, Capability>,
-    pub trap_info: &'trap_info TrapInfo,
+pub(self) struct SyscallContext<'t, 'h, 's> {
+    pub task: CursorRefMut<'h, 's, Capability>,
+    pub trap_info: &'t TrapInfo,
 }
 
 impl<'trap_info, 'cursor, 'cursor_handle, 'cursor_set>
-    SyscallContext<'trap_info, 'cursor, 'cursor_handle, 'cursor_set>
+    SyscallContext<'trap_info, 'cursor_handle, 'cursor_set>
 {
     fn from(
         trap_info: &'trap_info TrapInfo,
-        task: &'cursor mut CursorRefMut<'cursor_handle, 'cursor_set, Capability>,
+        task: CursorRefMut<'cursor_handle, 'cursor_set, Capability>,
     ) -> Self {
         Self { trap_info, task }
     }
@@ -76,7 +76,7 @@ pub(self) type HandlerReturn<Syscall> = (Schedule, <Syscall as SyscallBinding>::
 /// It might be the same as `tf` but might also not be.
 #[inline(always)]
 pub fn handle_syscall(
-    task: &mut CursorRefMut<'_, '_, Capability>,
+    mut task: CursorRefMut<'_, '_, Capability>,
     trap_info: &TrapInfo,
     kernel_ctx: &mut KernelContext,
 ) -> Schedule {

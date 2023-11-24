@@ -15,7 +15,7 @@ impl SyscallHandler for DebugPutcHandler {
     fn handle(
         &mut self,
         kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (
         Schedule,
@@ -34,7 +34,7 @@ impl SyscallHandler for DebugLogHandler {
     fn handle(
         &mut self,
         kernel_ctx: &mut KernelContext,
-        syscall_ctx: &mut SyscallContext<'_, '_, '_, '_>,
+        syscall_ctx: &mut SyscallContext<'_, '_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (
         Schedule,

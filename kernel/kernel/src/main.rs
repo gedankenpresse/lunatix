@@ -162,7 +162,7 @@ fn kernel_loop(
 
         match trap_info.cause {
             TrapEvent::Exception(Exception::EnvCallFromUMode) => {
-                schedule = syscalls::handle_syscall(&mut active_task, &trap_info, ctx);
+                schedule = syscalls::handle_syscall(active_task, &trap_info, ctx);
             }
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::trace!("⏰");
