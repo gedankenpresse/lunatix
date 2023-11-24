@@ -1,4 +1,4 @@
-use crate::caps::{Capability, Tag};
+use crate::caps::Tag;
 use crate::sched::Schedule;
 use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::SyscallContext;

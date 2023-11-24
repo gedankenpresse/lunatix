@@ -66,6 +66,7 @@ impl RawSyscallHandler for ReceiveHandler {
                 return schedule;
             }
         };
+        #[allow(unreachable_code)]
         match result {
             Ok(r) => {
                 task.state

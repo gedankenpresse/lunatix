@@ -1,7 +1,7 @@
 use crate::sched::Schedule;
 use crate::syscalls::SyscallContext;
 use crate::KernelContext;
-use syscall_abi::{IntoRawSysRepsonse, RawSyscallArgs, SyscallBinding};
+use syscall_abi::{IntoRawSysRepsonse, SyscallBinding};
 
 /// A trait for handling a specific syscall in the most bare-bones way possible.
 ///

@@ -1,14 +1,10 @@
-use derivation_tree::tree::CursorRefMut;
 use syscall_abi::copy::Copy;
 use syscall_abi::{NoValue, SyscallBinding};
 
 use crate::sched::Schedule;
 use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::SyscallContext;
-use crate::{
-    caps::{self, Capability, SyscallError},
-    KernelContext,
-};
+use crate::{caps, KernelContext};
 
 pub(super) struct CopyHandler;
 
@@ -17,7 +13,7 @@ impl SyscallHandler for CopyHandler {
 
     fn handle(
         &mut self,
-        kernel_ctx: &mut KernelContext,
+        _kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (

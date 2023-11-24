@@ -1,6 +1,6 @@
 use derivation_tree::AsStaticMut;
 use syscall_abi::send::{Send, SendArgs};
-use syscall_abi::{IntoRawSysRepsonse, NoValue, RawSyscallArgs};
+use syscall_abi::{IntoRawSysRepsonse, NoValue};
 
 use crate::sched::Schedule;
 use crate::syscalls::SyscallContext;

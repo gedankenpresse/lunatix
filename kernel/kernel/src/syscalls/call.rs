@@ -1,12 +1,11 @@
-use crate::caps::{Capability, Tag};
+use crate::caps::Tag;
 use crate::sched::Schedule;
 use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::ipc::page::page_call;
 use crate::syscalls::SyscallContext;
 use crate::KernelContext;
-use derivation_tree::tree::CursorRefMut;
 use syscall_abi::call::Call;
-use syscall_abi::{SyscallBinding, SyscallError};
+use syscall_abi::SyscallBinding;
 
 pub(super) struct CallHandler;
 
@@ -15,7 +14,7 @@ impl SyscallHandler for CallHandler {
 
     fn handle(
         &mut self,
-        kernel_ctx: &mut KernelContext,
+        _kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (

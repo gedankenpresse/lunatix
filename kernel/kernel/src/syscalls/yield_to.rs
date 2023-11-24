@@ -17,7 +17,7 @@ impl SyscallHandler for YieldToHandler {
 
     fn handle(
         &mut self,
-        kernel_ctx: &mut KernelContext,
+        _kernel_ctx: &mut KernelContext,
         syscall_ctx: &mut SyscallContext<'_, '_>,
         args: <<Self as SyscallHandler>::Syscall as SyscallBinding>::CallArgs,
     ) -> (

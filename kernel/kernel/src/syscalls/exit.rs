@@ -1,10 +1,8 @@
 use crate::caps::task::TaskExecutionState;
-use crate::caps::Task;
 use crate::sched::Schedule;
 use crate::syscalls::handler_trait::SyscallHandler;
 use crate::syscalls::SyscallContext;
 use crate::KernelContext;
-use core::ops::DerefMut;
 use syscall_abi::exit::Exit;
 use syscall_abi::{NoValue, SyscallBinding};
 
