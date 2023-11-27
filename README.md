@@ -68,3 +68,12 @@ Destroy related tasks:
 - [ ] flesh out scheduler so that a process is executed multiple times
 - [ ] document (and maybe reorganize) address space layout
 - [ ] VirtIO from device tree
+
+## Process Conventions
+
+These are the conventions that apply to processes started within the system.
+They describe which capabilities a process can expect to be present at which CAddr.
+
+- Binary files have a special elf section named `.lunatix_manifest`.
+  It contains metadata about the task to load including at which CAddrs it expects which capabilities.
+  The loading task tries to fulfill these requests or rejects the binary.
