@@ -1,1 +1,5 @@
-this is a lunatix manifest
+[metadata]
+name=hello_world
+description=a program that simply prints "hello_world" to the attached serial console
+
+[capabilities]
