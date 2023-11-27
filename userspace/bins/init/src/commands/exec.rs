@@ -9,6 +9,7 @@ use crate::{CADDR_ASID_CONTROL, CADDR_MEM, CADDR_VSPACE, FS};
 use caddr_alloc::alloc_caddr;
 use liblunatix::prelude::syscall_abi::identify::CapabilityVariant;
 use liblunatix::prelude::syscall_abi::MapFlags;
+use xmas_elf::sections::SectionData;
 
 use super::Command;
 
@@ -63,6 +64,24 @@ impl Command for Exec {
                 LunatixElfLoader::new(CADDR_MEM, CADDR_VSPACE, task_caps.vspace, 0x31_0000_0000);
             elf_binary.load(&mut elf_loader).unwrap();
             elf_loader.remap_to_target_vspace();
+
+            match elf_binary.file.find_section_by_name(".lunatix_manifest") {
+                None => log::warn!(
+                    "{} elf binary does not contain a lunatix manifest section",
+                    path
+                ),
+                Some(section) => {
+                    let data = section.get_data(&elf_binary.file).unwrap();
+                    match data {
+                        SectionData::Undefined(data) => {
+                            let raw_manifest = core::str::from_utf8(data)
+                                .expect(".lunatix_manifest does not contain valid string data");
+                            log::info!("found lunatix manifest elf section: {:?}", raw_manifest);
+                        }
+                        _ => log::info!("unknown section data {:?}", data),
+                    }
+                }
+            }
 
             // setting task start params
             liblunatix::ipc::task::task_assign_control_registers(

@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Kernel" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run -p kernel" />
+    <option name="command" value="run -p kernel --release" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />

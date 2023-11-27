@@ -210,6 +210,7 @@ dependencies = [
  "virtio_gpu",
  "virtio_input",
  "virtio_p9",
+ "xmas-elf",
 ]
 
 [[package]]

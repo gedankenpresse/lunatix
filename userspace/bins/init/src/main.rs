@@ -289,7 +289,7 @@ fn main() {
 
     let byte_reader = virtio_input::VirtioByteReader {
         input: input_driver,
-        keyboard: virtio_input::keyboards::Neo2Keyboard::new(),
+        keyboard: virtio_input::keyboards::QwertzKeyboard::new(),
     };
 
     shell::shell(&mut EchoingByteReader(byte_reader));

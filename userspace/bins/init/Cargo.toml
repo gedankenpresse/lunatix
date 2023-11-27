@@ -28,6 +28,7 @@ embedded-graphics = "0.8.1"
 mmap = { version = "0.1.0", path = "../../libs/mmap" }
 virtio_gpu = { version = "0.1.0", path = "../../libs/virtio_gpu" }
 virtio_input = { version = "0.1.0", path = "../../libs/virtio_input" }
+xmas-elf = "0.8.0"
 
 [build-dependencies]
 cc = "1.0.79"
