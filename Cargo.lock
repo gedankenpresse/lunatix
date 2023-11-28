@@ -220,7 +220,7 @@ dependencies = [
  "mmap",
  "p9",
  "regs",
- "uart_driver",
+ "uart_driver_old",
  "virtio",
  "virtio_gpu",
  "virtio_input",
@@ -258,7 +258,6 @@ dependencies = [
  "sifive_shutdown_driver",
  "syscall_abi",
  "thiserror-no-std",
- "uart_driver",
 ]
 
 [[package]]
@@ -460,6 +459,8 @@ dependencies = [
  "cc",
  "liblunatix",
  "log",
+ "virtio",
+ "virtio_p9",
 ]
 
 [[package]]
@@ -508,6 +509,14 @@ dependencies = [
 
 [[package]]
 name = "uart_driver"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "liblunatix",
+]
+
+[[package]]
+name = "uart_driver_old"
 version = "0.1.0"
 dependencies = [
  "fdt-rs",

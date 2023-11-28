@@ -13,6 +13,8 @@ edition.workspace = true
 allocators = { version = "0.2.0", path = "../../../support_crates/allocators" }
 caddr_alloc = { version = "0.1.0", path = "../../libs/caddr_alloc" }
 liblunatix = { version = "0.1.0", path = "../../libs/liblunatix" }
+virtio_p9 = { version = "0.1.0", path = "../../libs/virtio_p9" }
+virtio = { version = "0.1.0", path = "../../libs/virtio" }
 log = "0.4.20"
 
 [build-dependencies]

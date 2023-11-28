@@ -1,0 +1,10 @@
+[metadata]
+name=uart_driver
+
+[environment]
+cspace_radix=3
+stack_size=4096
+
+[capabilities]
+1=endpoint
+2=devmem_mapping,start=0x10000000,size=0x100

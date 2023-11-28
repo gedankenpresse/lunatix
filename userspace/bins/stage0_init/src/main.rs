@@ -1,10 +1,16 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
+
+mod drivers;
+mod fs;
 mod logger;
+mod scheduler;
 mod static_once_cell;
 
 use crate::logger::Logger;
+use crate::scheduler::Scheduler;
 use crate::static_once_cell::StaticOnceCell;
 use allocators::boundary_tag_alloc::{BoundaryTagAllocator, TagsU32};
 use caddr_alloc::CAddrAlloc;
@@ -26,7 +32,7 @@ const CADDR_IRQ_CONTROL: CAddr = CAddr::new(4, CSPACE_BITS);
 const CADDR_DEVMEM: CAddr = CAddr::new(5, CSPACE_BITS);
 const CADDR_ASID_CONTROL: CAddr = CAddr::new(6, CSPACE_BITS);
 
-static LOGGER: Logger = Logger::new(Level::Info);
+static LOGGER: Logger = Logger::new(Level::Debug);
 
 static CADDR_ALLOC: CAddrAlloc = CAddrAlloc {
     cspace_bits: AtomicUsize::new(CSPACE_BITS),
@@ -53,7 +59,11 @@ extern "C" fn _start() {
 }
 
 fn main() {
-    log::info!("hello from stage0_init")
+    fs::init();
+    let mut scheduler = Scheduler::new();
+    scheduler.add_to_schedule(drivers::load_driver(&["drivers", "uart"]));
+
+    todo!("loop scheduler")
 }
 
 unsafe fn init_allocator(pages: usize, addr: *mut u8) -> BoundaryTagAllocator<'static, TagsU32> {

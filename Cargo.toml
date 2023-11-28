@@ -5,6 +5,7 @@ members = [
     "support_crates/*",
     "userspace/bins/*",
     "userspace/libs/*",
+    "userspace/drivers/*",
 ]
 default-members = ["kernel/kernel"]
 

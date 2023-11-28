@@ -10,6 +10,8 @@ kernel: target/riscv64imac-unknown-none-elf/debug/kernel target/riscv64imac-unkn
 
 apps: guest_root/hello_world guest_root/walk_cspace guest_root/echo_srv guest_root/echo_client
 
+drivers: guest_root/drivers/uart
+
 clean:
 	rm -f guest_root/hello_world
 	rm -f *.dtb *.dtb.txt
@@ -20,6 +22,10 @@ clean:
 #
 # Basic Targets
 #
+
+guest_root/drivers/% : target/riscv64imac-unknown-none-elf/release/%_driver
+	mkdir -p guest_root/drivers
+	cp $< $@
 
 guest_root/% : target/riscv64imac-unknown-none-elf/release/%
 	cp $< $@

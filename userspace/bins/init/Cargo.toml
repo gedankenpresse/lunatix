@@ -21,7 +21,7 @@ liblunatix = { version = "0.1.0", path = "../../libs/liblunatix" }
 log = "0.4.20"
 p9 = { version = "0.1.0", path = "../../libs/p9" }
 regs = { version = "0.1.0", path = "../../../support_crates/regs" }
-uart_driver = { version = "0.1.0", path = "../../../support_crates/uart_driver" }
+uart_driver_old = { version = "0.1.0", path = "../../../support_crates/uart_driver_old" }
 virtio_p9 = { version = "0.1.0", path = "../../libs/virtio_p9" }
 virtio = { version = "0.1.0", path = "../../libs/virtio" }
 embedded-graphics = "0.8.1"
