@@ -1,6 +1,6 @@
 extern crate std;
 
-use crate::capabilities::{CSpaceSource, CapPlacement, CapSpec};
+use crate::capabilities::CapSpec;
 use crate::manifest::LunatixManifest;
 use alloc::vec::Vec;
 
@@ -15,7 +15,7 @@ stack_size_bytes=4096
 
 [capabilities]
 1=cspace,source=self
-2=irq,line=5
+2=irq,line=5,notify=false
 4=memory,min_size_bytes=4096
 ";
 
@@ -49,26 +49,35 @@ fn test_environment_stack_size() {
 #[test]
 fn test_capabilities() {
     let m = LunatixManifest::from(MANIFEST);
-    let caps = m.capabilities().unwrap();
+    let mut caps = m.capabilities().unwrap();
 
-    let target = std::vec![
-        CapPlacement {
-            caddr: 1,
-            spec: CapSpec::CSpace {
-                source: CSpaceSource::OwnCSpace,
-            }
-        },
-        CapPlacement {
-            caddr: 2,
-            spec: CapSpec::Irq { line: 5 }
-        },
-        CapPlacement {
-            caddr: 4,
-            spec: CapSpec::Memory {
-                min_size_bytes: 4096
-            }
-        }
-    ];
+    let mut cap_spec = caps.next().unwrap();
+    assert_eq!(cap_spec.caddr, 1);
+    assert_eq!(cap_spec.typ, "cspace");
+    assert_eq!(
+        cap_spec.args.iter().collect::<Vec<_>>(),
+        std::vec![("source", "self")]
+    );
+    assert_eq!(cap_spec.args.get("source"), Some("self"));
 
-    assert_eq!(target, caps.collect::<Vec<_>>());
+    cap_spec = caps.next().unwrap();
+    assert_eq!(cap_spec.caddr, 2);
+    assert_eq!(cap_spec.typ, "irq");
+    assert_eq!(
+        cap_spec.args.iter().collect::<Vec<_>>(),
+        std::vec![("line", "5"), ("notify", "false")]
+    );
+    assert_eq!(cap_spec.args.get("line"), Some("5"));
+    assert_eq!(cap_spec.args.get("notify"), Some("false"));
+
+    cap_spec = caps.next().unwrap();
+    assert_eq!(cap_spec.caddr, 4);
+    assert_eq!(cap_spec.typ, "memory");
+    assert_eq!(
+        cap_spec.args.iter().collect::<Vec<_>>(),
+        std::vec![("min_size_bytes", "4096")]
+    );
+    assert_eq!(cap_spec.args.get("min_size_bytes"), Some("4096"));
+
+    assert!(caps.next().is_none());
 }

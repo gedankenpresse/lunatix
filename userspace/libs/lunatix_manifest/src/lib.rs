@@ -25,14 +25,6 @@
 //! `<caddr>=<type>,<arg1>=<value2>,<arg2>=<value2>,...`
 //! This specification dictates that at CAddr `caddr` a capability of the given `type` should be placed.
 //! Afterwards `,`-separated arguments *MUST* be given that depend on the capability type.
-//!
-//! Right now the following capabilities and types are defined:
-//! - `cspace` with args:
-//!     - `source`: Must be set to `self` to request access to the programs own cspace.
-//! - `irq` with args:
-//!     - `line`: Must be set to an interrupt to which the irq capability should be bound.
-//! - `memory` with args:
-//!     - `min_size_bytes`: Must be set to the minimum number of bytes that this memory capability should hold.
 #![no_std]
 
 extern crate alloc;

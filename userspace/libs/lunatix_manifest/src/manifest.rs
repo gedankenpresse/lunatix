@@ -1,4 +1,4 @@
-use crate::capabilities::{CapPlacement, Capabilities};
+use crate::capabilities::{CapSpec, Capabilities};
 use crate::environment::Environment;
 use crate::metadata::Metadata;
 use ini_core::{Item, Parser};
