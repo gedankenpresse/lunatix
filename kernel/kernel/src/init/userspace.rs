@@ -21,7 +21,7 @@ use riscv::pt::{EntryFlags, PAGESIZE};
 
 static INIT_BIN: &[u8] = include_aligned!(
     Align16,
-    "../../../../target/riscv64imac-unknown-none-elf/release/init"
+    "../../../../target/riscv64imac-unknown-none-elf/release/stage0_init"
 );
 
 /// A struct for allocating and mapping (loading) memory so that it can be used for userspace stack

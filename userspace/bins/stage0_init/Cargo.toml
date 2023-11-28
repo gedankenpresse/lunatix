@@ -1,0 +1,19 @@
+[package]
+name = "stage0_init"
+authors.workspace = true
+repository.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+allocators = { version = "0.2.0", path = "../../../support_crates/allocators" }
+caddr_alloc = { version = "0.1.0", path = "../../libs/caddr_alloc" }
+liblunatix = { version = "0.1.0", path = "../../libs/liblunatix" }
+log = "0.4.20"
+
+[build-dependencies]
+cc = "1.0.83"

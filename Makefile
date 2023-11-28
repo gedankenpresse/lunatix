@@ -45,7 +45,7 @@ target/riscv64imac-unknown-none-elf/release/%: FORCE
 target/riscv64imac-unknown-none-elf/debug/%: FORCE
 	cargo build -p $*
 
-target/riscv64imac-unknown-none-elf/debug/kernel: FORCE target/riscv64imac-unknown-none-elf/release/init
+target/riscv64imac-unknown-none-elf/debug/kernel: FORCE target/riscv64imac-unknown-none-elf/release/stage0_init
 	cargo build -p kernel
 
 
