@@ -267,7 +267,7 @@ fn main() {
     let p9 = init_9p_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
     let _ = FS.0.borrow_mut().insert(p9);
 
-    EndpointEcho.execute("").unwrap();
+    //EndpointEcho.execute("").unwrap();
     let gpu_driver =
         virtio_gpu::gpu::init_gpu_driver(CADDR_MEM, CADDR_VSPACE, CADDR_DEVMEM, CADDR_IRQ_CONTROL);
     let gpu_driver = Rc::new(RefCell::new(gpu_driver));
