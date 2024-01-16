@@ -91,6 +91,7 @@ impl Keyboard for QwertzKeyboard {
             (_, Event { event_type: EventType::Key, value: 1, code: 49 }) => Some(self.ascii_alpha(b'n') as char),
             (_, Event { event_type: EventType::Key, value: 1, code: 50 }) => Some(self.ascii_alpha(b'm') as char),
 
+            (_, Event { event_type: EventType::Key, value: 1, code: 52 }) => Some(self.ascii_alpha(b'.') as char),
 
             (true, Event { event_type: EventType::Key, value: 1, code: 53 }) => Some(self.ascii_alpha(b'_') as char),
             (false, Event { event_type: EventType::Key, value: 1, code: 53 }) => Some(self.ascii_alpha(b'-') as char),
