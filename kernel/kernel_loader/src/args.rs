@@ -34,8 +34,15 @@ impl Iterator for CmdArgIter {
 
 /// Arguments given to kernel_loader packed into a struct
 pub struct LoaderArgs {
+    /// The address of the *flattened device tree* (in physical memory) which u-boot prepared for us and which
+    /// describes the hardware lunatix was booted on.
     pub phys_fdt_addr: *const u8,
+
+    /// The address of the kernel binary image (in physical memory).
+    /// This image is usually placed there by qemu or u-boot before jumping into the kernel_loader.
     pub image_addr: *const u8,
+
+    /// The size of the kernel image in bytes.
     pub image_size: Option<usize>,
 }
 

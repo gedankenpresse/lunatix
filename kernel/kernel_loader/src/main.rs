@@ -1,4 +1,12 @@
 //! An elf binary to setup virtual memory and load the kernel in high address ranges
+//!
+//! This is a program which serves the simple purpose of loading the actual kernel in the execution environment that
+//! it expects.
+//! This simplifies kernel development because the kernel can be programmed and compiled with the assumption that
+//! virtual addressing is already turned and never turned off.
+//! This assumption can of course only hold when a separate stage runs before the actual kernel which configures
+//! virtual addressing and loads the kernel binary at the addresses which it expects.
+//! That is done by this `kernel_loader` program.
 #![no_std]
 #![no_main]
 // TODO: remove dead code
@@ -69,7 +77,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let allocator = unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    log::debug!("allocating root table");
+    log::debug!("allocating root PageTable");
     let root_table_box: Box<'_, '_, PageTable> = unsafe {
         Box::new_zeroed(&allocator)
             .expect("Could not setup root PageTable")
@@ -109,14 +117,11 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
 
-    log::debug!("parsing device tree");
-    let device_tree = unsafe { DevTree::from_raw_pointer(args.phys_fdt_addr).unwrap() };
-
     log::debug!("moving device tree");
     let mut phys_dev_tree =
-        Box::new_uninit_slice_with_alignment(device_tree.buf().len(), 4096, allocator).unwrap();
+        Box::new_uninit_slice_with_alignment(dev_tree.buf().len(), 4096, allocator).unwrap();
     let phys_dev_tree = unsafe {
-        for (i, &byte) in device_tree.buf().iter().enumerate() {
+        for (i, &byte) in dev_tree.buf().iter().enumerate() {
             phys_dev_tree[i].write(byte);
         }
         phys_dev_tree.assume_init()
