@@ -84,6 +84,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "device_tree"
+version = "0.1.0"
+dependencies = [
+ "thiserror-no-std",
+]
+
+[[package]]
 name = "echo_client"
 version = "0.1.0"
 dependencies = [
