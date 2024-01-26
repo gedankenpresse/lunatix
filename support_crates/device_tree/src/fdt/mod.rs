@@ -22,12 +22,16 @@
 //! ├──────────────────────────┤
 //! │ structure block          │
 //! ├──────────────────────────┤
+//! │ (free space)             │
+//! ├──────────────────────────┤
 //! │ strings block            │
 //! └──────────────────────────┘
 //! ```
 
 mod header;
 mod memory_reservation;
+mod strings;
 
 pub use header::{FdtHeader, HeaderReadError};
 pub use memory_reservation::{FormatError, MemoryReservationBlock, MemoryReservationEntry};
+pub use strings::{Strings, StringsError};
