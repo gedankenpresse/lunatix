@@ -27,5 +27,7 @@
 //! ```
 
 mod header;
+mod memory_reservation;
 
 pub use header::{FdtHeader, HeaderReadError};
+pub use memory_reservation::{FormatError, MemoryReservationBlock, MemoryReservationEntry};

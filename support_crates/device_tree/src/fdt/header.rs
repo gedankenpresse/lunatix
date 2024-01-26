@@ -115,7 +115,6 @@ impl FdtHeader {
 #[cfg(test)]
 mod test {
     use super::*;
-    use core::ops::Deref;
 
     #[repr(C, align(8))]
     pub struct AlignedBuffer<const LENGTH: usize>(pub [u8; LENGTH]);
