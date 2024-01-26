@@ -11,6 +11,8 @@ pub enum HeaderReadError {
     BufferTooSmall,
     #[error("The device tree blob is encoded using version {0} (with last compatible version being {1}) which is not supported")]
     UnsupportedVersion(u32, u32),
+    #[error("The device tree blob is not aligned to an 8-byte boundary")]
+    InvalidAlignment,
 }
 
 /// The FDT-Header data structure present at the start of every device tree blob.
@@ -51,6 +53,11 @@ pub struct FdtHeader {
 impl FdtHeader {
     /// Try to read a header from a provided buffer
     pub fn read_from_buffer(buf: &[u8]) -> Result<Self, HeaderReadError> {
+        // check alignment
+        if (buf.as_ptr() as usize) % 8 != 0 {
+            return Err(HeaderReadError::InvalidAlignment);
+        }
+
         fn read_u32(buf: &[u8]) -> Result<(u32, &[u8]), HeaderReadError> {
             if buf.len() < mem::size_of::<u32>() {
                 return Err(HeaderReadError::BufferTooSmall);
@@ -108,57 +115,61 @@ impl FdtHeader {
 #[cfg(test)]
 mod test {
     use super::*;
+    use core::ops::Deref;
+
+    #[repr(C, align(8))]
+    pub struct AlignedBuffer<const LENGTH: usize>(pub [u8; LENGTH]);
 
     #[test]
     fn read_from_buffer_fails_if_buffer_too_small() {
-        let buf = [0u8; 2];
+        let buf = AlignedBuffer([0u8; 2]);
         assert_eq!(
-            FdtHeader::read_from_buffer(&buf),
+            FdtHeader::read_from_buffer(&buf.0),
             Err(HeaderReadError::BufferTooSmall)
         );
     }
 
     #[test]
     fn read_from_buffer_fails_with_invalid_magic_bytes() {
-        let buf = [0u8; mem::size_of::<FdtHeader>()];
+        let buf = AlignedBuffer([0u8; mem::size_of::<FdtHeader>()]);
         assert_eq!(
-            FdtHeader::read_from_buffer(&buf),
+            FdtHeader::read_from_buffer(&buf.0),
             Err(HeaderReadError::InvalidMagic)
         )
     }
 
     #[test]
     fn read_from_buffer_fails_with_invalid_version() {
-        let mut buf = [0u8; mem::size_of::<FdtHeader>()];
+        let mut buf = AlignedBuffer([0u8; mem::size_of::<FdtHeader>()]);
         // header
-        buf[0] = 0xd0;
-        buf[1] = 0x0d;
-        buf[2] = 0xfe;
-        buf[3] = 0xed;
+        buf.0[0] = 0xd0;
+        buf.0[1] = 0x0d;
+        buf.0[2] = 0xfe;
+        buf.0[3] = 0xed;
         // version
-        buf[5 * 4 + 3] = 0x02;
+        buf.0[5 * 4 + 3] = 0x02;
         // last compatible version
-        buf[6 * 4 + 3] = 0x01;
+        buf.0[6 * 4 + 3] = 0x01;
         assert_eq!(
-            FdtHeader::read_from_buffer(&buf),
+            FdtHeader::read_from_buffer(&buf.0),
             Err(HeaderReadError::UnsupportedVersion(0x02, 0x01)),
         )
     }
 
     #[test]
     fn read_from_buffer_succeeds() {
-        let mut buf = [0u8; mem::size_of::<FdtHeader>()];
+        let mut buf = AlignedBuffer([0u8; mem::size_of::<FdtHeader>()]);
         // header
-        buf[0] = 0xd0;
-        buf[1] = 0x0d;
-        buf[2] = 0xfe;
-        buf[3] = 0xed;
+        buf.0[0] = 0xd0;
+        buf.0[1] = 0x0d;
+        buf.0[2] = 0xfe;
+        buf.0[3] = 0xed;
         // version
-        buf[5 * 4 + 3] = 17;
+        buf.0[5 * 4 + 3] = 17;
         // last compatible version
-        buf[6 * 4 + 3] = 16;
+        buf.0[6 * 4 + 3] = 16;
         assert_eq!(
-            FdtHeader::read_from_buffer(&buf),
+            FdtHeader::read_from_buffer(&buf.0),
             Ok(FdtHeader {
                 magic: HEADER_MAGIC,
                 total_size: 0,
@@ -176,18 +187,18 @@ mod test {
 
     #[test]
     fn read_from_ptr() {
-        let mut buf = [0u8; mem::size_of::<FdtHeader>()];
+        let mut buf = AlignedBuffer([0u8; mem::size_of::<FdtHeader>()]);
         // header
-        buf[0] = 0xd0;
-        buf[1] = 0x0d;
-        buf[2] = 0xfe;
-        buf[3] = 0xed;
+        buf.0[0] = 0xd0;
+        buf.0[1] = 0x0d;
+        buf.0[2] = 0xfe;
+        buf.0[3] = 0xed;
         // version
-        buf[5 * 4 + 3] = 17;
+        buf.0[5 * 4 + 3] = 17;
         // last compatible version
-        buf[6 * 4 + 3] = 16;
+        buf.0[6 * 4 + 3] = 16;
 
-        let ptr = &buf as *const u8;
+        let ptr = &buf.0 as *const u8;
         let read_header = unsafe { FdtHeader::from_ptr(ptr) };
         assert_eq!(
             read_header,
