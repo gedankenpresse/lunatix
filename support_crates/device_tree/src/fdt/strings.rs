@@ -5,7 +5,7 @@
 use core::ffi::CStr;
 use thiserror_no_std::Error;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct Strings<'buf> {
     buf: &'buf [u8],
 }

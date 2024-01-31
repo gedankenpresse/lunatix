@@ -31,6 +31,7 @@
 mod header;
 mod memory_reservation;
 mod strings;
+mod structure;
 
 pub use header::{FdtHeader, HeaderReadError};
 pub use memory_reservation::{FormatError, MemoryReservationBlock, MemoryReservationEntry};
