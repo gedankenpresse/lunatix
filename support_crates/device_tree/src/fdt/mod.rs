@@ -28,11 +28,15 @@
 //! └──────────────────────────┘
 //! ```
 
+mod dtb;
 mod header;
 mod memory_reservation;
 mod strings;
 mod structure;
 
+pub use dtb::DeviceTreeBlob;
 pub use header::{FdtHeader, HeaderReadError};
-pub use memory_reservation::{FormatError, MemoryReservationBlock, MemoryReservationEntry};
+pub use memory_reservation::{
+    MemoryReservationBlock, MemoryReservationEntry, MemoryReservationFormatError,
+};
 pub use strings::{Strings, StringsError};

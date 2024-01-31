@@ -23,31 +23,31 @@ pub enum HeaderReadError {
 #[repr(C)]
 pub struct FdtHeader {
     /// This field shall contain the value 0xd00dfeed (big-endian).
-    magic: u32,
+    pub magic: u32,
     /// This field shall contain the total size in bytes of the devicetree data structure.
     /// This size shall encompass all sections of the structure: the header, the memory reservation block, structure block and strings block, as well as any free space gaps between the blocks or after the final block.
-    total_size: u32,
+    pub total_size: u32,
     /// This field shall contain the offset in bytes of the structure block (see [Spec Section 5.4](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#sect-fdt-structure-block)) from the beginning of the header.
-    off_dt_struct: u32,
+    pub off_dt_struct: u32,
     /// This field shall contain the offset in bytes of the strings block (see [Spec Section 5.5](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#sect-fdt-strings-block)) from the beginning of the header.
-    off_dt_strings: u32,
+    pub off_dt_strings: u32,
     /// This field shall contain the offset in bytes of the memory reservation block (see [Spec Section 5.3](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#sect-fdt-memory-reservation-block)) from the beginning of the header.
-    off_mem_rsvmap: u32,
+    pub off_mem_rsvmap: u32,
     /// This field shall contain the version of the devicetree data structure.
     /// The version is `17` if using the structure as supported by this library.
     /// An DTSpec boot program may provide the devicetree of a later version, in which case this field shall contain the version number defined in whichever later document gives the details of that version.
-    version: u32,
+    pub version: u32,
     /// This field shall contain the lowest version of the devicetree data structure with which the version used is backwards compatible.
     /// So, for the structure as supported by this library (version `17`), this field shall contain `16` because version `17` is backwards compatible with version `16`, but not earlier versions.
     /// As per [Spec Section 5.1](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#sect-fdt-versioning), a DTSpec boot program should provide a devicetree in a format which is backwards compatible with version `16`, and thus this field shall always contain `16`.
-    last_comp_version: u32,
+    pub last_comp_version: u32,
     /// This field shall contain the physical ID of the system’s boot CPU.
     /// It shall be identical to the physical ID given in the reg property of that CPU node within the devicetree.
-    boot_cpuid_phys: u32,
+    pub boot_cpuid_phys: u32,
     /// This field shall contain the length in bytes of the strings block section of the devicetree blob.
-    size_dt_strings: u32,
+    pub size_dt_strings: u32,
     /// This field shall contain the length in bytes of the structure block section of the devicetree blob.
-    size_dt_struct: u32,
+    pub size_dt_struct: u32,
 }
 
 impl FdtHeader {

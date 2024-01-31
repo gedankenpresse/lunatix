@@ -14,39 +14,37 @@ pub struct MemoryReservationEntry {
 
 /// The error which indicates that a block of memory has an invalid format to be a valid memory allocation block
 #[derive(Debug, Error, Eq, PartialEq)]
-pub enum FormatError {
+pub enum MemoryReservationFormatError {
     #[error("The memory reservation block is not aligned to an 8-byte boundary")]
     InvalidAlignment,
-    #[error("The memory reservation blocks length is not a multiple of 16")]
-    InvalidLength,
+    #[error("The memory reservation block is smaller than 16 bytes")]
+    BufferTooSmall,
+    #[error("The memory reservation block does not contain a proper terminator")]
+    NoTerminator,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MemoryReservationBlock<'buf> {
-    buf: &'buf [u8],
+    buf: Option<&'buf [u8]>,
 }
 
 impl<'buf> MemoryReservationBlock<'buf> {
-    pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, FormatError> {
+    pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, MemoryReservationFormatError> {
         if buf.as_ptr() as usize % 8 != 0 {
-            return Err(FormatError::InvalidAlignment);
+            return Err(MemoryReservationFormatError::InvalidAlignment);
         }
-        if buf.len() % (mem::size_of::<u64>() * 2) != 0 {
-            return Err(FormatError::InvalidLength);
-        }
-
-        Ok(Self { buf })
-    }
-
-    fn read_u64(&mut self) -> Option<u64> {
-        if self.buf.len() < mem::size_of::<u64>() {
-            return None;
+        if buf.len() < mem::size_of::<u64>() * 2 {
+            return Err(MemoryReservationFormatError::BufferTooSmall);
         }
 
-        let (head, tail) = self.buf.split_at(mem::size_of::<u64>());
-        let value = u64::from_be_bytes(head.try_into().unwrap());
-        self.buf = tail;
-        Some(value)
+        let num_entries = Self { buf: Some(buf) }.count() + 1;
+        let block_size = mem::size_of::<u64>() * 2 * num_entries;
+        // this .get() can only fail if the previous iterator consumed the whole buffer which means that no terminator was found earlier
+        let buf = buf
+            .get(0..block_size)
+            .ok_or(MemoryReservationFormatError::NoTerminator)?;
+
+        Ok(Self { buf: Some(buf) })
     }
 }
 
@@ -54,9 +52,31 @@ impl<'buf> Iterator for MemoryReservationBlock<'buf> {
     type Item = MemoryReservationEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let buf = self.buf?;
+
+        // retrieve two u64 from the buffer
+        let (addr, buf) = buf.split_at(mem::size_of::<u64>());
+        let addr = u64::from_be_bytes(addr.try_into().unwrap());
+        let (size, buf) = buf.split_at(mem::size_of::<u64>());
+        let size = u64::from_be_bytes(size.try_into().unwrap());
+
+        // if this entry is the specified terminator, finish iteration
+        if addr == 0 && size == 0 {
+            self.buf = None;
+            return None;
+        }
+        // if the remaining buffer is too small, prevent further iteration in the future
+        else if buf.len() < mem::size_of::<u64>() * 2 {
+            self.buf = None;
+        }
+        // update remaining buffer
+        else {
+            self.buf = Some(buf);
+        }
+
         Some(MemoryReservationEntry {
-            address: self.read_u64()?,
-            size: self.read_u64()?,
+            address: addr,
+            size,
         })
     }
 }
@@ -72,9 +92,11 @@ mod test {
 
     #[test]
     fn memory_reservation_iteration_works_if_valid() {
-        let mut buf = AlignedBuffer([0u8; mem::size_of::<u64>() * 2]);
-        buf.0[7] = 1;
-        buf.0[15] = 2;
+        let mut buf = AlignedBuffer([0u8; 32]);
+        buf.0[0..8].copy_from_slice(&1u64.to_be_bytes()); // addr = 1
+        buf.0[8..16].copy_from_slice(&2u64.to_be_bytes()); // size = 2
+        buf.0[16..24].fill(0); // terminator
+        buf.0[24..32].fill(0); // terminator
 
         let block = MemoryReservationBlock::from_buffer(&buf.0).unwrap();
         assert_eq!(

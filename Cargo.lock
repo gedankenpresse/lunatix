@@ -87,6 +87,7 @@ dependencies = [
 name = "device_tree"
 version = "0.1.0"
 dependencies = [
+ "align-data",
  "thiserror-no-std",
 ]
 
