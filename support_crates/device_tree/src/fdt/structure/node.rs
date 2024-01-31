@@ -6,7 +6,6 @@ use crate::fdt::structure::{FDT_BEGIN_NODE, FDT_END, FDT_END_NODE, FDT_NOP, FDT_
 use crate::fdt::Strings;
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
-use alloc::string::ToString;
 use core::ffi::CStr;
 use core::mem;
 use thiserror_no_std::Error;
@@ -49,44 +48,13 @@ impl<'buf> StructureNode<'buf> {
         buf: &'buf [u8],
         strings: &Strings<'buf>,
     ) -> Result<Self, NodeStructureError> {
-        // find the node begin token
-        let i_node_begin = buf
-            .find_token(FDT_BEGIN_NODE)
-            .ok_or(NodeStructureError::NoNodeBeginToken)?;
+        let (_node_size, node) = Self::from_buffer(buf, strings)?;
 
-        // extract node name which follows immediately after FDT_BEGIN_NODE
-        let node_name = CStr::from_bytes_until_nul(&buf[i_node_begin + mem::size_of::<u32>()..])
-            .map_err(|_| NodeStructureError::NoNodeName)?;
-        if node_name != CString::new("/").unwrap().as_c_str() {
+        if node.name != CStr::from_bytes_with_nul(b"/\0").unwrap() {
             return Err(NodeStructureError::InvalidRootNodeName);
         }
 
-        // parse all properties and record where the last one was parsed
-        let i_props_begin = align_to_token(
-            i_node_begin + mem::size_of::<u32>() + node_name.to_bytes_with_nul().len(),
-        );
-        let mut i_props_end = i_props_begin;
-        while matches!((&buf[i_props_end..]).next_token(), Some((0, FDT_PROP))) {
-            let (prop_size, _) = NodeProperty::from_buffer(&buf[i_props_end..], strings)?;
-            i_props_end += prop_size;
-        }
-
-        // parse all child nodes and record where the last one was parsed
-        let i_children_begin = align_to_token(i_props_end);
-        let mut i_children_end = i_children_begin;
-        while matches!(
-            (&buf[i_children_end..]).next_token(),
-            Some((0, FDT_BEGIN_NODE))
-        ) {
-            let (child_size, _) = StructureNode::from_buffer(&buf[i_children_end..], strings)?;
-            i_children_end += child_size
-        }
-
-        Ok(Self {
-            name: node_name,
-            props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.to_owned()),
-            children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.to_owned()),
-        })
+        Ok(node)
     }
 
     fn from_buffer(
@@ -198,14 +166,14 @@ mod test {
         let strings = Strings::from_buffer(b"test\0");
         let mut buf = [0u8; 36];
         buf[0..4].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes());
-        buf[4..8].copy_from_slice(b"/\0\0\0");
+        buf[4..8].copy_from_slice(b"/\0\0\0"); // node name + padding
         buf[8..12].copy_from_slice(&FDT_PROP.to_be_bytes());
         buf[12..16].copy_from_slice(&2u32.to_be_bytes()); // property length = 2 bytes
         buf[16..20].copy_from_slice(&0u32.to_be_bytes()); // property name reference = 0
         buf[20..22].copy_from_slice(&[0xff, 0xff]); // property value
-        buf[22..24].copy_from_slice(&[0x0, 0x0]); // padding bytes
-        buf[28..32].copy_from_slice(&FDT_END_NODE.to_be_bytes());
-        buf[32..36].copy_from_slice(&FDT_END.to_be_bytes());
+        buf[22..24].copy_from_slice(&[0, 0]); // padding bytes
+        buf[24..28].copy_from_slice(&FDT_END_NODE.to_be_bytes());
+        buf[28..32].copy_from_slice(&FDT_END.to_be_bytes());
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
         assert_eq!(node.name.to_str().unwrap(), "/");
