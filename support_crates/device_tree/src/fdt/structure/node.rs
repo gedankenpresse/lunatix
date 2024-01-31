@@ -123,12 +123,20 @@ impl<'buf> StructureNode<'buf> {
             i_children_end += child_size
         }
 
+        // assert that there is an FDT_NODE_END token now
+        if !matches!(
+            (&buf[i_children_end..]).next_token(),
+            Some((0, FDT_END_NODE))
+        ) {
+            return Err(NodeStructureError::NoNodeEndToken);
+        }
+
         let node = Self {
             name: node_name,
             props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.to_owned()),
             children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.to_owned()),
         };
-        Ok((0, node))
+        Ok((i_children_end + mem::size_of::<u32>(), node))
     }
 
     pub fn props(&self) -> impl Iterator<Item = NodeProperty<'buf>> {
@@ -160,7 +168,10 @@ impl<'buf> Iterator for NodeIter<'buf> {
     type Item = StructureNode<'buf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        let buf = self.buf?;
+        let (node_len, node) = StructureNode::from_buffer(buf, &self.strings).ok()?;
+        self.buf = buf.get(node_len..);
+        Some(node)
     }
 }
 
