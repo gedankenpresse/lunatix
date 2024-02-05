@@ -24,7 +24,7 @@ pub enum HeaderReadError {
 /// All the header fields are 32-bit integers, stored in big-endian format.
 ///
 /// It is modelled according to the [Spec Section 5.2](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#header).
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(C)]
 pub struct FdtHeader {
     /// This field shall contain the value 0xd00dfeed (big-endian).

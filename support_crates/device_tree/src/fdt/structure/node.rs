@@ -32,7 +32,7 @@ pub enum NodeStructureError {
 /// - Node header which contains the node's name (which includes the units memory address if applicable)
 /// - Node properties which each contain a name (that is looked up from the strings block) and a value of variable length.
 /// - Any number of child nodes which are structured the same.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct StructureNode<'buf> {
     /// The name of the node
     pub name: &'buf str,

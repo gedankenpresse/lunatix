@@ -38,7 +38,7 @@ pub enum MemoryReservationFormatError {
 /// Description of memory areas that are *reserved* and should not be used for general memory allocations.
 ///
 /// For details see [Spec Section 5.3](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#memory-reservation-block).
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct MemoryReservationBlock<'buf> {
     buf: Option<&'buf [u8]>,
 }

@@ -21,6 +21,7 @@ pub enum FdtError {
 }
 
 /// A handle to a flattened device tree that has been parsed from an underlying buffer
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct FlattenedDeviceTree<'buf> {
     /// Metadata information about the device tree
     pub header: FdtHeader,
@@ -28,6 +29,8 @@ pub struct FlattenedDeviceTree<'buf> {
     pub memory_reservations: MemoryReservationBlock<'buf>,
     /// Structure information about the device and its hardware
     pub structure: StructureNode<'buf>,
+    /// The exact buffer that holds this device trees data
+    pub buf: &'buf [u8],
 }
 
 impl<'buf> FlattenedDeviceTree<'buf> {
@@ -51,6 +54,7 @@ impl<'buf> FlattenedDeviceTree<'buf> {
             header,
             structure,
             memory_reservations: mem_resv_block,
+            buf: &buf[0..header.total_size as usize],
         })
     }
 
