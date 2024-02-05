@@ -1,6 +1,9 @@
 //! Handling of properties inside nodes
 
 use crate::fdt::structure::buf_tools::ByteSliceWithTokens;
+use crate::fdt::structure::property_value_encoding::{
+    InvalidValueLength, StringError, StringListIterator,
+};
 use crate::fdt::structure::FDT_PROP;
 use crate::fdt::{Strings, StringsError};
 use core::ffi::CStr;
@@ -30,7 +33,7 @@ impl<'buf> NodeProperty<'buf> {
     /// are used by it.
     ///
     /// The buffer must start immediately with the `FDT_PROP` token but may be larger than the one property.
-    pub(super) fn from_buffer(
+    pub fn from_buffer(
         buf: &'buf [u8],
         strings: &Strings<'buf>,
     ) -> Result<(usize, Self), PropertyParseError> {
@@ -55,6 +58,112 @@ impl<'buf> NodeProperty<'buf> {
             )),
             Some(value) => Ok((12 + value_len as usize, Self { name, value })),
         }
+    }
+
+    /// Interpret the value of this property as a single u32
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::{NodeProperty, Strings};
+    /// # let strings = Strings::from_buffer(b"\0");
+    /// # let mut buf = [0u8; 128];
+    /// # buf[0..4].copy_from_slice(&0x00000003u32.to_be_bytes());
+    /// # buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // len
+    /// # buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
+    /// # buf[12..16].copy_from_slice(&42u32.to_be_bytes()); // value
+    /// #
+    /// # let (_, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
+    /// let value = prop.as_u32();
+    /// assert_eq!(value, Ok(42u32));
+    /// ```
+    pub fn as_u32(&self) -> Result<u32, InvalidValueLength> {
+        self.try_into()
+    }
+
+    /// Interpret the value of this property as a single u32
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::{NodeProperty, Strings};
+    /// # let strings = Strings::from_buffer(b"\0");
+    /// # let mut buf = [0u8; 128];
+    /// # buf[0..4].copy_from_slice(&0x00000003u32.to_be_bytes());
+    /// # buf[4..8].copy_from_slice(&4u32.to_be_bytes()); // len
+    /// # buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
+    /// # buf[12..16].copy_from_slice(&42u32.to_be_bytes()); // value
+    /// #
+    /// # let (_, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
+    /// let value = prop.as_phandle();
+    /// assert_eq!(value, Ok(42));
+    /// ```
+    pub fn as_phandle(&self) -> Result<u32, InvalidValueLength> {
+        self.try_into()
+    }
+
+    /// Interpret the value of this property as a single u64
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::{NodeProperty, Strings};
+    /// # let strings = Strings::from_buffer(b"\0");
+    /// # let mut buf = [0u8; 128];
+    /// # buf[0..4].copy_from_slice(&0x00000003u32.to_be_bytes());
+    /// # buf[4..8].copy_from_slice(&8u32.to_be_bytes()); // len
+    /// # buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
+    /// # buf[12..20].copy_from_slice(&42u64.to_be_bytes()); // value
+    /// #
+    /// # let (_, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
+    /// let value = prop.as_u64();
+    /// assert_eq!(value, Ok(42u64));
+    /// ```
+    pub fn as_u64(&self) -> Result<u64, InvalidValueLength> {
+        self.try_into()
+    }
+
+    /// Interpret the value of this property as a single null-terminated string
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::{NodeProperty, Strings};
+    /// # let strings = Strings::from_buffer(b"\0");
+    /// # let mut buf = [0u8; 128];
+    /// # buf[0..4].copy_from_slice(&0x00000003u32.to_be_bytes());
+    /// # buf[4..8].copy_from_slice(&6u32.to_be_bytes()); // len
+    /// # buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
+    /// # buf[12..18].copy_from_slice(b"hello\0"); // value
+    /// #
+    /// # let (_, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
+    /// let value = prop.as_string();
+    /// assert_eq!(value, Ok("hello"));
+    /// ```
+    pub fn as_string(&self) -> Result<&'buf str, StringError> {
+        self.try_into()
+    }
+
+    /// Interpret the value of this property as a list of null-terminated strings
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::{NodeProperty, Strings};
+    /// # let strings = Strings::from_buffer(b"\0");
+    /// # let mut buf = [0u8; 128];
+    /// # buf[0..4].copy_from_slice(&0x00000003u32.to_be_bytes());
+    /// # buf[4..8].copy_from_slice(&12u32.to_be_bytes()); // len
+    /// # buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
+    /// # buf[12..24].copy_from_slice(b"hello\0world\0"); // value
+    /// #
+    /// # let (_, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
+    /// let mut value = prop.as_string_list();
+    /// assert_eq!(value.next_str(), Ok("hello"));
+    /// assert_eq!(value.next_str(), Ok("world"));
+    /// ```
+    pub fn as_string_list(&self) -> StringListIterator<'buf> {
+        StringListIterator { buf: self.value }
     }
 }
 

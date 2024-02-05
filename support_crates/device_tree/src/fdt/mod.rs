@@ -40,3 +40,4 @@ pub use memory_reservation::{
     MemoryReservationBlock, MemoryReservationEntry, MemoryReservationFormatError,
 };
 pub use strings::{Strings, StringsError};
+pub use structure::property::{NodeProperty, PropertyIter, PropertyParseError};

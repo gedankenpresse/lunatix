@@ -33,3 +33,4 @@ const FDT_END: u32 = 0x00000009;
 mod buf_tools;
 pub(crate) mod node;
 pub(crate) mod property;
+pub(crate) mod property_value_encoding;
