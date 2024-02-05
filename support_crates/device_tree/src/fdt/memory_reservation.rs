@@ -15,21 +15,28 @@ pub struct MemoryReservationEntry {
 /// The error which indicates that a block of memory has an invalid format to be a valid memory allocation block
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum MemoryReservationFormatError {
+    /// The memory reservation block is not aligned to an 8-byte boundary
     #[error("The memory reservation block is not aligned to an 8-byte boundary")]
     InvalidAlignment,
+    /// The memory reservation block is smaller than 16 bytes
     #[error("The memory reservation block is smaller than 16 bytes")]
     BufferTooSmall,
+    /// The memory reservation block does not contain a proper terminator
     #[error("The memory reservation block does not contain a proper terminator")]
     NoTerminator,
 }
 
+/// Description of memory areas that are *reserved* and should not be used for general memory allocations.
+///
+/// For details see [Spec Section 5.3](https://devicetree-specification.readthedocs.io/en/latest/chapter5-flattened-format.html#memory-reservation-block).
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MemoryReservationBlock<'buf> {
     buf: Option<&'buf [u8]>,
 }
 
 impl<'buf> MemoryReservationBlock<'buf> {
-    pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, MemoryReservationFormatError> {
+    /// Parse a new memory reservation block from an underlying buffer
+    pub(crate) fn from_buffer(buf: &'buf [u8]) -> Result<Self, MemoryReservationFormatError> {
         if buf.as_ptr() as usize % 8 != 0 {
             return Err(MemoryReservationFormatError::InvalidAlignment);
         }

@@ -3,14 +3,19 @@ use thiserror_no_std::Error;
 
 const HEADER_MAGIC: u32 = 0xd00dfeed;
 
+/// Errors that can occur when reading the FDT header
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum HeaderReadError {
+    /// The provided buffer did not contain the required magic bytes at the start
     #[error("The provided buffer did not contain the required magic bytes at the start")]
     InvalidMagic,
+    /// The provided buffer did not contain enough bytes to read a header from it
     #[error("The provided buffer did not contain enough bytes to read a header from it")]
     BufferTooSmall,
+    /// The device tree blob is encoded using an unsupported version
     #[error("The device tree blob is encoded using version {0} (with last compatible version being {1}) which is not supported")]
     UnsupportedVersion(u32, u32),
+    /// The device tree blob is not aligned to an 8-byte boundary
     #[error("The device tree blob is not aligned to an 8-byte boundary")]
     InvalidAlignment,
 }

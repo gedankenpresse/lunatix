@@ -16,14 +16,18 @@ pub enum DtbError {
     StructureError(#[from] NodeStructureError),
 }
 
-pub struct DeviceTreeBlob<'buf> {
+/// A handle to a flattened device tree that has been parsed from an underlying buffer
+pub struct FlattenedDeviceTree<'buf> {
+    /// Metadata information about the device tree
     pub header: FdtHeader,
+    /// Areas of the system memory which are reserved and should not be used without special care
     pub memory_reservations: MemoryReservationBlock<'buf>,
+    /// Structure information about the device and its hardware
     pub structure: StructureNode<'buf>,
-    pub strings: Strings<'buf>,
 }
 
-impl<'buf> DeviceTreeBlob<'buf> {
+impl<'buf> FlattenedDeviceTree<'buf> {
+    /// Try to parse a FDT from a buffer
     pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, DtbError> {
         let header = FdtHeader::read_from_buffer(buf)?;
 
@@ -41,7 +45,6 @@ impl<'buf> DeviceTreeBlob<'buf> {
 
         Ok(Self {
             header,
-            strings,
             structure,
             memory_reservations: mem_resv_block,
         })
@@ -57,7 +60,7 @@ mod test {
     #[test]
     fn parsing_qemu_sifive_u_works() {
         static DTB: &[u8] = include_aligned!(Align64, "../../test/data/qemu_sifive_u.dtb");
-        let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
+        let dtb = FlattenedDeviceTree::from_buffer(DTB).unwrap();
 
         assert_eq!(dtb.structure.name, "");
         assert_eq!(dtb.structure.children().nth(0).unwrap().name, "chosen");
@@ -67,7 +70,7 @@ mod test {
     #[test]
     fn parsing_qemu_virt_works() {
         static DTB: &[u8] = include_aligned!(Align64, "../../test/data/qemu_virt.dtb");
-        let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
+        let dtb = FlattenedDeviceTree::from_buffer(DTB).unwrap();
 
         assert_eq!(dtb.structure.name, "");
         assert_eq!(dtb.structure.children().nth(0).unwrap().name, "poweroff");

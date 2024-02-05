@@ -158,10 +158,10 @@ impl<'buf> NodeIter<'buf> {
     /// This `cpu@0` node could be retrieved using this call:
     ///
     /// ```rust
-    /// # use device_tree::fdt::DeviceTreeBlob;
+    /// # use device_tree::fdt::FlattenedDeviceTree;
     /// # use align_data::{include_aligned, Align64};
     /// # static DTB: &[u8] = include_aligned!(Align64, "../../../test/data/qemu_sifive_u.dtb");
-    /// # let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
+    /// # let dtb = FlattenedDeviceTree::from_buffer(DTB).unwrap();
     /// # let root_node = dtb.structure;
     /// let cpu0 = root_node.children().find_by_path("/cpus/cpu@0");
     /// assert!(cpu0.is_some());
@@ -234,7 +234,7 @@ mod test {
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
         assert_eq!(node.name, "");
         assert_eq!(node.props().count(), 1);
-        assert_eq!(node.props().nth(0).unwrap().name.to_str().unwrap(), "test");
+        assert_eq!(node.props().nth(0).unwrap().name, "test");
         assert_eq!(node.props().nth(0).unwrap().value, &[0xff, 0xff]);
     }
 

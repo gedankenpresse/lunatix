@@ -6,15 +6,18 @@ use crate::fdt::structure::property_value_encoding::{
 };
 use crate::fdt::structure::FDT_PROP;
 use crate::fdt::{Strings, StringsError};
-use core::ffi::CStr;
 use thiserror_no_std::Error;
 
+/// The error which can occur when parsing a property
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum PropertyParseError {
+    /// The property referenced a string for its name that could not be fetched
     #[error("The property referenced a string for its name that could not be fetched")]
     NameError(#[from] StringsError),
+    /// The given underlying buffer is not large enough to contain the property value according to the property header
     #[error("The given buffer of size {0} is not large enough to contain a property and its value (12 bytes header + {1:?} bytes value according to the header)")]
     BufferTooSmall(usize, Option<usize>),
+    /// The given buffer does not start with an FDT_PROP token and is therefore not a property
     #[error("The given buffer does not start with an FDT_PROP token")]
     NotAProp,
 }
@@ -23,7 +26,7 @@ pub enum PropertyParseError {
 #[derive(Debug, Eq, PartialEq)]
 pub struct NodeProperty<'buf> {
     /// Offset to the name of the property into the *strings* block of the FDT
-    pub name: &'buf CStr,
+    pub name: &'buf str,
     /// Value of the property
     pub value: &'buf [u8],
 }
@@ -208,7 +211,7 @@ mod test {
 
         let (prop_size, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
         assert_eq!(prop_size, 12);
-        assert_eq!(prop.name.to_str().unwrap(), "/test");
+        assert_eq!(prop.name, "/test");
         assert!(prop.value.is_empty());
     }
 
@@ -223,7 +226,7 @@ mod test {
 
         let (prop_size, prop) = NodeProperty::from_buffer(&buf, &strings).unwrap();
         assert_eq!(prop_size, 20);
-        assert_eq!(prop.name.to_str().unwrap(), "/test");
+        assert_eq!(prop.name, "/test");
         assert_eq!(prop.value, &(!0u64).to_be_bytes());
     }
 
@@ -241,7 +244,7 @@ mod test {
             buf: Some(&buf),
         };
         assert_eq!(iter.clone().count(), 1);
-        assert_eq!(iter.clone().nth(0).unwrap().name.to_str().unwrap(), "/test");
+        assert_eq!(iter.clone().nth(0).unwrap().name, "/test");
         assert_eq!(iter.clone().nth(0).unwrap().value, &(!0u64).to_be_bytes());
     }
 
@@ -264,9 +267,9 @@ mod test {
             buf: Some(&buf),
         };
         assert_eq!(iter.clone().count(), 2);
-        assert_eq!(iter.clone().nth(0).unwrap().name.to_str().unwrap(), "/test");
+        assert_eq!(iter.clone().nth(0).unwrap().name, "/test");
         assert_eq!(iter.clone().nth(0).unwrap().value, &(!0u64).to_be_bytes());
-        assert_eq!(iter.clone().nth(1).unwrap().name.to_str().unwrap(), "/test");
+        assert_eq!(iter.clone().nth(1).unwrap().name, "/test");
         assert_eq!(
             iter.clone().nth(1).unwrap().value,
             &0xABABABu64.to_be_bytes()
