@@ -19,6 +19,8 @@ pub enum NodeStructureError {
     NoStructEndToken,
     #[error("The given buffer contained a FDT_BEGIN_NODE token but it was not followed by a string encoding the nodes name")]
     NoNodeName,
+    #[error("The given buffer contained a node name but it is invalid UTF-8 even though the spec requires a specific ASCII subset")]
+    InvalidNodeName,
     #[error("The name of the root node is not '' as required by the spec")]
     InvalidRootNodeName,
     #[error("The node contained an invalid property: {0}")]
@@ -34,7 +36,7 @@ pub enum NodeStructureError {
 #[derive(Debug, Eq, PartialEq)]
 pub struct StructureNode<'buf> {
     /// The name of the node
-    pub name: &'buf CStr,
+    pub name: &'buf str,
     /// The part of the underlying buffer that contains the nodes properties
     props: PropertyIter<'buf>,
     /// The part of the underlying buffer that contains this nodes children
@@ -49,7 +51,7 @@ impl<'buf> StructureNode<'buf> {
     ) -> Result<Self, NodeStructureError> {
         let (_node_size, node) = Self::from_buffer(buf, strings)?;
 
-        if node.name != CStr::from_bytes_with_nul(b"\0").unwrap() {
+        if node.name != "" {
             return Err(NodeStructureError::InvalidRootNodeName);
         }
 
@@ -69,6 +71,9 @@ impl<'buf> StructureNode<'buf> {
         // extract node name which follows immediately after FDT_BEGIN_NODE
         let node_name = CStr::from_bytes_until_nul(&buf[i_node_begin + mem::size_of::<u32>()..])
             .map_err(|_| NodeStructureError::NoNodeName)?;
+        let node_name_str = node_name
+            .to_str()
+            .map_err(|_| NodeStructureError::InvalidNodeName)?;
 
         // parse all properties and record where the last one was parsed
         let i_props_begin = align_to_token(
@@ -100,7 +105,7 @@ impl<'buf> StructureNode<'buf> {
         }
 
         let node = Self {
-            name: node_name,
+            name: node_name_str,
             props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.to_owned()),
             children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.to_owned()),
         };
@@ -158,7 +163,7 @@ mod test {
         buf[12..16].copy_from_slice(&FDT_END.to_be_bytes());
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
-        assert_eq!(node.name.to_str().unwrap(), "");
+        assert_eq!(node.name, "");
         assert_eq!(node.props().count(), 0);
     }
 
@@ -177,7 +182,7 @@ mod test {
         buf[28..32].copy_from_slice(&FDT_END.to_be_bytes());
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
-        assert_eq!(node.name.to_str().unwrap(), "");
+        assert_eq!(node.name, "");
         assert_eq!(node.props().count(), 1);
         assert_eq!(node.props().nth(0).unwrap().name.to_str().unwrap(), "test");
         assert_eq!(node.props().nth(0).unwrap().value, &[0xff, 0xff]);
@@ -190,16 +195,13 @@ mod test {
         buf[0..4].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes()); // root node start
         buf[4..8].copy_from_slice(b"\0\0\0\0"); // name + padding
         buf[8..12].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes()); // child node
-        buf[12..20].copy_from_slice(b"/child\0\0"); // child name + padding
+        buf[12..20].copy_from_slice(b"child\0\0\0"); // child name + padding
         buf[20..24].copy_from_slice(&FDT_END_NODE.to_be_bytes()); // child node end
         buf[24..28].copy_from_slice(&FDT_END_NODE.to_be_bytes()); // root node end
         buf[28..32].copy_from_slice(&FDT_END.to_be_bytes()); // block end
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
         assert_eq!(node.children().count(), 1);
-        assert_eq!(
-            node.children().nth(0).unwrap().name.to_str().unwrap(),
-            "/child"
-        );
+        assert_eq!(node.children().nth(0).unwrap().name, "child");
     }
 }
