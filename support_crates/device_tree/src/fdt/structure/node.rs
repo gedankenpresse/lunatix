@@ -37,9 +37,10 @@ pub struct StructureNode<'buf> {
     /// The name of the node
     pub name: &'buf str,
     /// The part of the underlying buffer that contains the nodes properties
-    props: PropertyIter<'buf>,
+    props_buf: &'buf [u8],
     /// The part of the underlying buffer that contains this nodes children
-    children: NodeIter<'buf>,
+    children_buf: &'buf [u8],
+    strings: Strings<'buf>,
 }
 
 impl<'buf> StructureNode<'buf> {
@@ -105,18 +106,19 @@ impl<'buf> StructureNode<'buf> {
 
         let node = Self {
             name: node_name_str,
-            props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.clone()),
-            children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.clone()),
+            props_buf: &buf[i_props_begin..i_props_end],
+            children_buf: &buf[i_children_begin..i_children_end],
+            strings: strings.clone(),
         };
         Ok((i_children_end + mem::size_of::<u32>(), node))
     }
 
     pub fn props(&self) -> PropertyIter<'buf> {
-        self.props.clone()
+        PropertyIter::new(self.props_buf, self.strings.clone())
     }
 
     pub fn children(&self) -> NodeIter<'buf> {
-        self.children.clone()
+        NodeIter::new(self.children_buf, self.strings.clone())
     }
 }
 

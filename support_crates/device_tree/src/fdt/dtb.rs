@@ -6,12 +6,16 @@ use crate::fdt::{
 };
 use thiserror_no_std::Error;
 
+/// The error that can occur when parsing a FDT
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum FdtError {
+    /// The FDT header could not be parsed for a specific reason
     #[error("Could not parse the fdt header: {0}")]
     HeaderParseError(#[from] HeaderReadError),
+    /// The memory reservation block could not be parsed for a specific reason
     #[error("Could not parse memory reservation block: {0}")]
     MemoryReservationError(#[from] MemoryReservationFormatError),
+    /// The structure block could not be parsed for a specific reason
     #[error("Could not parse structure block: {0}")]
     StructureError(#[from] NodeStructureError),
 }

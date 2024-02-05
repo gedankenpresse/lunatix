@@ -49,7 +49,7 @@ mod memory_reservation;
 mod strings;
 mod structure;
 
-pub use dtb::FlattenedDeviceTree;
+pub use dtb::{FdtError, FlattenedDeviceTree};
 pub use header::{FdtHeader, HeaderReadError};
 pub use memory_reservation::{
     MemoryReservationBlock, MemoryReservationEntry, MemoryReservationFormatError,

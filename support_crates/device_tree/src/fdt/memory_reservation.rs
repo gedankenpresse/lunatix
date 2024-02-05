@@ -8,8 +8,17 @@ use thiserror_no_std::Error;
 /// The list of reserved blocks shall be terminated with an entry where both address and size are equal to 0.
 #[derive(Debug, Eq, PartialEq)]
 pub struct MemoryReservationEntry {
-    address: u64,
-    size: u64,
+    /// The address at which the memory reservation starts
+    pub address: u64,
+    /// The length in bytes of the memory reservation
+    pub size: u64,
+}
+
+impl MemoryReservationEntry {
+    /// Create a new memory reservation entry
+    pub fn new(address: u64, size: u64) -> Self {
+        Self { address, size }
+    }
 }
 
 /// The error which indicates that a block of memory has an invalid format to be a valid memory allocation block
