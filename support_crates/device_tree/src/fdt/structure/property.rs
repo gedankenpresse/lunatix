@@ -1,6 +1,6 @@
 //! Handling of properties inside nodes
 
-use crate::fdt::structure::buf_tools::ByteSliceWithTokens;
+use crate::fdt::structure::buf_tools::{align_to_token, ByteSliceWithTokens};
 use crate::fdt::structure::property_value_encoding::{
     InvalidValueLength, StringError, StringListIterator,
 };
@@ -192,7 +192,7 @@ impl<'buf> Iterator for PropertyIter<'buf> {
     fn next(&mut self) -> Option<Self::Item> {
         let buf = self.buf?;
         let (prop_len, prop) = NodeProperty::from_buffer(buf, &self.strings).ok()?;
-        self.buf = buf.get(prop_len..);
+        self.buf = buf.get(align_to_token(prop_len)..);
         Some(prop)
     }
 }

@@ -89,5 +89,6 @@ mod test {
         assert_eq!(dtb.structure.name, "");
         assert_eq!(dtb.structure.children().nth(0).unwrap().name, "poweroff");
         assert_eq!(dtb.structure.children().nth(1).unwrap().name, "reboot");
+        assert_eq!(dtb.structure.props().count(), 4);
     }
 }

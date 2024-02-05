@@ -80,20 +80,19 @@ impl<'buf> StructureNode<'buf> {
             i_node_begin + mem::size_of::<u32>() + node_name.to_bytes_with_nul().len(),
         );
         let mut i_props_end = i_props_begin;
-        while matches!((&buf[i_props_end..]).next_token(true), Some((0, FDT_PROP))) {
-            let (prop_size, _) = NodeProperty::from_buffer(&buf[i_props_end..], strings)?;
-            i_props_end = align_to_token(i_props_end + prop_size);
+        while let Some((offset, FDT_PROP)) = (&buf[i_props_end..]).next_token(true) {
+            let (prop_size, prop) =
+                NodeProperty::from_buffer(&buf[i_props_end + offset..], strings)?;
+            i_props_end = align_to_token(i_props_end + offset + prop_size);
         }
 
         // parse all child nodes and record where the last one was parsed
         let i_children_begin = align_to_token(i_props_end);
         let mut i_children_end = i_children_begin;
-        while matches!(
-            (&buf[i_children_end..]).next_token(true),
-            Some((0, FDT_BEGIN_NODE))
-        ) {
-            let (child_size, _) = StructureNode::from_buffer(&buf[i_children_end..], strings)?;
-            i_children_end += child_size
+        while let Some((offset, FDT_BEGIN_NODE)) = (&buf[i_children_end..]).next_token(true) {
+            let (child_size, _) =
+                StructureNode::from_buffer(&buf[i_children_end + offset..], strings)?;
+            i_children_end = i_children_end + offset + child_size;
         }
 
         // assert that there is an FDT_NODE_END token now
@@ -195,7 +194,7 @@ impl<'buf> Iterator for NodeIter<'buf> {
     fn next(&mut self) -> Option<Self::Item> {
         let buf = self.buf?;
         let (node_len, node) = StructureNode::from_buffer(buf, &self.strings).ok()?;
-        self.buf = buf.get(node_len..);
+        self.buf = buf.get(align_to_token(node_len)..);
         Some(node)
     }
 }
