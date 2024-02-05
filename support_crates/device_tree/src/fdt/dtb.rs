@@ -7,7 +7,7 @@ use crate::fdt::{
 use thiserror_no_std::Error;
 
 #[derive(Debug, Error, Eq, PartialEq)]
-pub enum DtbError {
+pub enum FdtError {
     #[error("Could not parse the fdt header: {0}")]
     HeaderParseError(#[from] HeaderReadError),
     #[error("Could not parse memory reservation block: {0}")]
@@ -28,7 +28,7 @@ pub struct FlattenedDeviceTree<'buf> {
 
 impl<'buf> FlattenedDeviceTree<'buf> {
     /// Try to parse a FDT from a buffer
-    pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, DtbError> {
+    pub fn from_buffer(buf: &'buf [u8]) -> Result<Self, FdtError> {
         let header = FdtHeader::read_from_buffer(buf)?;
 
         let mem_resv_block =
@@ -48,6 +48,16 @@ impl<'buf> FlattenedDeviceTree<'buf> {
             structure,
             memory_reservations: mem_resv_block,
         })
+    }
+
+    /// Try to read a FDT from a raw pointer
+    ///
+    /// # Safety
+    /// The given pointer must be valid and the backing memory must be readable for at least 40 bytes after it.
+    pub unsafe fn from_ptr(ptr: *const u8) -> Result<Self, FdtError> {
+        let header = FdtHeader::from_ptr(ptr)?;
+        let buf = core::slice::from_raw_parts::<u8>(ptr, header.total_size as usize);
+        Self::from_buffer(buf)
     }
 }
 

@@ -112,7 +112,7 @@ impl FdtHeader {
     /// # Safety
     /// The given pointer must be valid and the backing memory must be readable for at least 40 bytes after it.
     pub unsafe fn from_ptr(ptr: *const u8) -> Result<Self, HeaderReadError> {
-        let buf = unsafe { core::slice::from_raw_parts::<u8>(ptr, mem::size_of::<FdtHeader>()) };
+        let buf = core::slice::from_raw_parts::<u8>(ptr, mem::size_of::<FdtHeader>());
         Self::read_from_buffer(buf)
     }
 }
