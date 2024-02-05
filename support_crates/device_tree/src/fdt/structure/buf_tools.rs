@@ -4,14 +4,14 @@ use core::mem;
 /// A trait for working with `&[u8]` slices that contain FDT tokens
 pub trait ByteSliceWithTokens {
     /// Return the next valid token from the buffer along with its position in the buffer as `(pos, token)` tuple
-    fn next_token(&self) -> Option<(usize, u32)>;
+    fn next_token(&self, skip_nops: bool) -> Option<(usize, u32)>;
 
     /// Find the next instance of `token` in the slice and return the buffer index at which it starts
     fn find_token(&self, token: u32) -> Option<usize>;
 }
 
 impl<'a> ByteSliceWithTokens for &'a [u8] {
-    fn next_token(&self) -> Option<(usize, u32)> {
+    fn next_token(&self, skip_nops: bool) -> Option<(usize, u32)> {
         for i in (0..self.len()).step_by(mem::size_of::<u32>()) {
             let i_token = u32::from_be_bytes([
                 *self.get(i)?,
@@ -19,7 +19,10 @@ impl<'a> ByteSliceWithTokens for &'a [u8] {
                 *self.get(i + 2)?,
                 *self.get(i + 3)?,
             ]);
-            if [FDT_BEGIN_NODE, FDT_END_NODE, FDT_PROP, FDT_NOP, FDT_END].contains(&i_token) {
+            if [FDT_BEGIN_NODE, FDT_END_NODE, FDT_PROP, FDT_END].contains(&i_token) {
+                return Some((i, i_token));
+            }
+            if !skip_nops && i_token == FDT_NOP {
                 return Some((i, i_token));
             }
         }
@@ -29,7 +32,7 @@ impl<'a> ByteSliceWithTokens for &'a [u8] {
 
     fn find_token(&self, token: u32) -> Option<usize> {
         let mut skip = 0;
-        while let Some((i, next_token)) = (&self[skip..]).next_token() {
+        while let Some((i, next_token)) = (&self[skip..]).next_token(false) {
             if next_token == token {
                 return Some(skip + i);
             } else {

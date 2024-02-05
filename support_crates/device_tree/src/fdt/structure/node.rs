@@ -2,10 +2,9 @@
 
 use crate::fdt::structure::buf_tools::{align_to_token, ByteSliceWithTokens};
 use crate::fdt::structure::property::{NodeProperty, PropertyIter, PropertyParseError};
-use crate::fdt::structure::{FDT_BEGIN_NODE, FDT_END, FDT_END_NODE, FDT_NOP, FDT_PROP};
+use crate::fdt::structure::{FDT_BEGIN_NODE, FDT_END_NODE, FDT_PROP};
 use crate::fdt::Strings;
 use alloc::borrow::ToOwned;
-use alloc::ffi::CString;
 use core::ffi::CStr;
 use core::mem;
 use thiserror_no_std::Error;
@@ -20,7 +19,7 @@ pub enum NodeStructureError {
     NoStructEndToken,
     #[error("The given buffer contained a FDT_BEGIN_NODE token but it was not followed by a string encoding the nodes name")]
     NoNodeName,
-    #[error("The name of the root node is not '/' as required by the spec")]
+    #[error("The name of the root node is not '' as required by the spec")]
     InvalidRootNodeName,
     #[error("The node contained an invalid property: {0}")]
     InvalidProperty(#[from] PropertyParseError),
@@ -50,13 +49,14 @@ impl<'buf> StructureNode<'buf> {
     ) -> Result<Self, NodeStructureError> {
         let (_node_size, node) = Self::from_buffer(buf, strings)?;
 
-        if node.name != CStr::from_bytes_with_nul(b"/\0").unwrap() {
+        if node.name != CStr::from_bytes_with_nul(b"\0").unwrap() {
             return Err(NodeStructureError::InvalidRootNodeName);
         }
 
         Ok(node)
     }
 
+    /// Parse node information from a buffer
     fn from_buffer(
         buf: &'buf [u8],
         strings: &Strings<'buf>,
@@ -75,16 +75,16 @@ impl<'buf> StructureNode<'buf> {
             i_node_begin + mem::size_of::<u32>() + node_name.to_bytes_with_nul().len(),
         );
         let mut i_props_end = i_props_begin;
-        while matches!((&buf[i_props_end..]).next_token(), Some((0, FDT_PROP))) {
+        while matches!((&buf[i_props_end..]).next_token(true), Some((0, FDT_PROP))) {
             let (prop_size, _) = NodeProperty::from_buffer(&buf[i_props_end..], strings)?;
-            i_props_end += prop_size;
+            i_props_end = align_to_token(i_props_end + prop_size);
         }
 
         // parse all child nodes and record where the last one was parsed
         let i_children_begin = align_to_token(i_props_end);
         let mut i_children_end = i_children_begin;
         while matches!(
-            (&buf[i_children_end..]).next_token(),
+            (&buf[i_children_end..]).next_token(true),
             Some((0, FDT_BEGIN_NODE))
         ) {
             let (child_size, _) = StructureNode::from_buffer(&buf[i_children_end..], strings)?;
@@ -93,7 +93,7 @@ impl<'buf> StructureNode<'buf> {
 
         // assert that there is an FDT_NODE_END token now
         if !matches!(
-            (&buf[i_children_end..]).next_token(),
+            (&buf[i_children_end..]).next_token(true),
             Some((0, FDT_END_NODE))
         ) {
             return Err(NodeStructureError::NoNodeEndToken);
@@ -146,18 +146,19 @@ impl<'buf> Iterator for NodeIter<'buf> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::fdt::structure::FDT_END;
 
     #[test]
     fn from_buffer_as_root_works_with_empty_node() {
         let strings = Strings::from_buffer(&[]);
         let mut buf = [0u8; 16];
         buf[0..4].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes());
-        buf[4..8].copy_from_slice(b"/\0\0\0");
+        buf[4..8].copy_from_slice(b"\0\0\0\0");
         buf[8..12].copy_from_slice(&FDT_END_NODE.to_be_bytes());
         buf[12..16].copy_from_slice(&FDT_END.to_be_bytes());
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
-        assert_eq!(node.name.to_str().unwrap(), "/");
+        assert_eq!(node.name.to_str().unwrap(), "");
         assert_eq!(node.props().count(), 0);
     }
 
@@ -166,7 +167,7 @@ mod test {
         let strings = Strings::from_buffer(b"test\0");
         let mut buf = [0u8; 36];
         buf[0..4].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes());
-        buf[4..8].copy_from_slice(b"/\0\0\0"); // node name + padding
+        buf[4..8].copy_from_slice(b"\0\0\0\0"); // node name + padding
         buf[8..12].copy_from_slice(&FDT_PROP.to_be_bytes());
         buf[12..16].copy_from_slice(&2u32.to_be_bytes()); // property length = 2 bytes
         buf[16..20].copy_from_slice(&0u32.to_be_bytes()); // property name reference = 0
@@ -176,7 +177,7 @@ mod test {
         buf[28..32].copy_from_slice(&FDT_END.to_be_bytes());
 
         let node = StructureNode::from_buffer_as_root(&buf, &strings).unwrap();
-        assert_eq!(node.name.to_str().unwrap(), "/");
+        assert_eq!(node.name.to_str().unwrap(), "");
         assert_eq!(node.props().count(), 1);
         assert_eq!(node.props().nth(0).unwrap().name.to_str().unwrap(), "test");
         assert_eq!(node.props().nth(0).unwrap().value, &[0xff, 0xff]);
@@ -187,7 +188,7 @@ mod test {
         let strings = Strings::from_buffer(b"");
         let mut buf = [0u8; 64];
         buf[0..4].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes()); // root node start
-        buf[4..8].copy_from_slice(b"/\0\0\0"); // name + padding
+        buf[4..8].copy_from_slice(b"\0\0\0\0"); // name + padding
         buf[8..12].copy_from_slice(&FDT_BEGIN_NODE.to_be_bytes()); // child node
         buf[12..20].copy_from_slice(b"/child\0\0"); // child name + padding
         buf[20..24].copy_from_slice(&FDT_END_NODE.to_be_bytes()); // child node end

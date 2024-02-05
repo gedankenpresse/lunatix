@@ -35,7 +35,7 @@ impl<'buf> NodeProperty<'buf> {
         strings: &Strings<'buf>,
     ) -> Result<(usize, Self), PropertyParseError> {
         // check preconditions
-        if !matches!(buf.next_token(), Some((0, FDT_PROP))) {
+        if !matches!(buf.next_token(true), Some((0, FDT_PROP))) {
             return Err(PropertyParseError::NotAProp);
         }
         if buf.len() < 12 {
@@ -127,7 +127,7 @@ mod test {
         buf[8..12].copy_from_slice(&0u32.to_be_bytes()); // name offset
         buf[12..20].copy_from_slice(&(!0u64).to_be_bytes()); // value
 
-        let mut iter = PropertyIter {
+        let iter = PropertyIter {
             strings,
             buf: Some(&buf),
         };
@@ -150,7 +150,7 @@ mod test {
         buf[28..32].copy_from_slice(&0u32.to_be_bytes()); // name offset
         buf[32..40].copy_from_slice(&0xABABABu64.to_be_bytes()); // value
 
-        let mut iter = PropertyIter {
+        let iter = PropertyIter {
             strings,
             buf: Some(&buf),
         };

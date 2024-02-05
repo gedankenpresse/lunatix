@@ -52,13 +52,26 @@ impl<'buf> DeviceTreeBlob<'buf> {
 mod test {
     use super::*;
     use align_data::{include_aligned, Align64};
+    extern crate std;
+    use core::ffi::CStr;
 
     #[test]
     fn parsing_qemu_sifive_u_works() {
         static DTB: &[u8] = include_aligned!(Align64, "../../test/data/qemu_sifive_u.dtb");
         let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
 
-        todo!();
+        assert_eq!(
+            dtb.structure.name,
+            CStr::from_bytes_with_nul(b"\0").unwrap()
+        );
+        assert_eq!(
+            dtb.structure.children().nth(0).unwrap().name,
+            CStr::from_bytes_with_nul(b"chosen\0").unwrap()
+        );
+        assert_eq!(
+            dtb.structure.children().nth(1).unwrap().name,
+            CStr::from_bytes_with_nul(b"aliases\0").unwrap()
+        );
     }
 
     #[test]
@@ -66,6 +79,17 @@ mod test {
         static DTB: &[u8] = include_aligned!(Align64, "../../test/data/qemu_virt.dtb");
         let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
 
-        todo!();
+        assert_eq!(
+            dtb.structure.name,
+            CStr::from_bytes_with_nul(b"\0").unwrap()
+        );
+        assert_eq!(
+            dtb.structure.children().nth(0).unwrap().name,
+            CStr::from_bytes_with_nul(b"poweroff\0").unwrap()
+        );
+        assert_eq!(
+            dtb.structure.children().nth(1).unwrap().name,
+            CStr::from_bytes_with_nul(b"reboot\0").unwrap()
+        );
     }
 }
