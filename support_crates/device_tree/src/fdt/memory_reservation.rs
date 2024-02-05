@@ -84,6 +84,7 @@ impl<'buf> Iterator for MemoryReservationBlock<'buf> {
 #[cfg(test)]
 mod test {
     use super::*;
+    extern crate alloc;
     use alloc::vec;
     use alloc::vec::Vec;
 

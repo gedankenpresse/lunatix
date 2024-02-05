@@ -37,6 +37,7 @@ impl<'buf> Strings<'buf> {
 #[cfg(test)]
 mod test {
     use super::*;
+    extern crate alloc;
     use alloc::ffi::CString;
 
     #[test]

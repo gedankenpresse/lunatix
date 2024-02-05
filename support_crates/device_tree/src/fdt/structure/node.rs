@@ -4,7 +4,6 @@ use crate::fdt::structure::buf_tools::{align_to_token, ByteSliceWithTokens};
 use crate::fdt::structure::property::{NodeProperty, PropertyIter, PropertyParseError};
 use crate::fdt::structure::{FDT_BEGIN_NODE, FDT_END_NODE, FDT_PROP};
 use crate::fdt::Strings;
-use alloc::borrow::ToOwned;
 use core::ffi::CStr;
 use core::mem;
 use thiserror_no_std::Error;
@@ -106,8 +105,8 @@ impl<'buf> StructureNode<'buf> {
 
         let node = Self {
             name: node_name_str,
-            props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.to_owned()),
-            children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.to_owned()),
+            props: PropertyIter::new(&buf[i_props_begin..i_props_end], strings.clone()),
+            children: NodeIter::new(&buf[i_children_begin..i_children_end], strings.clone()),
         };
         Ok((i_children_end + mem::size_of::<u32>(), node))
     }
