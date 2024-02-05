@@ -112,11 +112,11 @@ impl<'buf> StructureNode<'buf> {
         Ok((i_children_end + mem::size_of::<u32>(), node))
     }
 
-    pub fn props(&self) -> impl Iterator<Item = NodeProperty<'buf>> {
+    pub fn props(&self) -> PropertyIter<'buf> {
         self.props.clone()
     }
 
-    pub fn children(&self) -> impl Iterator<Item = StructureNode<'buf>> {
+    pub fn children(&self) -> NodeIter<'buf> {
         self.children.clone()
     }
 }
@@ -134,6 +134,57 @@ impl<'buf> NodeIter<'buf> {
             strings,
             buf: if buf.len() == 0 { None } else { Some(buf) },
         }
+    }
+
+    /// Search for a node that is located at the given `path`.
+    ///
+    /// The path should start with a `/` character that denotes the parent from which this iterator was retrieved.
+    /// Inside the path `/` acts as a separator which denotes a level of child node.
+    ///
+    /// # Example
+    ///
+    /// Given the following device tree where the root node is identified by `/`, the `cpu@0` node
+    /// would be identified by the path `/cpus/cpu@0`.
+    ///
+    /// ```text
+    /// / {
+    ///   cpus {
+    ///     cpu@0 {
+    ///       …
+    ///     }
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// This `cpu@0` node could be retrieved using this call:
+    ///
+    /// ```rust
+    /// # use device_tree::fdt::DeviceTreeBlob;
+    /// # use align_data::{include_aligned, Align64};
+    /// # static DTB: &[u8] = include_aligned!(Align64, "../../../test/data/qemu_sifive_u.dtb");
+    /// # let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
+    /// # let root_node = dtb.structure;
+    /// let cpu0 = root_node.children().find_by_path("/cpus/cpu@0");
+    /// assert!(cpu0.is_some());
+    /// assert_eq!(cpu0.unwrap().name, "cpu@0")
+    /// ```
+    ///
+    pub fn find_by_path(&mut self, path: &str) -> Option<StructureNode<'buf>> {
+        let mut path_iter = path.trim_start_matches("/").split("/").peekable();
+
+        let mut current_children = self.clone();
+        while let Some(path_part) = path_iter.next() {
+            match path_iter.peek() {
+                None => return current_children.find(|node| node.name == path_part),
+                Some(_) => {
+                    current_children = current_children
+                        .find(|node| node.name == path_part)?
+                        .children();
+                }
+            }
+        }
+
+        None
     }
 }
 

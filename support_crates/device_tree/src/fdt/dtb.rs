@@ -60,8 +60,8 @@ mod test {
         let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
 
         assert_eq!(dtb.structure.name, "");
-        assert_eq!(dtb.structure.children().nth(0).unwrap().name, "");
-        assert_eq!(dtb.structure.children().nth(1).unwrap().name, "");
+        assert_eq!(dtb.structure.children().nth(0).unwrap().name, "chosen");
+        assert_eq!(dtb.structure.children().nth(1).unwrap().name, "aliases");
     }
 
     #[test]
@@ -70,7 +70,7 @@ mod test {
         let dtb = DeviceTreeBlob::from_buffer(DTB).unwrap();
 
         assert_eq!(dtb.structure.name, "");
-        assert_eq!(dtb.structure.children().nth(0).unwrap().name, "");
-        assert_eq!(dtb.structure.children().nth(1).unwrap().name, "");
+        assert_eq!(dtb.structure.children().nth(0).unwrap().name, "poweroff");
+        assert_eq!(dtb.structure.children().nth(1).unwrap().name, "reboot");
     }
 }
