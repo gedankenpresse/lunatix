@@ -9,8 +9,6 @@
 //! That is done by this `kernel_loader` program.
 #![no_std]
 #![no_main]
-// TODO: remove dead code
-#![allow(dead_code)]
 
 mod args;
 mod devtree;
@@ -21,9 +19,12 @@ use crate::args::{CmdArgIter, LoaderArgs};
 use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
 use ::elfloader::ElfBinary;
-use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator};
+use allocators::bump_allocator::{
+    BackwardBumpingAllocator, BumpAllocator, ForwardBumpingAllocator,
+};
 use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
+use core::cmp::min;
 use core::panic::PanicInfo;
 use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
@@ -32,7 +33,7 @@ use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
 use sbi::system_reset::{ResetReason, ResetType};
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Info);
+static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -50,6 +51,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
+    log::debug!("kernel parameters = {:x?}", args);
 
     log::debug!("parsing device tree to get information about the host hardware");
     let device_info = unsafe {
@@ -58,11 +60,11 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // extract usable memory from device information
     let (mem_start, mem_len) = device_info.usable_memory;
-    let mem_end = unsafe { mem_start.add(mem_len) };
+    let mut mem_end = unsafe { mem_start.add(mem_len) };
 
-    // u-boot places the device tree at the very end of physical memory and since we don't want to overwrite it,
-    // we fake mem_end to end before it
-    // mem_end = min(mem_end, args.phys_fdt_addr.cast_mut());   // TODO Re-add this
+    // u-boot places the device tree and kernel arguments at the very end of physical memory and since we don't want
+    // to overwrite it, we fake mem_end to end before it
+    mem_end = (min(mem_end, args.phys_fdt_addr.cast_mut()) as usize & !(4096 - 1)) as *mut u8;
 
     // create an allocator to allocate essential data structures from the end of usable memory
     log::debug!(
@@ -71,17 +73,17 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         mem_end,
         mem_end as usize - mem_start as usize
     );
-    let allocator = unsafe { BackwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
+    let allocator = unsafe { ForwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    log::debug!("allocating root PageTable");
+    log::trace!("allocating kernels root PageTable");
     let root_table_box: Box<'_, '_, PageTable> = unsafe {
         Box::new_zeroed(&allocator)
             .expect("Could not setup root PageTable")
             .assume_init()
     };
     let root_table = root_table_box.leak();
-    log::debug!("root_table addr: {:p}", root_table);
+    log::trace!("root_table addr: {:p}", root_table);
 
     // load the kernel ELF file
     let mut kernel_loader = KernelLoader::new(&allocator, root_table);
@@ -114,6 +116,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
 
+    // TODO Don't move device-tree since it is located in a memory area that is outside of our allocation pool and fine to be there. However not moving it currently panics the kernel :(
     log::debug!("moving device tree");
     let mut phys_dev_tree = Box::new_uninit_slice_with_alignment(
         device_info.fdt.header.total_size as usize,
