@@ -39,28 +39,55 @@ impl DeviceInfo {
 /// memory at all.
 ///
 /// # Device Tree Details
-/// The reserved memory regions are extracted from the device trees memory reservation block..
+/// The reserved memory regions are extracted from the device trees */reserved-memory* node.
 ///
-/// For details about the node, see [u-boot Reserved Memory Regions](https://github.com/qemu/u-boot/blob/master/doc/device-tree-bindings/reserved-memory/reserved-memory.txt).
-fn get_reserved_memory(device_tree: &FlattenedDeviceTree<'_>) -> Option<MemoryReservationEntry> {
+/// For details about the node, see the [Device Tree Spec Section 3.5](https://devicetree-specification.readthedocs.io/en/latest/chapter3-devicenodes.html#reserved-memory-node) or [u-boot Reserved Memory Regions Doc](https://github.com/qemu/u-boot/blob/master/doc/device-tree-bindings/reserved-memory/reserved-memory.txt).
+fn get_reserved_memory(
+    device_tree: &FlattenedDeviceTree<'_>,
+) -> Result<MemoryReservationEntry, DeviceInfoError> {
     // TODO Concatenating all reserved areas does not work if there are reservations at the top and bottom of physical memory. This should be improved
 
-    device_tree
-        .memory_reservations
-        .clone()
-        .reduce(|res_a, res_b| match res_a.address.cmp(&res_b.address) {
-            Ordering::Less => MemoryReservationEntry::new(
-                res_a.address,
-                (res_b.address - res_a.address) + res_b.size,
-            ),
-            Ordering::Equal => {
-                MemoryReservationEntry::new(res_a.address, max(res_a.size, res_b.size))
-            }
-            Ordering::Greater => MemoryReservationEntry::new(
-                res_b.address,
-                (res_a.address - res_b.address) + res_a.size,
-            ),
-        })
+    // search for node in the tree
+    log::trace!("looking for /reserved-memory node in device tree");
+    let node = device_tree
+        .structure
+        .children()
+        .find(|node| node.name == "reserved-memory")
+        .ok_or(DeviceInfoError::NoNodeInDeviceTree)?;
+
+    // the node describes reserved areas via child nodes so let's find them now and extract the reserved areas from the "reg" property
+    log::trace!("inspecting found /reserved-memory nodes children for reserved memory areas");
+    let areas = node.children().map(|child_node| {
+        let reg_prop = child_node
+            .props()
+            .find(|prop| prop.name == "reg")
+            .expect("/reserved-memory nodes children did not have a reg property");
+
+        let mem_start = reg_prop.nth_u64(0).unwrap();
+        let mem_len = reg_prop.nth_u64(1).unwrap();
+        log::trace!(
+            "found reserved memory area {} at start=0x{:x} len=0x{:x} (end=0x{:x})",
+            child_node.name,
+            mem_start,
+            mem_len,
+            mem_start + mem_len
+        );
+
+        MemoryReservationEntry::new(mem_start, mem_len)
+    });
+
+    // concatenate areas together
+    let area = areas.reduce(|res_a, res_b| match res_a.address.cmp(&res_b.address) {
+        Ordering::Less => {
+            MemoryReservationEntry::new(res_a.address, (res_b.address - res_a.address) + res_b.size)
+        }
+        Ordering::Equal => MemoryReservationEntry::new(res_a.address, max(res_a.size, res_b.size)),
+        Ordering::Greater => {
+            MemoryReservationEntry::new(res_b.address, (res_a.address - res_b.address) + res_a.size)
+        }
+    });
+
+    Ok(area.unwrap_or(MemoryReservationEntry::new(0, 0)))
 }
 
 /// Search for memory description in the device tree and return the starting address and size of it.
@@ -115,16 +142,12 @@ pub fn get_usable_memory(
     device_tree: &FlattenedDeviceTree<'_>,
 ) -> Result<(*mut u8, usize), DeviceInfoError> {
     let (all_mem_start, all_mem_len) = get_all_memory(device_tree)?;
+    let reserved = get_reserved_memory(device_tree)?;
 
-    match get_reserved_memory(device_tree) {
-        None => Ok((all_mem_start, all_mem_len)),
-        Some(reservation) => {
-            // TODO We currently assume that reserved memory starts at the bottom of physical memory. This is, of course, not always the case and should be properly handled
-            assert_eq!(all_mem_start as u64, reservation.address);
-            Ok((
-                (reservation.address + reservation.size) as *mut u8,
-                all_mem_len - reservation.size as usize,
-            ))
-        }
-    }
+    // TODO We currently assume that reserved memory starts at the bottom of physical memory. This is, of course, not always the case and should be properly handled
+    assert_eq!(all_mem_start as u64, reserved.address);
+    Ok((
+        (reserved.address + reserved.size) as *mut u8,
+        all_mem_len - reserved.size as usize,
+    ))
 }
