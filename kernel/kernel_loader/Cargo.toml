@@ -13,14 +13,14 @@ autotests = false
 
 [dependencies]
 allocators = { path = "../../support_crates/allocators" }
-elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
-log = { version = "0.4.19", default-features = false, features = ["release_max_level_debug"] }
-sbi = "0.2.0"
 bitflags = "2.2.1"
-riscv = { version = "0.1.0", path = "../riscv" }
-thiserror-no-std = "2.0.2"
-klog = { version = "0.1.0", path = "../../support_crates/klog" }
 device_tree = { path = "../../support_crates/device_tree" }
+elfloader = { git = "https://github.com/gz/rust-elfloader.git", branch = "master" }
+klog = { version = "0.1.0", path = "../../support_crates/klog" }
+log = { version = "0.4.19", default-features = false }
+riscv = { version = "0.1.0", path = "../riscv" }
+sbi = "0.2.0"
+thiserror-no-std = "2.0.2"
 
 [build-dependencies]
 cc = "1.0.79"

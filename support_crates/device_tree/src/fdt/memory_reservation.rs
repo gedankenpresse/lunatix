@@ -6,7 +6,7 @@ use thiserror_no_std::Error;
 /// Each entry gives the physical address and size in bytes of a reserved memory region.
 /// These given regions are required to not overlap each other.
 /// The list of reserved blocks shall be terminated with an entry where both address and size are equal to 0.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct MemoryReservationEntry {
     /// The address at which the memory reservation starts
     pub address: u64,

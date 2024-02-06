@@ -62,6 +62,8 @@ impl<'buf> FlattenedDeviceTree<'buf> {
     ///
     /// # Safety
     /// The given pointer must be valid and the backing memory must be readable for at least 40 bytes after it.
+    ///
+    /// The underlying memory must also be valid for as long as the resulting instance is used.
     pub unsafe fn from_ptr(ptr: *const u8) -> Result<Self, FdtError> {
         let header = FdtHeader::from_ptr(ptr)?;
         let buf = core::slice::from_raw_parts::<u8>(ptr, header.total_size as usize);

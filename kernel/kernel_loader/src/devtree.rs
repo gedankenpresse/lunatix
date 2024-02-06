@@ -1,3 +1,5 @@
+//! Device-Tree interaction
+
 use core::cmp::{max, Ordering};
 use core::mem;
 use device_tree::fdt::{FdtError, FlattenedDeviceTree, MemoryReservationEntry};
@@ -13,18 +15,26 @@ pub enum DeviceInfoError {
     DeviceTreeError(#[from] FdtError),
 }
 
+/// A data structure that contains all information relevant to the kernel loader
 #[derive(Debug)]
 pub struct DeviceInfo {
+    pub total_memory: (*mut u8, usize),
+    pub reserved_memory: MemoryReservationEntry,
     pub usable_memory: (*mut u8, usize),
     pub fdt: FlattenedDeviceTree<'static>,
 }
 
 impl DeviceInfo {
+    /// Extract device information from a flattened device tree located at the given pointer
     pub unsafe fn from_raw_ptr(ptr: *const u8) -> Result<Self, DeviceInfoError> {
         let fdt = FlattenedDeviceTree::from_ptr(ptr)?;
+        let total_mem = get_all_memory(&fdt)?;
+        let reserved_mem = get_reserved_memory(&fdt)?;
 
         Ok(Self {
-            usable_memory: get_usable_memory(&fdt)?,
+            total_memory: total_mem,
+            reserved_memory: reserved_mem,
+            usable_memory: calc_usable_memory(total_mem, reserved_mem)?,
             fdt,
         })
     }
@@ -138,16 +148,16 @@ fn get_all_memory(
 }
 
 /// Return the start address of general purpose memory and how much space is available
-pub fn get_usable_memory(
-    device_tree: &FlattenedDeviceTree<'_>,
+pub fn calc_usable_memory(
+    total_memory: (*mut u8, usize),
+    resv_mem: MemoryReservationEntry,
 ) -> Result<(*mut u8, usize), DeviceInfoError> {
-    let (all_mem_start, all_mem_len) = get_all_memory(device_tree)?;
-    let reserved = get_reserved_memory(device_tree)?;
+    let (total_mem_start, total_mem_len) = total_memory;
 
     // TODO We currently assume that reserved memory starts at the bottom of physical memory. This is, of course, not always the case and should be properly handled
-    assert_eq!(all_mem_start as u64, reserved.address);
+    assert_eq!(total_mem_start as u64, resv_mem.address);
     Ok((
-        (reserved.address + reserved.size) as *mut u8,
-        all_mem_len - reserved.size as usize,
+        (resv_mem.address + resv_mem.size) as *mut u8,
+        total_mem_len - resv_mem.size as usize,
     ))
 }
