@@ -13,15 +13,15 @@
 mod args;
 mod devtree;
 mod elfloader;
+mod user_args;
 mod virtmem;
 
 use crate::args::{CmdArgIter, LoaderArgs};
 use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
+use crate::user_args::UserArgs;
 use ::elfloader::ElfBinary;
-use allocators::bump_allocator::{
-    BackwardBumpingAllocator, BumpAllocator, ForwardBumpingAllocator,
-};
+use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::cmp::min;
@@ -33,7 +33,9 @@ use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
 use sbi::system_reset::{ResetReason, ResetType};
 
-static LOGGER: KernelLogger = KernelLogger::new(Level::Debug);
+const DEFAULT_LOG_LEVEL: Level = Level::Info;
+
+static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
@@ -50,6 +52,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
+
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
     log::debug!("kernel parameters = {:x?}", args);
 
@@ -57,6 +60,15 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let device_info = unsafe {
         DeviceInfo::from_raw_ptr(args.phys_fdt_addr).expect("Could not load device information")
     };
+    log::debug!("device info = {:x?}", device_info);
+
+    // parse user specified arguments and apply them
+    let user_args = match device_info.bootargs {
+        None => UserArgs::default(),
+        Some(args) => UserArgs::from_str(args),
+    };
+    LOGGER.update_log_level(user_args.log_level);
+    log::debug!("got user arguments {:?}", user_args);
 
     // extract usable memory from device information
     let (mem_start, mem_len) = device_info.usable_memory;

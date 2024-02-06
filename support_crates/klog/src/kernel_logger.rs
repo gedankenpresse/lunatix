@@ -4,23 +4,33 @@ use core::fmt::Write;
 use crate::print::KernelWriter;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
+// TODO Improve updating the maximum log level
+// Currently, only the global log:: filter is updated because that's easier that worrying about internal mutability of
+// the KernelLogger struct which would be required when wanting to update internal state too
+
 pub struct KernelLogger {
-    pub max_log_level: Level,
+    pub initial_log_level: Level,
 }
 
 impl KernelLogger {
     pub const fn new(max_log_level: Level) -> KernelLogger {
-        KernelLogger { max_log_level }
+        KernelLogger {
+            initial_log_level: max_log_level,
+        }
     }
 
     pub fn install(&'static self) -> Result<(), SetLoggerError> {
-        log::set_logger(self).map(|_| log::set_max_level(self.max_log_level.to_level_filter()))
+        log::set_logger(self).map(|_| log::set_max_level(self.initial_log_level.to_level_filter()))
+    }
+
+    pub fn update_log_level(&'static self, level: Level) {
+        log::set_max_level(level.to_level_filter());
     }
 }
 
 impl Log for KernelLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= self.max_log_level
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        true
     }
 
     fn log(&self, record: &Record) {

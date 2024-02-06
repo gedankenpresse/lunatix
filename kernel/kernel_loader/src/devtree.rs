@@ -1,7 +1,8 @@
 //! Device-Tree interaction
 
 use core::cmp::{max, Ordering};
-use core::mem;
+use core::fmt::Formatter;
+use core::{fmt, mem};
 use device_tree::fdt::{FdtError, FlattenedDeviceTree, MemoryReservationEntry};
 use thiserror_no_std::Error;
 
@@ -16,11 +17,11 @@ pub enum DeviceInfoError {
 }
 
 /// A data structure that contains all information relevant to the kernel loader
-#[derive(Debug)]
 pub struct DeviceInfo {
     pub total_memory: (*mut u8, usize),
     pub reserved_memory: MemoryReservationEntry,
     pub usable_memory: (*mut u8, usize),
+    pub bootargs: Option<&'static str>,
     pub fdt: FlattenedDeviceTree<'static>,
 }
 
@@ -35,11 +36,23 @@ impl DeviceInfo {
             total_memory: total_mem,
             reserved_memory: reserved_mem,
             usable_memory: calc_usable_memory(total_mem, reserved_mem)?,
+            bootargs: get_bootargs(&fdt),
             fdt,
         })
     }
 }
-//
+
+impl fmt::Debug for DeviceInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DeviceInfo")
+            .field("total_memory", &self.total_memory)
+            .field("reserved_memory", &self.reserved_memory)
+            .field("usable_memory", &self.usable_memory)
+            .field("bootargs", &self.bootargs)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Search for reserved memory in the device tree and return a new reservation that concatenates all areas found
 /// in the device tree.
 ///
@@ -160,4 +173,20 @@ pub fn calc_usable_memory(
         (resv_mem.address + resv_mem.size) as *mut u8,
         total_mem_len - resv_mem.size as usize,
     ))
+}
+
+/// Return the boot arguments that were passed
+///
+/// # Device Tree Details
+/// The arguments are extracted from the device trees */chosen* node ([See Spec Section 3.6](https://devicetree-specification.readthedocs.io/en/latest/chapter3-devicenodes.html#chosen-node)).
+pub fn get_bootargs(fdt: &FlattenedDeviceTree<'static>) -> Option<&'static str> {
+    Some(
+        fdt.structure
+            .children()
+            .find(|node| node.name == "chosen")?
+            .props()
+            .find(|prop| prop.name == "bootargs")?
+            .as_string()
+            .expect("Bootargs are not a valid string"),
+    )
 }
