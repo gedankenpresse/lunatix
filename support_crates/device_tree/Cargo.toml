@@ -1,0 +1,17 @@
+[package]
+name = "device_tree"
+description = "a library for handling flattened device tree blobs"
+authors.workspace = true
+repository.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror-no-std = "2.0.2"
+
+[dev-dependencies]
+align-data = "0.1.0"

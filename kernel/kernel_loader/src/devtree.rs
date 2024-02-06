@@ -1,7 +1,6 @@
 use core::cmp::{max, Ordering};
-use fdt_rs::error::DevTreeError;
-use fdt_rs::index::DevTreeIndex;
-use fdt_rs::prelude::PropReader;
+use core::mem;
+use device_tree::fdt::{FdtError, FlattenedDeviceTree, MemoryReservationEntry};
 use thiserror_no_std::Error;
 
 #[derive(Debug, Error)]
@@ -11,9 +10,26 @@ pub enum DeviceInfoError {
     #[error("The {0} node did not have the expected property {1}")]
     NoPropOnNode(&'static str, &'static str),
     #[error("The device tree could not be parsed")]
-    DevTreeError(#[from] DevTreeError),
+    DeviceTreeError(#[from] FdtError),
 }
 
+#[derive(Debug)]
+pub struct DeviceInfo {
+    pub usable_memory: (*mut u8, usize),
+    pub fdt: FlattenedDeviceTree<'static>,
+}
+
+impl DeviceInfo {
+    pub unsafe fn from_raw_ptr(ptr: *const u8) -> Result<Self, DeviceInfoError> {
+        let fdt = FlattenedDeviceTree::from_ptr(ptr)?;
+
+        Ok(Self {
+            usable_memory: get_usable_memory(&fdt)?,
+            fdt,
+        })
+    }
+}
+//
 /// Search for reserved memory in the device tree and return a new reservation that concatenates all areas found
 /// in the device tree.
 ///
@@ -25,52 +41,53 @@ pub enum DeviceInfoError {
 /// # Device Tree Details
 /// The reserved memory regions are extracted from the device trees */reserved-memory* node.
 ///
-/// For details about the node, see [u-boot Reserved Memory Regions](https://github.com/qemu/u-boot/blob/master/doc/device-tree-bindings/reserved-memory/reserved-memory.txt).
-fn get_reserved_memory(device_tree: &DevTreeIndex<'_, '_>) -> Option<(*mut u8, usize)> {
+/// For details about the node, see the [Device Tree Spec Section 3.5](https://devicetree-specification.readthedocs.io/en/latest/chapter3-devicenodes.html#reserved-memory-node) or [u-boot Reserved Memory Regions Doc](https://github.com/qemu/u-boot/blob/master/doc/device-tree-bindings/reserved-memory/reserved-memory.txt).
+fn get_reserved_memory(
+    device_tree: &FlattenedDeviceTree<'_>,
+) -> Result<MemoryReservationEntry, DeviceInfoError> {
     // TODO Concatenating all reserved areas does not work if there are reservations at the top and bottom of physical memory. This should be improved
 
-    // look for the "reserved-memory" node
-    device_tree
-        .nodes()
-        .find(|node| node.name().unwrap() == "reserved-memory")
-        .and_then(|node| {
-            log::trace!("found reserved-memory node");
+    // search for node in the tree
+    log::trace!("looking for /reserved-memory node in device tree");
+    let node = device_tree
+        .structure
+        .children()
+        .find(|node| node.name == "reserved-memory")
+        .ok_or(DeviceInfoError::NoNodeInDeviceTree)?;
 
-            // the node describes reserved areas via child nodes so let's find them now and extract the reserved area from the "reg" property
-            node.children()
-                .map(|child_node| {
-                    let reg_prop = child_node
-                        .props()
-                        .find(|prop| prop.name().unwrap() == "reg")
-                        .unwrap();
-                    let mem_start = reg_prop.u64(0).unwrap();
-                    let mem_len = reg_prop.u64(1).unwrap();
+    // the node describes reserved areas via child nodes so let's find them now and extract the reserved areas from the "reg" property
+    log::trace!("inspecting found /reserved-memory nodes children for reserved memory areas");
+    let areas = node.children().map(|child_node| {
+        let reg_prop = child_node
+            .props()
+            .find(|prop| prop.name == "reg")
+            .expect("/reserved-memory nodes children did not have a reg property");
 
-                    log::trace!(
-                        "found reserved memory area {}: start = {:#x} len = {:#x} (end = {:#x})",
-                        child_node.name().unwrap(),
-                        mem_start,
-                        mem_len,
-                        mem_start + mem_len
-                    );
+        let mem_start = reg_prop.nth_u64(0).unwrap();
+        let mem_len = reg_prop.nth_u64(1).unwrap();
+        log::trace!(
+            "found reserved memory area {} at start=0x{:x} len=0x{:x} (end=0x{:x})",
+            child_node.name,
+            mem_start,
+            mem_len,
+            mem_start + mem_len
+        );
 
-                    (mem_start as *mut u8, mem_len as usize)
-                })
-                // concatenate all reserved areas together
-                .reduce(|(mem_start_a, mem_len_a), (mem_start_b, mem_len_b)| {
-                    match mem_start_a.cmp(&mem_start_b) {
-                        Ordering::Less => (
-                            mem_start_a,
-                            (mem_start_b as usize - mem_start_a as usize) + mem_len_b,
-                        ),
-                        Ordering::Equal => (mem_start_a, max(mem_len_a, mem_len_b)),
-                        Ordering::Greater => (
-                            mem_start_b,
-                            (mem_start_a as usize - mem_start_b as usize) + mem_len_a,
-                        ),
-                    }
-                })
-        })
+        MemoryReservationEntry::new(mem_start, mem_len)
+    });
+
+    // concatenate areas together
+    let area = areas.reduce(|res_a, res_b| match res_a.address.cmp(&res_b.address) {
+        Ordering::Less => {
+            MemoryReservationEntry::new(res_a.address, (res_b.address - res_a.address) + res_b.size)
+        }
+        Ordering::Equal => MemoryReservationEntry::new(res_a.address, max(res_a.size, res_b.size)),
+        Ordering::Greater => {
+            MemoryReservationEntry::new(res_b.address, (res_a.address - res_b.address) + res_a.size)
+        }
+    });
+
+    Ok(area.unwrap_or(MemoryReservationEntry::new(0, 0)))
 }
 
 /// Search for memory description in the device tree and return the starting address and size of it.
@@ -82,21 +99,34 @@ fn get_reserved_memory(device_tree: &DevTreeIndex<'_, '_>) -> Option<(*mut u8, u
 /// The reserved memory regions are extracted from the device trees */memory* node.
 ///
 /// For details about the node, see the [DeviceTree specs /memory node](https://devicetree-specification.readthedocs.io/en/v0.3/devicenodes.html#memory-node).
-fn get_all_memory(device_tree: &DevTreeIndex<'_, '_>) -> Result<(*mut u8, usize), DeviceInfoError> {
+fn get_all_memory(
+    device_tree: &FlattenedDeviceTree<'_>,
+) -> Result<(*mut u8, usize), DeviceInfoError> {
     log::trace!("searching for memory node in device tree");
 
-    let node = device_tree
-        .nodes()
-        .find(|node| node.name().unwrap().starts_with("memory@"))
+    let mem_node = device_tree
+        .structure
+        .children()
+        .find(|node| node.name.starts_with("memory@"))
         .ok_or(DeviceInfoError::NoNodeInDeviceTree)?;
-    log::trace!("found memory node {} in device tree", node.name().unwrap());
+    log::trace!("found memory node {} in device tree", mem_node.name);
 
-    let reg_prop = node
+    let reg_prop = mem_node
         .props()
-        .find(|prop| prop.name().unwrap() == "reg")
+        .find(|prop| prop.name == "reg")
         .ok_or(DeviceInfoError::NoPropOnNode("memory", "reg"))?;
-    let mem_start = reg_prop.u64(0)?;
-    let mem_len = reg_prop.u64(1)?;
+
+    let mem_start = u64::from_be_bytes(
+        (&reg_prop.value[0..mem::size_of::<u64>()])
+            .try_into()
+            .unwrap(),
+    );
+    let mem_len = u64::from_be_bytes(
+        (&reg_prop.value[mem::size_of::<u64>()..mem::size_of::<u64>() * 2])
+            .try_into()
+            .unwrap(),
+    );
+
     log::trace!(
         "found reg property describing usable memory start = {:#x} len = {:#x} (end = {:#x})",
         mem_start,
@@ -109,19 +139,15 @@ fn get_all_memory(device_tree: &DevTreeIndex<'_, '_>) -> Result<(*mut u8, usize)
 
 /// Return the start address of general purpose memory and how much space is available
 pub fn get_usable_memory(
-    device_tree: &DevTreeIndex<'_, '_>,
+    device_tree: &FlattenedDeviceTree<'_>,
 ) -> Result<(*mut u8, usize), DeviceInfoError> {
     let (all_mem_start, all_mem_len) = get_all_memory(device_tree)?;
+    let reserved = get_reserved_memory(device_tree)?;
 
-    match get_reserved_memory(device_tree) {
-        None => Ok((all_mem_start, all_mem_len)),
-        Some((reserved_start, reserved_len)) => {
-            // TODO We currently assume that reserved memory starts at the bottom of physical memory. This is, of course, not always the case and should be properly handled
-            assert_eq!(all_mem_start, reserved_start);
-            Ok((
-                unsafe { reserved_start.add(reserved_len) },
-                all_mem_len - reserved_len,
-            ))
-        }
-    }
+    // TODO We currently assume that reserved memory starts at the bottom of physical memory. This is, of course, not always the case and should be properly handled
+    assert_eq!(all_mem_start as u64, reserved.address);
+    Ok((
+        (reserved.address + reserved.size) as *mut u8,
+        all_mem_len - reserved.size as usize,
+    ))
 }

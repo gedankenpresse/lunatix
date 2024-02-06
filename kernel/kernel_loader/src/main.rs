@@ -18,14 +18,15 @@ mod elfloader;
 mod virtmem;
 
 use crate::args::{CmdArgIter, LoaderArgs};
+use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BackwardBumpingAllocator, BumpAllocator};
 use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::panic::PanicInfo;
-use fdt_rs::base::DevTree;
-use fdt_rs::index::DevTreeIndex;
+use core::ptr;
+use device_tree::fdt::FlattenedDeviceTree;
 use klog::KernelLogger;
 use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
@@ -51,16 +52,12 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
 
     log::debug!("parsing device tree to get information about the host hardware");
-    let dev_tree = unsafe {
-        DevTree::from_raw_pointer(args.phys_fdt_addr).expect("Could not load device tree")
+    let device_info = unsafe {
+        DeviceInfo::from_raw_ptr(args.phys_fdt_addr).expect("Could not load device information")
     };
-    let mut dev_tree_idx = [0u8; 10 * 1024]; // TODO The size was tested to work in our qemu boot environment but is not properly chosen
-    let dev_tree_idx = DevTreeIndex::new(dev_tree, &mut dev_tree_idx)
-        .expect("Could not construct an index over the device tree");
 
     // extract usable memory from device information
-    let (mem_start, mem_len) = devtree::get_usable_memory(&dev_tree_idx)
-        .expect("Could not get usable memory from device tree");
+    let (mem_start, mem_len) = device_info.usable_memory;
     let mem_end = unsafe { mem_start.add(mem_len) };
 
     // u-boot places the device tree at the very end of physical memory and since we don't want to overwrite it,
@@ -118,15 +115,21 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     }
 
     log::debug!("moving device tree");
-    let mut phys_dev_tree =
-        Box::new_uninit_slice_with_alignment(dev_tree.buf().len(), 4096, allocator).unwrap();
+    let mut phys_dev_tree = Box::new_uninit_slice_with_alignment(
+        device_info.fdt.header.total_size as usize,
+        4096,
+        allocator,
+    )
+    .unwrap();
     let phys_dev_tree = unsafe {
-        for (i, &byte) in dev_tree.buf().iter().enumerate() {
-            phys_dev_tree[i].write(byte);
-        }
+        ptr::copy_nonoverlapping(
+            device_info.fdt.buf.as_ptr(),
+            phys_dev_tree.as_mut_ptr() as *mut u8,
+            device_info.fdt.header.total_size as usize,
+        );
         phys_dev_tree.assume_init()
     };
-    assert!(unsafe { DevTree::new(&phys_dev_tree) }.is_ok());
+    assert!(FlattenedDeviceTree::from_buffer(&phys_dev_tree).is_ok());
 
     // waste a page or two so we get back to page alignment
     // TODO: remove this when the kernel fixes alignment itself
