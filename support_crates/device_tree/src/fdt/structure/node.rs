@@ -81,7 +81,7 @@ impl<'buf> StructureNode<'buf> {
         );
         let mut i_props_end = i_props_begin;
         while let Some((offset, FDT_PROP)) = (&buf[i_props_end..]).next_token(true) {
-            let (prop_size, prop) =
+            let (prop_size, _prop) =
                 NodeProperty::from_buffer(&buf[i_props_end + offset..], strings)?;
             i_props_end = align_to_token(i_props_end + offset + prop_size);
         }

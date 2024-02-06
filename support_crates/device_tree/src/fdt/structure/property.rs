@@ -6,6 +6,7 @@ use crate::fdt::structure::property_value_encoding::{
 };
 use crate::fdt::structure::FDT_PROP;
 use crate::fdt::{Strings, StringsError};
+use core::mem;
 use thiserror_no_std::Error;
 
 /// The error which can occur when parsing a property
@@ -84,6 +85,17 @@ impl<'buf> NodeProperty<'buf> {
         self.try_into()
     }
 
+    /// Assuming the property encodes a list of u32 values, read the nth one
+    pub fn nth_u32(&self, n: usize) -> Result<u32, InvalidValueLength> {
+        let buf = self
+            .value
+            .get(n * mem::size_of::<u32>()..(n + 1) * mem::size_of::<u32>())
+            .ok_or(InvalidValueLength)?
+            .try_into()
+            .unwrap();
+        Ok(u32::from_be_bytes(buf))
+    }
+
     /// Interpret the value of this property as a single u32
     ///
     /// # Example
@@ -124,6 +136,17 @@ impl<'buf> NodeProperty<'buf> {
     /// ```
     pub fn as_u64(&self) -> Result<u64, InvalidValueLength> {
         self.try_into()
+    }
+
+    /// Assuming the property encodes a list of u64 values, read the nth one
+    pub fn nth_u64(&self, n: usize) -> Result<u64, InvalidValueLength> {
+        let buf = self
+            .value
+            .get(n * mem::size_of::<u64>()..(n + 1) * mem::size_of::<u64>())
+            .ok_or(InvalidValueLength)?
+            .try_into()
+            .unwrap();
+        Ok(u64::from_be_bytes(buf))
     }
 
     /// Interpret the value of this property as a single null-terminated string
