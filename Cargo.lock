@@ -281,7 +281,6 @@ dependencies = [
  "klog",
  "log",
  "riscv",
- "sbi",
  "thiserror-no-std",
 ]
 

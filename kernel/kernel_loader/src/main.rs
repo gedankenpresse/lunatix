@@ -31,7 +31,6 @@ use device_tree::fdt::FlattenedDeviceTree;
 use klog::KernelLogger;
 use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
-use sbi::system_reset::{ResetReason, ResetType};
 
 const DEFAULT_LOG_LEVEL: Level = Level::Info;
 
@@ -39,13 +38,8 @@ static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
 #[panic_handler]
 fn panic_handler(info: &PanicInfo) -> ! {
-    // print panic message
     log::error!("!!! Kernel Loader Panic !!!\n  {}", info);
-
-    // try to shutdown (but loop in case that fails)
-    let _ = sbi::system_reset::system_reset(ResetType::Shutdown, ResetReason::SystemFailure);
-    log::error!("Could not shutdown device, looping now…");
-    loop {}
+    riscv::power::abort();
 }
 
 /// The entry point of the loader that is called by U-Boot

@@ -1,5 +1,6 @@
 [package]
 name = "riscv"
+description = "riscv specific code for the lunatix kernel"
 authors.workspace = true
 repository.workspace = true
 version.workspace = true

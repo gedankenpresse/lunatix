@@ -49,7 +49,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
     println!("🚨 Kernel Panic! 😱  {}", info);
 
     // shutdown the device
-    riscv::shutdown()
+    riscv::power::shutdown()
 }
 
 #[no_mangle]
@@ -64,7 +64,7 @@ extern "C" fn _start(
     assert_start_expectations();
 
     kernel_main(0, 0, phys_fdt, phys_mem_start, phys_mem_end);
-    riscv::shutdown();
+    riscv::power::shutdown();
 }
 
 extern "C" fn kernel_main(

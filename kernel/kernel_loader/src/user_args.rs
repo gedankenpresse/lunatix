@@ -28,12 +28,7 @@ impl UserArgs {
                 println!("  help                   Aborts the boot process and shows this help message instead.");
                 println!("  log-level=LEVEL        Specifies the maximum log-level of kernel related logging. Can be one of ERROR, WARN, INFO, DEBUG, TRACE (case insensitive).");
 
-                sbi::system_reset::system_reset(
-                    sbi::system_reset::ResetType::Shutdown,
-                    sbi::system_reset::ResetReason::NoReason,
-                )
-                .expect("Could not shutdown system after --help");
-                unreachable!()
+                riscv::power::shutdown();
             }
         }
 
