@@ -31,7 +31,11 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
+mod page_tables;
 pub mod ptrs;
+mod vaddr;
+
+pub use page_tables::*;
 
 /// The virtual memory address at which userspace tasks are mapped
 ///

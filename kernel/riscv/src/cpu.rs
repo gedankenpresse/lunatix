@@ -11,7 +11,8 @@ use core::fmt::{Debug, Formatter};
 ///
 /// # Example:
 /// ```rust
-/// read_reg!("sstatus")
+/// let val = read_reg!("sstatus");
+/// let val = read_reg!("sstatus", u64);
 /// ```
 macro_rules! read_reg {
     ($csr:literal,$width:ty) => {{

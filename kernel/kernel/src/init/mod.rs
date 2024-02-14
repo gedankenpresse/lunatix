@@ -111,7 +111,7 @@ pub fn load_init_task(
 
 pub fn prepare_userspace_handoff() {
     log::debug!("enabling interrupts");
-    riscv::timer::set_next_timer(0).unwrap();
+    riscv::timer::set_timeout(0).unwrap();
     riscv::trap::enable_interrupts();
 
     unsafe { set_return_to_user() };

@@ -15,7 +15,7 @@ use riscv::cpu::{Exception, Interrupt, TrapEvent};
 use riscv::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use riscv::mem::VIRT_MEM_KERNEL_START;
 use riscv::pt::PageTable;
-use riscv::timer::set_next_timer;
+use riscv::timer::set_timeout;
 use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
 
 mod caps;
@@ -167,7 +167,7 @@ fn kernel_loop(
             TrapEvent::Interrupt(Interrupt::SupervisorTimerInterrupt) => {
                 log::trace!("⏰");
                 const MILLI: u64 = 10_000; // 10_000 * time_base (100 nanos) ;
-                set_next_timer(100 * MILLI).expect("Could not set new timer interrupt");
+                set_timeout(100 * MILLI).expect("Could not set new timer interrupt");
                 task_set_pc(&mut active_task, trap_info.epc);
                 schedule = Schedule::RunInit;
             }
