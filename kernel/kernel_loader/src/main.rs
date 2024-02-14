@@ -28,7 +28,7 @@ use core::cmp::min;
 use core::panic::PanicInfo;
 use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
-use klog::KernelLogger;
+use klog::{println, KernelLogger};
 use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
 

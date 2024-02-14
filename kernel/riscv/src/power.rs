@@ -34,6 +34,6 @@ fn poweroff_fallback() -> ! {
     // just to make sure the hart never executes anything again, spin indefinitely
     #[allow(unreachable_code)]
     unsafe {
-        crate::wfi_spin()
+        crate::utils::wfi_spin()
     }
 }
