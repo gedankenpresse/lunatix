@@ -113,7 +113,7 @@ pub fn unmap(trans: impl crate::PhysMapper, root: &mut PageTable, vaddr: usize, 
         log::error!("tried to unmap page entry that is not a leaf");
         panic!();
     }
-    if v.get_addr().unwrap() != paddr {
+    if v.get_addr().unwrap() != paddr as u64 {
         log::warn!("tried to unmap page at vaddr that currently holds another page: entry {:x} paddr: {:x}", v.get_addr().unwrap(), paddr);
         return;
     }
@@ -206,5 +206,5 @@ pub fn virt_to_phys(
     }
 
     let address = v.get_addr().unwrap();
-    Some(address | (vaddr & PBIT_MASK))
+    Some(address as usize | (vaddr & PBIT_MASK))
 }

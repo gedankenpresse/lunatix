@@ -20,6 +20,7 @@ use crate::args::{CmdArgIter, LoaderArgs};
 use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
 use crate::user_args::UserArgs;
+use crate::virtmem::virt_to_phys;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
@@ -32,7 +33,7 @@ use klog::{println, KernelLogger};
 use log::Level;
 use riscv::pt::{PageTable, PAGESIZE};
 
-const DEFAULT_LOG_LEVEL: Level = Level::Info;
+const DEFAULT_LOG_LEVEL: Level = Level::Debug;
 
 static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
@@ -118,6 +119,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     virtmem::kernel_map_phys_huge(root_pagetable);
 
     log::info!("enabling virtual memory!");
+    log::info!("{:?}", root_pagetable);
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }

@@ -2,6 +2,7 @@ use allocators::AllocInit;
 use allocators::{bump_allocator::BumpAllocator, Box};
 use core::alloc::Layout;
 use riscv::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
+use riscv::mem::paddr_ppn;
 use riscv::pt::{EntryFlags, MemoryPage, PageTable, PAGESIZE};
 use riscv::PhysMapper;
 
@@ -116,6 +117,8 @@ pub fn map_range_alloc<'a>(
 }
 
 pub unsafe fn use_pagetable(root: *mut PageTable) {
+    assert_eq!(root as u64, paddr_ppn(root as u64));
+
     // enable MXR (make Executable readable) bit
     // enable SUM (permit Supervisor User Memory access) bit
     unsafe {
@@ -124,12 +127,12 @@ pub unsafe fn use_pagetable(root: *mut PageTable) {
 
     log::debug!("enabling new root pagetable {:p}", root);
 
-    // Setup Root Page table in satp register
+    // setup root page table in satp register
     unsafe {
         Satp::write(SatpData {
             mode: SatpMode::Sv39,
             asid: 1,
-            ppn: root as u64 >> 12,
+            ppn: paddr_ppn(root as u64),
         });
     }
 }
