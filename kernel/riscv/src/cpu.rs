@@ -49,6 +49,26 @@ macro_rules! clear_reg {
     }
 }
 
+/// Program Counter
+///
+/// The program counter holds the address of the current instruction..
+/// Writing to this register is not implemented; use a jump instruction instead.
+pub struct PC {}
+
+impl PC {
+    /// Read the current value of PC which yields the address of the current instruction
+    ///
+    /// Note that the returned value cannot be considered accurate.
+    /// Concretely it refers to some instruction that is located inside this functions body and the compiler may or may not generate additional preamble and post-processing instructions.
+    pub fn read() -> u64 {
+        let res;
+        unsafe {
+            asm!("jal {}, 4", "nop", out(reg) res);
+        }
+        res
+    }
+}
+
 /// Supervisor Status Register.
 ///
 /// It keeps track of the processor's current operating state.
