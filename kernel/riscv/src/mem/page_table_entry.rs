@@ -1,7 +1,7 @@
 use super::PAGESIZE;
 use crate::mem::{paddr_ppn, PAddr};
 use bitflags::bitflags;
-use core::fmt::{Debug, Formatter, Write};
+use core::fmt::{Binary, Debug, Formatter, LowerHex, UpperHex, Write};
 
 /// An entry of a [`PageTable`](PageTable) responsible for mapping virtual to phyiscal adresses.
 ///
@@ -22,22 +22,26 @@ use core::fmt::{Debug, Formatter, Write};
 ///                      Sv39 Page Table Entry
 /// ```
 ///
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 #[repr(C, align(8))]
 pub struct PageTableEntry {
-    entry: u64,
+    pub(crate) entry: u64,
 }
 
 const FLAG_MASK: u64 = (1 << 7) - 1;
-const PPN_OFFSET: u64 = 9;
+const PPN_OFFSET: u64 = 10;
 const PPN_MASK: u64 = ((1 << 44) - 1) << PPN_OFFSET;
 
 impl PageTableEntry {
     /// Create a new empty entry.
     ///
     /// This entry does not point to anything and is considered disabled by the hardware.
-    pub fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         Self { entry: 0 }
+    }
+
+    pub(crate) fn new(entry: u64) -> Self {
+        Self { entry }
     }
 
     /// Whether this entry is currently valid (in other words whether it is considered active)
@@ -76,6 +80,11 @@ impl PageTableEntry {
     /// This can make other, completely unrelated, references and pointers invalid and must always be done with
     /// care.
     pub unsafe fn set(&mut self, paddr: PAddr, flags: EntryFlags) {
+        assert_eq!(
+            paddr,
+            paddr_ppn(paddr),
+            "cannot set page table entry to PAddrs that include page offsets"
+        );
         log::trace!(
             "setting page table entry {:#x}:{} to {:#x}",
             (self as *mut _ as usize) & !(PAGESIZE - 1),
@@ -112,10 +121,28 @@ impl Debug for PageTableEntry {
                 .finish_non_exhaustive(),
             Ok(addr) => f
                 .debug_struct("PageTableEntry")
-                .field("addr", &format_args!("0x{:12X}", addr))
+                .field("addr", &format_args!("{:12X}", addr))
                 .field("flags", &self.get_flags())
                 .finish(),
         }
+    }
+}
+
+impl Binary for PageTableEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        Binary::fmt(&self.entry, f)
+    }
+}
+
+impl LowerHex for PageTableEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        LowerHex::fmt(&self.entry, f)
+    }
+}
+
+impl UpperHex for PageTableEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        UpperHex::fmt(&self.entry, f)
     }
 }
 

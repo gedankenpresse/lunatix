@@ -18,7 +18,18 @@ pub(crate) const PPN_MASK: u64 = PPN0_MASK | PPN1_MASK | PPN2_MASK;
 /// Get the PPN (physical page number) segments from a physical address
 #[inline]
 pub fn paddr_ppn_segments(paddr: PAddr) -> [u64; 3] {
-    [paddr & PPN0_MASK, paddr & PPN1_MASK, paddr & PPN2_MASK]
+    [
+        (paddr & PPN0_MASK) >> (PAGE_OFFSET_BITS),
+        (paddr & PPN1_MASK) >> (PAGE_OFFSET_BITS + PPN0_BITS),
+        (paddr & PPN2_MASK) >> (PAGE_OFFSET_BITS + PPN0_BITS + PPN1_BITS),
+    ]
+}
+
+pub fn paddr_from_parts(segments: [u64; 3], page_offset: u64) -> PAddr {
+    (segments[0] << (PAGE_OFFSET_BITS) & PPN0_MASK)
+        | (segments[1] << (PAGE_OFFSET_BITS + PPN0_BITS) & PPN1_MASK)
+        | (segments[2] << (PAGE_OFFSET_BITS + PPN0_BITS + PPN1_BITS) & PPN2_MASK)
+        | (page_offset & PAGE_OFFSET_MASK)
 }
 
 /// Get the physical page number encoded in a physical address

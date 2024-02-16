@@ -1,5 +1,5 @@
 use crate::mem::{MemoryPage, PageTableEntry, PAGESIZE};
-use core::fmt::{Debug, Display, Formatter};
+use core::fmt::{Binary, Debug, Display, Formatter};
 use core::mem;
 use core::mem::MaybeUninit;
 use static_assertions::{assert_eq_align, assert_eq_size};
@@ -47,9 +47,9 @@ impl PageTable {
 
         let table = PageTable::init(page);
         let table_ref = unsafe { table.as_mut().unwrap() };
-        for (i, &entry) in orig.entries.iter().enumerate() {
+        for (i, entry) in orig.entries.iter().enumerate() {
             if entry.is_valid() {
-                table_ref.entries[i] = entry;
+                table_ref.entries[i] = PageTableEntry::new(entry.entry);
             }
         }
 
@@ -63,12 +63,7 @@ impl PageTable {
         log::trace!("initializing pagetable at {page:p} with same high-address space as {orig:p}");
 
         for i in 0..PAGESIZE / mem::size_of::<PageTableEntry>() {
-            // TODO
-            unsafe {
-                page.cast::<PageTableEntry>()
-                    .add(i)
-                    .write(PageTableEntry::empty());
-            }
+            todo!("initialize lower half with empty and higher half with copies")
         }
 
         page.cast::<PageTable>()

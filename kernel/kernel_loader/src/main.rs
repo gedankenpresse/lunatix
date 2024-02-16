@@ -24,6 +24,7 @@ use crate::virtmem::virt_to_phys;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
+use bitflags::Flags;
 use core::alloc::Layout;
 use core::cmp::min;
 use core::panic::PanicInfo;
@@ -31,9 +32,13 @@ use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
 use klog::{println, KernelLogger};
 use log::Level;
+use riscv::mem::{
+    paddr_from_parts, paddr_ppn_segments, vaddr_page_offset, vaddr_vpn_segments, EntryFlags, PAddr,
+    VAddr,
+};
 use riscv::pt::{PageTable, PAGESIZE};
 
-const DEFAULT_LOG_LEVEL: Level = Level::Debug;
+const DEFAULT_LOG_LEVEL: Level = Level::Info;
 
 static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
@@ -118,11 +123,26 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("mapping physical memory to kernel");
     virtmem::kernel_map_phys_huge(root_pagetable);
 
+    log::info!("validating root pagetable {:?}", root_pagetable);
+    //validate_pagetable(root_pagetable, 0);
+
+    //let entry = &mut root_pagetable.entries[508];
+    //unsafe { entry.set(riscv::mem::paddr_ppn(u64::MAX), EntryFlags::empty()) };
+    //log::info!("complete entry: 0b{:064b}", entry);
+    //log::info!("addr only:      0b{:064b}", entry.get_addr().unwrap());
+
+    let pc = riscv::cpu::PC::read();
+    let pc_phys = translate_addr(&root_pagetable, pc);
+    log::info!("pc = {pc:x}    translated_pc = {pc_phys:x}");
+
+    panic!();
+
     log::info!("enabling virtual memory!");
-    log::info!("{:?}", root_pagetable);
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
+
+    panic!("exit");
 
     // TODO Don't move device-tree since it is located in a memory area that is outside of our allocation pool and fine to be there. However not moving it currently panics the kernel :(
     log::debug!("moving device tree");
@@ -174,4 +194,56 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     }
 
     unreachable!()
+}
+
+fn validate_pagetable(pt: &PageTable, current_level: usize) {
+    for (i, entry) in pt.entries.iter().enumerate() {
+        if !entry.is_valid() {
+            continue;
+        }
+
+        if entry.is_leaf() {
+            log::debug!("found leaf entry {i:3} at level {current_level}: {entry:?}");
+        } else {
+            log::debug!(
+                "found pointer from level {current_level} to level {}: {i:3} {entry:?}",
+                current_level + 1
+            );
+            let next_pt_addr = entry.get_addr().unwrap();
+            let next_pt = unsafe { (next_pt_addr as *const PageTable).as_ref().unwrap() };
+            validate_pagetable(next_pt, current_level + 1);
+        }
+    }
+}
+
+fn translate_addr(pt: &PageTable, vaddr: VAddr) -> PAddr {
+    let page_offset = vaddr_page_offset(vaddr);
+    let [vpn0, vpn1, vpn2] = vaddr_vpn_segments(vaddr);
+    log::info!("vaddr = {vaddr:x}    vpn0 = {vpn0:x}    vpn1 = {vpn1:x}    vpn2 = {vpn2:x}    offset = {page_offset:x}");
+
+    let pte = &pt.entries[vpn0 as usize];
+    log::info!("level 0 = {pte:?}");
+    if pte.is_leaf() {
+        let entry_ppns = paddr_ppn_segments(pte.get_addr().unwrap());
+        return paddr_from_parts([entry_ppns[0], vpn1, vpn2], page_offset);
+    }
+    let pt = unsafe {
+        (pte.get_addr().unwrap() as *const PageTable)
+            .as_ref()
+            .unwrap()
+    };
+
+    let pte = &pt.entries[vpn0 as usize];
+    log::info!("level 1 = {pte:?}");
+    let pt = unsafe {
+        (pte.get_addr().unwrap() as *const PageTable)
+            .as_ref()
+            .unwrap()
+    };
+
+    let pte = &pt.entries[vpn0 as usize];
+    log::info!("level 2 = {pte:?}");
+    let ppn = pte.get_addr().unwrap();
+
+    ppn | page_offset
 }

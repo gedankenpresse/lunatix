@@ -16,7 +16,11 @@ const VPN_MASK: u64 = VPN0_MASK | VPN1_MASK | VPN2_MASK;
 /// Get the VPN (virtual page number) segments from a virtual address
 #[inline]
 pub fn vaddr_vpn_segments(vaddr: VAddr) -> [u64; 3] {
-    [vaddr & VPN0_MASK, vaddr & VPN1_MASK, vaddr & VPN2_MASK]
+    [
+        (vaddr & VPN0_MASK) >> (PAGE_OFFSET_BITS + 0 * VPN_SEGMENT_BITS),
+        (vaddr & VPN1_MASK) >> (PAGE_OFFSET_BITS + 1 * VPN_SEGMENT_BITS),
+        (vaddr & VPN2_MASK) >> (PAGE_OFFSET_BITS + 2 * VPN_SEGMENT_BITS),
+    ]
 }
 
 /// Get the virtual page number encoded in a physical address
