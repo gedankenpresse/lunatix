@@ -8,28 +8,36 @@ use elfloader::arch::riscv::RelocationTypes;
 use elfloader::{
     ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr,
 };
+use riscv::mem::mapping::PhysMapping;
 use riscv::pt::{EntryFlags, PageTable, PAGESIZE};
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {
     pub allocator: &'alloc A,
     pub root_pagetable: &'static mut PageTable,
+    pub phys_map: PhysMapping,
 }
 
 impl<'alloc, A: BumpAllocator<'static>> KernelLoader<'alloc, A> {
-    pub fn new(allocator: &'alloc A, root_pagetable: &'static mut PageTable) -> Self {
+    pub fn new(
+        allocator: &'alloc A,
+        root_pagetable: &'static mut PageTable,
+        phys_map: PhysMapping,
+    ) -> Self {
         Self {
             allocator,
             root_pagetable,
+            phys_map,
         }
     }
 
-    pub fn load_stack(&mut self, stack_low: usize, stack_high: usize) -> u64 {
+    pub fn load_stack(&mut self, stack_low: u64, stack_high: u64) -> u64 {
         let rw = EntryFlags::Read | EntryFlags::Write;
         log::debug!("loading stack low: {stack_low:0x} high: {stack_high:0x}");
         virtmem::map_range_alloc(
             self.allocator,
             self.root_pagetable,
+            &self.phys_map,
             stack_low,
             stack_high - stack_low,
             rw | EntryFlags::Accessed | EntryFlags::Dirty,
@@ -41,8 +49,8 @@ impl<'alloc, A: BumpAllocator<'static>> KernelLoader<'alloc, A> {
 impl<'alloc, A: BumpAllocator<'static>> ElfLoader for KernelLoader<'alloc, A> {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for header in load_headers {
-            log::debug!(
-                "allocating memory for section base = {:#x} end = {:#x} flags = {}",
+            log::trace!(
+                "setting up memory for elf section: base = {:#x} end = {:#x} flags = {}",
                 header.virtual_addr(),
                 header.virtual_addr() + header.mem_size(),
                 header.flags(),
@@ -63,8 +71,9 @@ impl<'alloc, A: BumpAllocator<'static>> ElfLoader for KernelLoader<'alloc, A> {
             map_range_alloc(
                 self.allocator,
                 &mut self.root_pagetable,
-                header.virtual_addr() as usize,
-                header.mem_size() as usize,
+                &self.phys_map,
+                header.virtual_addr(),
+                header.mem_size(),
                 flags | EntryFlags::Accessed | EntryFlags::Dirty,
             );
         }

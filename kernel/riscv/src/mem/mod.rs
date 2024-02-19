@@ -71,18 +71,16 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
-mod paddr;
+pub mod mapping;
+pub mod paddr;
 mod page_table_entry;
 mod page_tables;
 pub mod ptrs;
-mod vaddr;
+pub mod vaddr;
 
 use core::ops::{Deref, DerefMut};
-pub use paddr::*;
-pub use paddr::*;
 pub use page_table_entry::*;
 pub use page_tables::*;
-pub use vaddr::*;
 
 /// How large each page in the memory of a riscv board is.
 ///

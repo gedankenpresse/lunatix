@@ -3,7 +3,6 @@ use log::error;
 use sbi::system_reset::*;
 
 /// Perform a clean shutdown of the host hardware
-#[cfg(target_arch = "riscv64")]
 pub fn shutdown() -> ! {
     // gracefully shut down the system
     match system_reset(ResetType::Shutdown, ResetReason::NoReason) {

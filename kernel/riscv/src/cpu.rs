@@ -3,6 +3,8 @@
 //! This module implements some dummy structs which each model a certain cpu register as it is defined in
 //! Chapter 4 of the [Risc-V Privileged Specification](https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf)
 
+use crate::mem::paddr;
+use crate::mem::paddr::PAddr;
 use bitflags::bitflags;
 use core::arch::asm;
 use core::fmt::{Debug, Formatter};
@@ -699,6 +701,17 @@ pub struct SatpData {
     pub mode: SatpMode,
     pub asid: u64,
     pub ppn: u64,
+}
+
+impl SatpData {
+    pub fn new(mode: SatpMode, asid: u64, page_table_addr: PAddr) -> Self {
+        assert_eq!(page_table_addr & paddr::PPN_MASK, page_table_addr);
+        Self {
+            mode,
+            asid,
+            ppn: page_table_addr >> paddr::PPN_OFFSET,
+        }
+    }
 }
 
 impl From<u64> for SatpData {

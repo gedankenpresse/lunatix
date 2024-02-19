@@ -24,6 +24,8 @@ impl PageTable {
     // TODO Maybe this should use pins instead of pointers
     /// Initialize the given page with an empty `PageTable`
     pub fn init(page: *mut MaybeUninit<MemoryPage>) -> *mut PageTable {
+        assert_eq!(page as usize % mem::align_of::<PageTable>(), 0);
+
         log::trace!("initializing empty pagetable at {page:p}");
         for i in 0..PAGESIZE / mem::size_of::<PageTableEntry>() {
             unsafe {
@@ -45,11 +47,16 @@ impl PageTable {
     pub fn init_copy(page: *mut MaybeUninit<MemoryPage>, orig: &PageTable) -> *mut PageTable {
         log::trace!("initializing pagetable at {page:p} to be a copy of {orig:p}");
 
+        let target = page.cast::<PageTable>();
         let table = PageTable::init(page);
-        let table_ref = unsafe { table.as_mut().unwrap() };
-        for (i, entry) in orig.entries.iter().enumerate() {
-            if entry.is_valid() {
-                table_ref.entries[i] = PageTableEntry::new(entry.entry);
+        for (i, i_entry) in orig.entries.iter().enumerate() {
+            if i_entry.is_valid() {
+                let target_slot = unsafe { target.cast::<MaybeUninit<PageTableEntry>>().add(i) };
+                PageTableEntry::init(
+                    target_slot,
+                    i_entry.get_addr().unwrap(),
+                    i_entry.get_flags(),
+                );
             }
         }
 
@@ -85,5 +92,18 @@ impl Debug for PageTable {
 
         f.write_str("}")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    extern crate alloc;
+
+    #[test]
+    fn test_pagetable_init_zeroes_memory() {
+        let mut buf = MemoryPage([u8::MAX; 4096]);
+        PageTable::init(buf.as_mut_ptr().cast());
+        assert_eq!(*buf, [0u8; 4096]);
     }
 }

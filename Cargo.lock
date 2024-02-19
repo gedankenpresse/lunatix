@@ -407,6 +407,7 @@ version = "0.1.0"
 name = "riscv"
 version = "0.1.0"
 dependencies = [
+ "allocators",
  "bitflags 2.4.1",
  "cc",
  "log",

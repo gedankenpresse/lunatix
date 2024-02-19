@@ -1,2 +1,3 @@
-file target/riscv64imac-unknown-none-elf/debug/kernel
+file target/riscv64imac-unknown-none-elf/release/kernel_loader
 target remote localhost:1234
+tui enable

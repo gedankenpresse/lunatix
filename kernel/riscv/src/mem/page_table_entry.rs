@@ -1,7 +1,9 @@
 use super::PAGESIZE;
-use crate::mem::{paddr_ppn, PAddr};
-use bitflags::bitflags;
+use crate::mem::paddr;
+use crate::mem::paddr::PAddr;
+use bitflags::{bitflags, Flags};
 use core::fmt::{Binary, Debug, Formatter, LowerHex, UpperHex, Write};
+use core::mem::MaybeUninit;
 
 /// An entry of a [`PageTable`](PageTable) responsible for mapping virtual to phyiscal adresses.
 ///
@@ -28,20 +30,46 @@ pub struct PageTableEntry {
     pub(crate) entry: u64,
 }
 
-const FLAG_MASK: u64 = (1 << 7) - 1;
+const FLAG_BITS: u64 = 8;
+const FLAG_MASK: u64 = (1 << FLAG_BITS) - 1;
 const PPN_OFFSET: u64 = 10;
-const PPN_MASK: u64 = ((1 << 44) - 1) << PPN_OFFSET;
+const PPN_BITS: u64 = 44;
+const PPN_MASK: u64 = ((1 << PPN_BITS) - 1) << PPN_OFFSET;
 
 impl PageTableEntry {
+    /// Initialize the page table entry located at `ptr` to be empty and not point to anything
+    pub(crate) fn init_empty(ptr: *mut MaybeUninit<PageTableEntry>) -> *mut PageTableEntry {
+        let ptr = ptr.cast::<PageTableEntry>();
+        unsafe { ptr.write(Self { entry: 0 }) };
+        ptr
+    }
+
+    /// Initialize the page table entry located at `ptr` with the given data
+    pub(crate) fn init(
+        ptr: *mut MaybeUninit<PageTableEntry>,
+        addr: PAddr,
+        flags: EntryFlags,
+    ) -> *mut PageTableEntry {
+        let ptr = Self::init_empty(ptr);
+        let pte = unsafe { ptr.as_mut().unwrap() };
+        unsafe { pte.set(addr, flags) };
+        ptr
+    }
+
     /// Create a new empty entry.
     ///
     /// This entry does not point to anything and is considered disabled by the hardware.
+    #[deprecated(note = "use init_empty() instead")]
     pub(crate) fn empty() -> Self {
         Self { entry: 0 }
     }
 
-    pub(crate) fn new(entry: u64) -> Self {
-        Self { entry }
+    /// Create a new entry that contains the given data
+    #[deprecated(note = "use init() instead")]
+    pub(crate) fn new(addr: PAddr, flags: EntryFlags) -> Self {
+        let mut entry = Self::empty();
+        unsafe { entry.set(addr, flags) };
+        entry
     }
 
     /// Whether this entry is currently valid (in other words whether it is considered active)
@@ -63,9 +91,7 @@ impl PageTableEntry {
     pub fn get_addr(&self) -> Result<PAddr, EntryInvalidErr> {
         match self.is_valid() {
             false => Err(EntryInvalidErr),
-            true => {
-                Ok((self.entry & PPN_MASK) >> PPN_OFFSET << crate::mem::paddr::PAGE_OFFSET_BITS)
-            }
+            true => Ok((self.entry & PPN_MASK) >> PPN_OFFSET << paddr::PPN_OFFSET),
         }
     }
 
@@ -79,21 +105,23 @@ impl PageTableEntry {
     /// Changing the entry of a PageTable inherently changes virtual address mappings.
     /// This can make other, completely unrelated, references and pointers invalid and must always be done with
     /// care.
-    pub unsafe fn set(&mut self, paddr: PAddr, flags: EntryFlags) {
+    pub unsafe fn set(&mut self, addr: PAddr, flags: EntryFlags) {
         assert_eq!(
-            paddr,
-            paddr_ppn(paddr),
-            "cannot set page table entry to PAddrs that include page offsets"
+            addr & paddr::PAGE_OFFSET_MASK,
+            0,
+            "cannot set page table entry to unaligned PAddr {:#x}",
+            addr
         );
         log::trace!(
-            "setting page table entry {:#x}:{} to {:#x}",
-            (self as *mut _ as usize) & !(PAGESIZE - 1),
-            ((self as *mut _ as usize) & (PAGESIZE - 1)) / core::mem::size_of::<PageTableEntry>(),
-            paddr
+            "setting page table entry {:#x}:{} to {:#x} with flags {flags:?}",
+            (self as *mut _ as u64) & paddr::PPN_MASK,
+            ((self as *mut _ as u64) & paddr::PAGE_OFFSET_MASK)
+                / core::mem::size_of::<PageTableEntry>() as u64,
+            addr
         );
 
-        self.entry |= paddr_ppn(paddr) >> crate::mem::paddr::PAGE_OFFSET_BITS << PPN_OFFSET;
-        self.entry |= (flags | EntryFlags::Valid).bits();
+        self.entry = (((addr & paddr::PPN_MASK) >> paddr::PPN_OFFSET) << PPN_OFFSET)
+            | (flags | EntryFlags::Valid | EntryFlags::Dirty | EntryFlags::Accessed).bits();
     }
 
     /// Clear the content of this entry, setting it to 0x0 and removing all flags.
@@ -115,15 +143,20 @@ impl PageTableEntry {
 
 impl Debug for PageTableEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        let table_addr = (self as *const Self as usize) & !(PAGESIZE - 1);
+        let entry_index = ((self as *const Self as usize) & (PAGESIZE - 1)) / 8;
         match self.get_addr() {
-            Err(_) => f
-                .debug_struct("PageTableEntry (invalid)")
-                .finish_non_exhaustive(),
-            Ok(addr) => f
-                .debug_struct("PageTableEntry")
-                .field("addr", &format_args!("{:12X}", addr))
-                .field("flags", &self.get_flags())
-                .finish(),
+            Err(_) => f.write_fmt(format_args!(
+                "PageTableEntry {:#x}:{:03} (invalid) {{ .. }}",
+                table_addr, entry_index
+            )),
+            Ok(addr) => f.write_fmt(format_args!(
+                "PageTableEntry {:#x}:{:03} {{ addr: {:12x}, flags: {:?} }}",
+                table_addr,
+                entry_index,
+                addr,
+                self.get_flags()
+            )),
         }
     }
 }
@@ -207,3 +240,29 @@ impl Debug for EntryFlags {
 
 #[derive(Debug)]
 pub struct EntryInvalidErr;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_address_is_correctly_loaded() {
+        let entry = PageTableEntry {
+            entry: 0x3FFFFFFFFFFC01u64,
+        };
+        assert_eq!(entry.get_addr().unwrap(), 0x3FFFFFFFFFFC00 << 2);
+    }
+
+    #[test]
+    fn test_address_is_correctly_set() {
+        let mut entry = PageTableEntry { entry: 0 };
+        unsafe { entry.set(0x80042000, EntryFlags::Valid) };
+        assert_eq!(
+            entry.entry,
+            (0x80042000 >> 2) | 0x1,
+            "{:#x} != {:#x}",
+            entry.entry,
+            (0x80042000u64 >> 2) | 0x1
+        )
+    }
+}
