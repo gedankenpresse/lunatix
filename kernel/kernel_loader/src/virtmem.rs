@@ -112,6 +112,12 @@ pub fn setup_phys_mapping<'a>(
         (VIRT_MEM_PHYS_MAP_END - VIRT_MEM_PHYS_MAP_START) as u64,
     );
 
+    log::debug!(
+        "mapping physical memory into kernel-space at {:#x} -- {:#x}",
+        MAPPING.start,
+        MAPPING.start + MAPPING.size
+    );
+
     for i in (0..MAPPING.size).step_by(PageType::GigaPage.size() as usize) {
         riscv::mem::mapping::map(
             alloc,
@@ -127,8 +133,32 @@ pub fn setup_phys_mapping<'a>(
     return MAPPING;
 }
 
-pub fn setup_lower_mem_id_map() {
-    todo!()
+/// Setup virtual memory mapping of lower memory regions to be identity mapped (that is VAddr = resolved PAddr)
+///
+/// This is required in the exact moment that virtual memory is enabled because all current data structures and
+/// registers (e.g. stack pointer, program counter, etc) are referencing physical addresses.
+/// Enabling virtual memory does not automatically transform all those references into their corresponding
+/// virtual address equivalents so to ensure that they are still valid, an identity mapping is required.
+///
+/// The mapping is set up using _GigaPages_ so no intermediate pagetables are allocated.
+/// The passed allocator is only needed because of an underlying function signature.
+pub fn setup_lower_mem_id_map<'a>(page_table: &mut PageTable, alloc: &impl Allocator<'a>) {
+    log::debug!(
+        "identity mapping lower memory region {:#x} -- {:#x}",
+        0,
+        VIRT_MEM_USER_END
+    );
+    for i in (0..VIRT_MEM_USER_END as u64).step_by(PageType::GigaPage.size() as usize) {
+        riscv::mem::mapping::map(
+            alloc,
+            page_table,
+            &PhysMapping::identity(),
+            i,
+            i,
+            EntryFlags::RWX | EntryFlags::Accessed | EntryFlags::Dirty,
+            PageType::GigaPage,
+        );
+    }
 }
 
 /// Identity-map the address range described by `start` and `end` to the same location in virtual memory
@@ -149,21 +179,6 @@ pub fn id_map_range<'a>(
         let addr = unsafe { ptr.add(offset) } as u64;
         riscv::mem::mapping::map(alloc, root, phy_map, addr, addr, flags, PageType::Page);
         offset += 1;
-    }
-}
-
-/// identity maps lower half of address space using hugepages
-#[deprecated]
-pub fn id_map_lower_huge(root: &mut PageTable) {
-    let base: u64 = 1 << 30;
-    for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
-        assert!(!entry.is_valid());
-        unsafe {
-            entry.set(
-                base * i as u64,
-                EntryFlags::Accessed | EntryFlags::Dirty | EntryFlags::RWX | EntryFlags::Valid,
-            );
-        }
     }
 }
 

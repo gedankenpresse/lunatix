@@ -119,12 +119,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // a small hack, so that we don't run into problems when enabling virtual memory
     // TODO: the kernel has to clean up lower address space later
-    log::debug!("identity mapping lower memory region");
-    //virtmem::setup_lower_mem_id_map();
-    virtmem::id_map_lower_huge(root_pagetable);
-
-    log::debug!("mapping physical memory to kernel");
-    //let virt_phys_map = virtmem::kernel_map_phys_huge(root_pagetable);
+    virtmem::setup_lower_mem_id_map(root_pagetable, allocator);
     let virt_phys_map = virtmem::setup_phys_mapping(root_pagetable, allocator);
 
     log::info!("enabling virtual memory!");
