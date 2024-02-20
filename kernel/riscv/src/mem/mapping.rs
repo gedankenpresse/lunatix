@@ -2,7 +2,7 @@
 
 use crate::mem::paddr::PAddr;
 use crate::mem::vaddr::VAddr;
-use crate::mem::{paddr, vaddr, EntryFlags, MemoryPage, PageTable};
+use crate::mem::{paddr, vaddr, EntryFlags, PageTable};
 use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
@@ -108,10 +108,10 @@ pub fn map<'a>(
         Err(_) => {
             log::trace!("mapping requires new intermediate page table");
             let through_table = alloc
-                .allocate(Layout::new::<MemoryPage>(), AllocInit::Uninitialized)
+                .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
                 .expect("Could not allocate space for intermediate page table")
                 .as_mut_ptr()
-                .cast::<MaybeUninit<MemoryPage>>();
+                .cast::<MaybeUninit<PageTable>>();
             let through_table = PageTable::init(through_table);
             unsafe { entry.set(phys_map.rev_map(through_table as PAddr), EntryFlags::Valid) };
             unsafe { through_table.as_mut().unwrap() }
@@ -127,10 +127,10 @@ pub fn map<'a>(
         }
         Err(_) => {
             let through_table = alloc
-                .allocate(Layout::new::<MemoryPage>(), AllocInit::Uninitialized)
+                .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
                 .expect("Could not allocate space for intermediate page tabke")
                 .as_mut_ptr()
-                .cast::<MaybeUninit<MemoryPage>>();
+                .cast::<MaybeUninit<PageTable>>();
             let through_table = PageTable::init(through_table);
             unsafe { entry.set(phys_map.rev_map(through_table as PAddr), EntryFlags::Valid) };
             unsafe { through_table.as_mut().unwrap() }

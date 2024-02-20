@@ -1,7 +1,7 @@
 use super::PAGESIZE;
 use crate::mem::paddr;
 use crate::mem::paddr::PAddr;
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use core::fmt::{Binary, Debug, Formatter, LowerHex, UpperHex, Write};
 use core::mem::MaybeUninit;
 
@@ -59,13 +59,13 @@ impl PageTableEntry {
     /// Create a new empty entry.
     ///
     /// This entry does not point to anything and is considered disabled by the hardware.
-    #[deprecated(note = "use init_empty() instead")]
+    #[cfg(test)]
     pub(crate) fn empty() -> Self {
         Self { entry: 0 }
     }
 
     /// Create a new entry that contains the given data
-    #[deprecated(note = "use init() instead")]
+    #[cfg(test)]
     pub(crate) fn new(addr: PAddr, flags: EntryFlags) -> Self {
         let mut entry = Self::empty();
         unsafe { entry.set(addr, flags) };

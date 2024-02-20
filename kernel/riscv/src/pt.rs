@@ -1,10 +1,7 @@
 //! a module for RISCV Page Tables
+#![deprecated]
 
-use bitflags::bitflags;
 use core::fmt::Debug;
-use core::fmt::Write;
-use core::mem::MaybeUninit;
-use static_assertions::{assert_eq_align, assert_eq_size};
 
 /// How large each memory page is
 ///
@@ -122,6 +119,7 @@ pub fn unmap(trans: impl crate::PhysMapper, root: &mut PageTable, vaddr: usize, 
     }
 }
 
+#[deprecated(note = "use mem::mapping::map instead")]
 pub fn map(
     trans: impl crate::PhysMapper,
     root: &mut PageTable,
@@ -167,6 +165,7 @@ pub fn map(
     Ok(())
 }
 
+#[deprecated(note = "use mem::mapping::translate instead")]
 pub fn virt_to_phys(
     trans: impl crate::PhysMapper,
     root: &PageTable,

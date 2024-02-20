@@ -20,7 +20,6 @@ use crate::args::{CmdArgIter, LoaderArgs};
 use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
 use crate::user_args::UserArgs;
-use crate::virtmem::virt_to_phys;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
@@ -35,10 +34,7 @@ use device_tree::fdt::FlattenedDeviceTree;
 use klog::{println, KernelLogger};
 use log::Level;
 use riscv::mem::mapping::PhysMapping;
-use riscv::mem::paddr::PAddr;
-use riscv::mem::vaddr::VAddr;
-use riscv::mem::{paddr, vaddr, MemoryPage};
-use riscv::pt::{PageTable, PAGESIZE};
+use riscv::mem::{PageTable, PAGESIZE};
 
 const DEFAULT_LOG_LEVEL: Level = Level::Debug;
 
@@ -94,10 +90,10 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let mut phys_map = PhysMapping::identity();
     let root_pagetable = {
         let ptr = allocator
-            .allocate(Layout::new::<MemoryPage>(), AllocInit::Uninitialized)
+            .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
             .expect("Could not allocate memory for root page table")
             .as_mut_ptr()
-            .cast::<MaybeUninit<MemoryPage>>();
+            .cast::<MaybeUninit<PageTable>>();
         let ptr = PageTable::init(ptr);
         unsafe { ptr.as_mut().unwrap() }
     };

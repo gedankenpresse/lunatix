@@ -29,14 +29,7 @@ use static_assertions::const_assert_eq;
 ///
 /// ## Example 1
 ///
-/// This example demonstrates how the provided _\_MASK_ constants can be used to access different
-/// parts of a PAddr:
-///
-/// ```rust
-/// # use riscv::mem::paddr::*;
-/// let addr: PAddr = 0x0;
-/// todo!()
-/// ```
+/// TODO Write Examples
 pub type PAddr = u64;
 
 /// The number of bits that are utilized by PAddrs
