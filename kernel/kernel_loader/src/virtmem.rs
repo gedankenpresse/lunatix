@@ -4,7 +4,7 @@ use bitflags::Flags;
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
 use riscv::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
-use riscv::mem::mapping::PhysMapping;
+use riscv::mem::mapping::{PageType, PhysMapping};
 use riscv::mem::paddr::PAddr;
 use riscv::mem::vaddr::VAddr;
 use riscv::mem::{paddr, vaddr, EntryFlags, MemoryPage, PageTable, PAGESIZE};
@@ -50,7 +50,7 @@ pub fn id_map_range<'a>(
     let mut offset = 0;
     while unsafe { ptr.add(offset) < endptr } {
         let addr = unsafe { ptr.add(offset) } as u64;
-        riscv::mem::mapping::map(alloc, root, phy_map, addr, addr, flags);
+        riscv::mem::mapping::map(alloc, root, phy_map, addr, addr, flags, PageType::Page);
         offset += 1;
     }
 }
@@ -118,7 +118,15 @@ pub fn map_range_alloc<'a>(
             .allocate(Layout::new::<MemoryPage>(), AllocInit::Zeroed)
             .expect("Could not alloc page for new intermediate PageTable")
             .as_mut_ptr();
-        riscv::mem::mapping::map(alloc, root, phy_map, addr, page_addr as u64, flags);
+        riscv::mem::mapping::map(
+            alloc,
+            root,
+            phy_map,
+            addr,
+            page_addr as u64,
+            flags,
+            PageType::Page,
+        );
         offset += 1;
     }
 }

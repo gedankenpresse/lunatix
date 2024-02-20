@@ -36,7 +36,7 @@ use log::Level;
 use riscv::mem::mapping::PhysMapping;
 use riscv::mem::{PageTable, PAGESIZE};
 
-const DEFAULT_LOG_LEVEL: Level = Level::Debug;
+const DEFAULT_LOG_LEVEL: Level = Level::Trace;
 
 static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 

@@ -2,10 +2,45 @@
 
 use crate::mem::paddr::PAddr;
 use crate::mem::vaddr::VAddr;
-use crate::mem::{paddr, vaddr, EntryFlags, PageTable};
+use crate::mem::{paddr, vaddr, EntryFlags, PageTable, PageTableEntry};
 use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
+
+/// The type (and therefore size) of a mapped page
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PageType {
+    /// Standard `4KiB` (`4096` bytes) page
+    Page,
+    /// `2MiB` mega page
+    MegaPage,
+    /// `1GiB` giga page
+    GigaPage,
+}
+
+impl PageType {
+    /// Get the required alignment for this page type
+    pub const fn required_alignment(&self) -> u64 {
+        self.size()
+    }
+
+    // Get the number of bytes that can be stored in a page of this type
+    pub const fn size(&self) -> u64 {
+        match self {
+            PageType::Page => 1 << paddr::PAGE_OFFSET_BITS,
+            PageType::MegaPage => 1 << (paddr::PAGE_OFFSET_BITS + paddr::PPN0_BITS),
+            PageType::GigaPage => {
+                1 << (paddr::PAGE_OFFSET_BITS + paddr::PPN0_BITS + paddr::PPN1_BITS)
+            }
+        }
+    }
+}
+
+impl Default for PageType {
+    fn default() -> Self {
+        PageType::Page
+    }
+}
 
 /// Description of an area in accessible memory from which the physical memory is loadable
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -69,6 +104,7 @@ pub fn map<'a>(
     vaddr: VAddr,
     paddr: PAddr,
     flags: EntryFlags,
+    page_type: PageType,
 ) {
     log::trace!(
         "configuring address translation mapping {vaddr:#x} -> {paddr:#x} (flags={flags:?}) in page table {root_pagetable:p}"
@@ -80,9 +116,9 @@ pub fn map<'a>(
         "an address mapping must set either Read, Write or Execute bits"
     );
     assert_eq!(
-        paddr & paddr::PAGE_OFFSET_MASK,
+        paddr & (page_type.required_alignment() - 1),
         0,
-        "cannot use non page-aligned paddr {paddr:#x} as the target of virtual address mapping",
+        "cannot use non page-aligned paddr {paddr:#x} as the target of {page_type:?} virtual address mapping"
     );
     assert_eq!(
         paddr & paddr::PADDR_MASK,
@@ -91,64 +127,93 @@ pub fn map<'a>(
         paddr::PADDR_MASK,
     );
     assert_eq!(
-        vaddr & vaddr::PAGE_OFFSET_MASK,
+        vaddr & (page_type.required_alignment() - 1),
         0,
-        "cannot use non page-aligned vaddr {vaddr:#x} as the source of virtual address mapping"
+        "cannot use non page-aligned vaddr {vaddr:#x} as the source of {page_type:?} virtual address mapping"
     );
 
     let vpn_segments = vaddr::vpn_segments(vaddr);
+    match page_type {
+        PageType::GigaPage => {
+            make_leaf_mapping(
+                root_pagetable,
+                vpn_segments[2] as usize,
+                paddr,
+                flags,
+                phys_map,
+            );
+        }
+        PageType::MegaPage => {
+            let through_table =
+                make_through_mapping(root_pagetable, vpn_segments[2] as usize, phys_map, alloc);
+            make_leaf_mapping(
+                through_table,
+                vpn_segments[1] as usize,
+                paddr,
+                flags,
+                phys_map,
+            );
+        }
+        PageType::Page => {
+            let through_table =
+                make_through_mapping(root_pagetable, vpn_segments[2] as usize, phys_map, alloc);
+            let through_table =
+                make_through_mapping(through_table, vpn_segments[1] as usize, phys_map, alloc);
+            make_leaf_mapping(
+                through_table,
+                vpn_segments[0] as usize,
+                paddr,
+                flags,
+                phys_map,
+            );
+        }
+    }
 
-    // from root to 2nd pagetable
-    let entry = &mut root_pagetable.entries[vpn_segments[2] as usize];
-    let through_table = match entry.get_addr() {
-        Ok(addr) => {
-            let addr = phys_map.map(addr);
-            unsafe { (addr as *mut PageTable).as_mut().unwrap() }
+    fn make_through_mapping<'a, 'b>(
+        table: &mut PageTable,
+        entry_no: usize,
+        phys_map: &PhysMapping,
+        alloc: &impl Allocator<'a>,
+    ) -> &'b mut PageTable {
+        let entry = &mut table.entries[entry_no];
+        match entry.get_addr() {
+            Ok(addr) => {
+                let addr = phys_map.map(addr);
+                unsafe { (addr as *mut PageTable).as_mut().unwrap() }
+            }
+            Err(_) => {
+                log::trace!("mapping requires new intermediate page table");
+                let through_table = alloc
+                    .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
+                    .expect("Could not allocate space for intermediate page table")
+                    .as_mut_ptr()
+                    .cast::<MaybeUninit<PageTable>>();
+                let through_table = PageTable::init(through_table);
+                unsafe { entry.set(phys_map.rev_map(through_table as PAddr), EntryFlags::Valid) };
+                unsafe { through_table.as_mut().unwrap() }
+            }
         }
-        Err(_) => {
-            log::trace!("mapping requires new intermediate page table");
-            let through_table = alloc
-                .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
-                .expect("Could not allocate space for intermediate page table")
-                .as_mut_ptr()
-                .cast::<MaybeUninit<PageTable>>();
-            let through_table = PageTable::init(through_table);
-            unsafe { entry.set(phys_map.rev_map(through_table as PAddr), EntryFlags::Valid) };
-            unsafe { through_table.as_mut().unwrap() }
-        }
-    };
+    }
 
-    // from 2nd to 3rd pagetable
-    let entry = &mut through_table.entries[vpn_segments[1] as usize];
-    let through_table = match entry.get_addr() {
-        Ok(addr) => {
-            let addr = phys_map.map(addr);
-            unsafe { (addr as *mut PageTable).as_mut().unwrap() }
+    fn make_leaf_mapping(
+        table: &mut PageTable,
+        entry_no: usize,
+        to: PAddr,
+        flags: EntryFlags,
+        phys_map: &PhysMapping,
+    ) {
+        let entry = &mut table.entries[entry_no];
+        assert!(
+            !entry.is_valid(),
+            "refusing to override existing address mapping"
+        );
+        unsafe {
+            entry.set(
+                phys_map.rev_map(to),
+                flags | EntryFlags::Dirty | EntryFlags::Accessed,
+            )
         }
-        Err(_) => {
-            let through_table = alloc
-                .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
-                .expect("Could not allocate space for intermediate page tabke")
-                .as_mut_ptr()
-                .cast::<MaybeUninit<PageTable>>();
-            let through_table = PageTable::init(through_table);
-            unsafe { entry.set(phys_map.rev_map(through_table as PAddr), EntryFlags::Valid) };
-            unsafe { through_table.as_mut().unwrap() }
-        }
-    };
-
-    // from 3rd pagetable to final physical page
-    let entry = &mut through_table.entries[vpn_segments[0] as usize];
-    assert!(
-        !entry.is_valid(),
-        "refusing to override existing address mapping"
-    );
-    unsafe {
-        entry.set(
-            phys_map.rev_map(paddr),
-            flags | EntryFlags::Dirty | EntryFlags::Accessed,
-        )
-    };
+    }
 }
 
 /// Translate the given `vaddr` by walking the hierarchy of pagetables in software.
