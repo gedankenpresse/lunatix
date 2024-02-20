@@ -168,17 +168,6 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     let phys_free_mem = allocator.steal_remaining_mem().as_mut_ptr_range();
 
-    {
-        log::info!("validating pagetable");
-        let addr = riscv::mem::mapping::translate(&root_pagetable, &phys_map, entry_point);
-        log::info!("physical kernel addr = {addr:#x}");
-
-        log::info!("trying to load kernel entry point {entry_point:#x}");
-        let entry_point_ptr = entry_point as *const u8;
-        let entry_point_instr = unsafe { entry_point_ptr.as_ref().unwrap() };
-        log::info!("{entry_point_instr:?}");
-    }
-
     log::info!("starting Kernel, entry point: {entry_point:#x}");
     unsafe {
         asm!(

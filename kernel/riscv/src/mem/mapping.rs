@@ -168,7 +168,15 @@ pub fn translate(root_pagetable: &PageTable, phys_map: &PhysMapping, vaddr: VAdd
     assert!(entry.is_valid());
     let through_table = match entry.is_leaf() {
         true => {
-            unimplemented!("cannot resolve hugepages yet");
+            let addr = entry.get_addr().unwrap();
+            assert_eq!(
+                addr & (paddr::PPN1_MASK | paddr::PPN0_MASK | paddr::PAGE_OFFSET_MASK),
+                0
+            );
+            return addr
+                | (vpn[1] << paddr::PPN1_OFFSET)
+                | (vpn[0] << paddr::PPN0_OFFSET)
+                | page_offset;
         }
         false => {
             let addr = phys_map.map(entry.get_addr().unwrap());
@@ -182,7 +190,9 @@ pub fn translate(root_pagetable: &PageTable, phys_map: &PhysMapping, vaddr: VAdd
     assert!(entry.is_valid());
     let through_table = match entry.is_leaf() {
         true => {
-            unimplemented!("cannot resolve hugepages yet");
+            let addr = entry.get_addr().unwrap();
+            assert_eq!(addr & (paddr::PPN0_MASK | paddr::PAGE_OFFSET_MASK), 0);
+            return addr | (vpn[0] << paddr::PPN0_OFFSET) | page_offset;
         }
         false => {
             let addr = phys_map.map(entry.get_addr().unwrap());
@@ -195,6 +205,5 @@ pub fn translate(root_pagetable: &PageTable, phys_map: &PhysMapping, vaddr: VAdd
     let entry = &through_table.entries[vpn[0] as usize];
     assert!(entry.is_valid());
     assert!(entry.is_leaf());
-    log::info!("{entry:?}");
     entry.get_addr().unwrap() | page_offset
 }
