@@ -37,7 +37,7 @@ impl PhysMapping {
     ///
     /// This method is intended to be used when the input is an address that is understood by the memory management
     /// unit while the output is an address that is loadable by the CPU right now.
-    pub const fn map(&self, addr: PAddr) -> PAddr {
+    pub const fn map(&self, addr: PAddr) -> u64 {
         assert!(addr < self.size);
         self.start + addr
     }
@@ -46,7 +46,7 @@ impl PhysMapping {
     ///
     /// This method is intended to be used when the input is an address that is loadable by the CPU right now while
     /// the output is one that is understood by the memory management unit.
-    pub const fn rev_map(&self, addr: PAddr) -> PAddr {
+    pub const fn rev_map(&self, addr: PAddr) -> u64 {
         assert!(addr < self.start + self.size);
         addr - self.start
     }
@@ -143,5 +143,58 @@ pub fn map<'a>(
         !entry.is_valid(),
         "refusing to override existing address mapping"
     );
-    unsafe { entry.set(phys_map.rev_map(paddr), flags) };
+    unsafe {
+        entry.set(
+            phys_map.rev_map(paddr),
+            flags | EntryFlags::Dirty | EntryFlags::Accessed,
+        )
+    };
+}
+
+/// Translate the given `vaddr` by walking the hierarchy of pagetables in software.
+///
+/// The mapping is translated starting from the given root pagetable.
+/// All *intermediate* addresses read from page tables are passed through `phys_map` to make them loadable by the CPU.
+/// The return value is notable *not* automatically passed through `phys_map`.
+///
+/// This function panics if an invalid (disabled) entry is encountered.
+pub fn translate(root_pagetable: &PageTable, phys_map: &PhysMapping, vaddr: VAddr) -> PAddr {
+    // TODO Improve error handling by not panicking
+    let vpn = vaddr::vpn_segments(vaddr);
+    let page_offset: u64 = vaddr & vaddr::PAGE_OFFSET_MASK;
+
+    // root to 2nd level page table
+    let entry = &root_pagetable.entries[vpn[2] as usize];
+    assert!(entry.is_valid());
+    let through_table = match entry.is_leaf() {
+        true => {
+            unimplemented!("cannot resolve hugepages yet");
+        }
+        false => {
+            let addr = phys_map.map(entry.get_addr().unwrap());
+            let pt_ptr = addr as *const PageTable;
+            unsafe { pt_ptr.as_ref().unwrap() }
+        }
+    };
+
+    // 2dn to 3rd level page table
+    let entry = &through_table.entries[vpn[1] as usize];
+    assert!(entry.is_valid());
+    let through_table = match entry.is_leaf() {
+        true => {
+            unimplemented!("cannot resolve hugepages yet");
+        }
+        false => {
+            let addr = phys_map.map(entry.get_addr().unwrap());
+            let pt_ptr = addr as *const PageTable;
+            unsafe { pt_ptr.as_ref().unwrap() }
+        }
+    };
+
+    // 3rd page table to final entry
+    let entry = &through_table.entries[vpn[0] as usize];
+    assert!(entry.is_valid());
+    assert!(entry.is_leaf());
+    log::info!("{entry:?}");
+    entry.get_addr().unwrap() | page_offset
 }

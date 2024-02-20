@@ -121,7 +121,7 @@ impl PageTableEntry {
         );
 
         self.entry = (((addr & paddr::PPN_MASK) >> paddr::PPN_OFFSET) << PPN_OFFSET)
-            | (flags | EntryFlags::Valid | EntryFlags::Dirty | EntryFlags::Accessed).bits();
+            | (flags | EntryFlags::Valid).bits();
     }
 
     /// Clear the content of this entry, setting it to 0x0 and removing all flags.

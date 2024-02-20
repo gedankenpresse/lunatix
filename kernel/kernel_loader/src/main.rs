@@ -26,6 +26,7 @@ use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
 use bitflags::Flags;
 use core::alloc::Layout;
+use core::arch::asm;
 use core::cmp::min;
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
@@ -106,6 +107,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, phys_map);
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
+    let entry_point = binary.entry_point();
     binary
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
@@ -114,7 +116,6 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     const STACK_SIZE: u64 = 0xf000;
     const STACK_HIGH: u64 = STACK_LOW + STACK_SIZE;
     kernel_loader.load_stack(STACK_LOW, STACK_HIGH);
-    let entry_point = binary.entry_point();
     let KernelLoader {
         allocator,
         root_pagetable,
@@ -129,7 +130,6 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::debug!("mapping physical memory to kernel");
     let virt_phys_map = virtmem::kernel_map_phys_huge(root_pagetable);
 
-    log::trace!("root = {root_pagetable:?}");
     log::info!("enabling virtual memory!");
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
@@ -167,11 +167,21 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // TODO: add phys mem to argv
 
     let phys_free_mem = allocator.steal_remaining_mem().as_mut_ptr_range();
-    log::debug!("{:?}", phys_free_mem);
 
-    log::info!("starting Kernel, entry point: {entry_point:0x}");
+    {
+        log::info!("validating pagetable");
+        let addr = riscv::mem::mapping::translate(&root_pagetable, &phys_map, entry_point);
+        log::info!("physical kernel addr = {addr:#x}");
+
+        log::info!("trying to load kernel entry point {entry_point:#x}");
+        let entry_point_ptr = entry_point as *const u8;
+        let entry_point_instr = unsafe { entry_point_ptr.as_ref().unwrap() };
+        log::info!("{entry_point_instr:?}");
+    }
+
+    log::info!("starting Kernel, entry point: {entry_point:#x}");
     unsafe {
-        core::arch::asm!(
+        asm!(
             "mv gp, x0",
             "mv sp, {stack}",
             "jr {entry}",
@@ -182,8 +192,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
             in("a2") phys_dev_tree.leak().as_mut_ptr(),
             in("a3") phys_free_mem.start,
             in("a4") phys_free_mem.end,
-        );
+            options(noreturn)
+        )
     }
-
-    unreachable!()
 }
