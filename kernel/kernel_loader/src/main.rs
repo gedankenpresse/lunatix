@@ -23,7 +23,6 @@ use crate::user_args::UserArgs;
 use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
-use bitflags::Flags;
 use core::alloc::Layout;
 use core::arch::asm;
 use core::cmp::min;
@@ -31,12 +30,12 @@ use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
 use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
-use klog::{println, KernelLogger};
+use klog::KernelLogger;
 use log::Level;
 use riscv::mem::mapping::PhysMapping;
 use riscv::mem::{PageTable, PAGESIZE};
 
-const DEFAULT_LOG_LEVEL: Level = Level::Trace;
+const DEFAULT_LOG_LEVEL: Level = Level::Debug;
 
 static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
@@ -121,10 +120,12 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // a small hack, so that we don't run into problems when enabling virtual memory
     // TODO: the kernel has to clean up lower address space later
     log::debug!("identity mapping lower memory region");
+    //virtmem::setup_lower_mem_id_map();
     virtmem::id_map_lower_huge(root_pagetable);
 
     log::debug!("mapping physical memory to kernel");
-    let virt_phys_map = virtmem::kernel_map_phys_huge(root_pagetable);
+    //let virt_phys_map = virtmem::kernel_map_phys_huge(root_pagetable);
+    let virt_phys_map = virtmem::setup_phys_mapping(root_pagetable, allocator);
 
     log::info!("enabling virtual memory!");
     unsafe {

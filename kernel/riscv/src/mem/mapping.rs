@@ -45,8 +45,8 @@ impl Default for PageType {
 /// Description of an area in accessible memory from which the physical memory is loadable
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct PhysMapping {
-    start: u64,
-    size: u64,
+    pub start: u64,
+    pub size: u64,
 }
 
 impl PhysMapping {
@@ -123,7 +123,7 @@ pub fn map<'a>(
     assert_eq!(
         paddr & paddr::PADDR_MASK,
         paddr,
-        "paddrs {paddr:#x} > {:#x} are not supported in Sv39 virtual addressing mode",
+        "paddr {paddr:#x} > {:#x} is not supported in Sv39 virtual addressing mode",
         paddr::PADDR_MASK,
     );
     assert_eq!(
@@ -178,6 +178,7 @@ pub fn map<'a>(
         let entry = &mut table.entries[entry_no];
         match entry.get_addr() {
             Ok(addr) => {
+                assert!(!entry.is_leaf());
                 let addr = phys_map.map(addr);
                 unsafe { (addr as *mut PageTable).as_mut().unwrap() }
             }

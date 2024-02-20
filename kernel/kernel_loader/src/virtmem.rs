@@ -1,5 +1,38 @@
-use allocators::AllocInit;
+//! Implementation of all virtual memory configuration
+//!
+//! # Virtual Address Regions
+//!
+//! This kernel is currently hardcoded for RiscV Sv39 virtual addressing using the following
+//! memory regions:
+//!
+//! | VAddr Start | VAddr End | Size | Usage |
+//! | :---------- | :-------- | :--: | ----- |
+//! | | | | **Per user context virtual memory** |
+//! | `0x0000000000000000` | `0x0000003fffffffff` | 256 GB | userspace virtual memory
+//! | | | | **Misc** |
+//! | `0x0000004000000000` | `0xFFFFFFBFFFFFFFFF` | ~16M TB | unusable addresses
+//! | | | | **Kernel-space virtual memory. Shared between all user contexts** |
+//! | `0xFFFFFFC000000000` | `0xFFFFFFCFFFFFFFFF` | 64 GB | direct mapping of all physical memory
+//! | ... | ... | ... | currently unused
+//! | `0xFFFFFFFF00000000` | `0xFFFFFFFFFFFFFFFF` | 4 GB | Kernel
+//!
+//! ## Reasoning
+//!
+//! The above split between memory regions were chosen because:
+//!
+//! - The RiscV spec requires the virtual address bits 63-39 be equal to bit 38.
+//!   This results in the large chunk of unusable addresses.
+//! - The kernel regularly requires accessing physical addresses.
+//!   To avoid switching virtual addressing on and off in these cases, the physical memory
+//!   is directly mapped to virtual addresses.
+//!   Since this is done by the kernel, translating physical to kernel-mapped addresses is easy.
+//! - Because the kernel is being executed while virtual addressing is turned on, its code, data and other ELF content
+//!   needs to be available through virtual addresses.
+//!   For this, the kernel ELF binary is placed at the very last usable addresses.
+//!
+
 use allocators::{bump_allocator::BumpAllocator, Box};
+use allocators::{AllocInit, Allocator};
 use bitflags::Flags;
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
@@ -9,6 +42,36 @@ use riscv::mem::paddr::PAddr;
 use riscv::mem::vaddr::VAddr;
 use riscv::mem::{paddr, vaddr, EntryFlags, MemoryPage, PageTable, PAGESIZE};
 use riscv::PhysMapper;
+
+/// The virtual memory address at which userspace tasks are mapped
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_USER_START: usize = 0x0;
+
+/// The last virtual memory address at which userspace tasks are mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_USER_END: usize = 0x0000003fffffffff;
+
+/// The virtual memory address at which physical memory starts being mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_PHYS_MAP_START: usize = 0xFFFFFFC000000000;
+
+/// The last virtual memory address at which physical memory is mapped.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_PHYS_MAP_END: usize = 0xFFFFFFCFFFFFFFFF;
+
+/// The virtual memory address at which the kernel binary is mapped and where the kernel stack is located
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_KERNEL_START: usize = 0xFFFFFFFF00000000;
+
+/// The virtual memory address at which the kernel memory ends.
+///
+/// See the [module documentation](super::mem) for an explanation of this value.
+pub const VIRT_MEM_KERNEL_END: usize = 0xFFFFFFFFFFFFFFFF;
 
 pub struct IdMapper;
 
@@ -30,8 +93,42 @@ unsafe impl PhysMapper for IdMapper {
     }
 }
 
+#[deprecated]
 pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
     riscv::pt::virt_to_phys(IdMapper, root, vaddr)
+}
+
+/// Setup virtual memory mapping of the physical memory region, returning a `PhysMapping` instance which describes the
+/// mapping that was set up.
+///
+/// The mapping is set up using _GigaPages_ so no intermediate pagetables are allocated.
+/// The passed allocator is only needed because of an underlying function signature.
+pub fn setup_phys_mapping<'a>(
+    page_table: &mut PageTable,
+    alloc: &impl Allocator<'a>,
+) -> PhysMapping {
+    const MAPPING: PhysMapping = PhysMapping::new(
+        VIRT_MEM_PHYS_MAP_START as u64,
+        (VIRT_MEM_PHYS_MAP_END - VIRT_MEM_PHYS_MAP_START) as u64,
+    );
+
+    for i in (0..MAPPING.size).step_by(PageType::GigaPage.size() as usize) {
+        riscv::mem::mapping::map(
+            alloc,
+            page_table,
+            &PhysMapping::identity(),
+            MAPPING.map(i),
+            i,
+            EntryFlags::RWX | EntryFlags::Accessed | EntryFlags::Dirty,
+            PageType::GigaPage,
+        );
+    }
+
+    return MAPPING;
+}
+
+pub fn setup_lower_mem_id_map() {
+    todo!()
 }
 
 /// Identity-map the address range described by `start` and `end` to the same location in virtual memory
@@ -56,6 +153,7 @@ pub fn id_map_range<'a>(
 }
 
 /// identity maps lower half of address space using hugepages
+#[deprecated]
 pub fn id_map_lower_huge(root: &mut PageTable) {
     let base: u64 = 1 << 30;
     for (i, entry) in root.entries[0..256].iter_mut().enumerate() {
@@ -67,23 +165,6 @@ pub fn id_map_lower_huge(root: &mut PageTable) {
             );
         }
     }
-}
-
-/// maps physical memory into lower half of kernel memory
-pub fn kernel_map_phys_huge(root: &mut PageTable) -> PhysMapping {
-    const GB: u64 = 1024 * 1024 * 1024;
-    const mapping: PhysMapping = PhysMapping::new(0, 8 * GB);
-    for (i, entry) in root.entries[256..256 + 64].iter_mut().enumerate() {
-        assert!(!entry.is_valid());
-        unsafe {
-            entry.set(
-                i as u64 * GB,
-                EntryFlags::Accessed | EntryFlags::Dirty | EntryFlags::RWX | EntryFlags::Valid,
-            );
-        }
-    }
-
-    return mapping;
 }
 
 /// Allocate a region in virtual memory starting at `virt_base` with `size` bytes space.
@@ -131,6 +212,7 @@ pub fn map_range_alloc<'a>(
     }
 }
 
+/// Configure the hardware to enable virtual memory using the given page table as root table
 pub unsafe fn use_pagetable(root: *mut PageTable) {
     // enable MXR (make Executable readable) bit
     // enable SUM (permit Supervisor User Memory access) bit
