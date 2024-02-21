@@ -4,12 +4,19 @@ use std::{env, fs};
 extern crate cc;
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
-
     println!("cargo:rerun-if-changed=build.rs");
 
-    println!("cargo:rerun-if-changed=src/asm/");
+    if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "riscv64" {
+        compile_asm()
+    }
+}
+
+fn compile_asm() {
+    let out_dir = env::var("OUT_DIR").unwrap();
+    println!("cargo:rustc-link-search=native={}", out_dir);
+
     let asm_dir = PathBuf::from("src/asm/");
+    println!("cargo:rerun-if-changed=src/asm/");
 
     for file in fs::read_dir(asm_dir).unwrap() {
         let file = file.unwrap();
@@ -23,7 +30,5 @@ fn main() {
             .compiler("riscv64-elf-gcc")
             .target("riscv64imac")
             .compile(name);
-
-        println!("cargo:rustc-link-search=native={}", out_dir);
     }
 }

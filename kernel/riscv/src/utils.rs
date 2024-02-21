@@ -1,6 +1,6 @@
 //! Utilities for running low-level riscv specific code that is implemented in assembly
 
-use core::arch::{asm, global_asm};
+use core::arch::asm;
 
 /// Put the current hart to sleep until an interrupt wakes it up again.
 ///

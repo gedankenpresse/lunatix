@@ -3,6 +3,8 @@
 //! This module implements some dummy structs which each model a certain cpu register as it is defined in
 //! Chapter 4 of the [Risc-V Privileged Specification](https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf)
 
+use crate::mem::paddr;
+use crate::mem::paddr::PAddr;
 use bitflags::bitflags;
 use core::arch::asm;
 use core::fmt::{Debug, Formatter};
@@ -11,7 +13,8 @@ use core::fmt::{Debug, Formatter};
 ///
 /// # Example:
 /// ```rust
-/// read_reg!("sstatus")
+/// let val = read_reg!("sstatus");
+/// let val = read_reg!("sstatus", u64);
 /// ```
 macro_rules! read_reg {
     ($csr:literal,$width:ty) => {{
@@ -45,6 +48,26 @@ macro_rules! set_reg {
 macro_rules! clear_reg {
     ($csr:literal, $value:expr) => {
         asm!(concat!("csrc ", $csr, ", {}"), in(reg) $value)
+    }
+}
+
+/// Program Counter
+///
+/// The program counter holds the address of the current instruction..
+/// Writing to this register is not implemented; use a jump instruction instead.
+pub struct PC {}
+
+impl PC {
+    /// Read the current value of PC which yields the address of the current instruction
+    ///
+    /// Note that the returned value cannot be considered accurate.
+    /// Concretely it refers to some instruction that is located inside this functions body and the compiler may or may not generate additional preamble and post-processing instructions.
+    pub fn read() -> u64 {
+        let res;
+        unsafe {
+            asm!("jal {}, 4", "nop", out(reg) res);
+        }
+        res
     }
 }
 
@@ -678,6 +701,17 @@ pub struct SatpData {
     pub mode: SatpMode,
     pub asid: u64,
     pub ppn: u64,
+}
+
+impl SatpData {
+    pub fn new(mode: SatpMode, asid: u64, page_table_addr: PAddr) -> Self {
+        assert_eq!(page_table_addr & paddr::PPN_MASK, page_table_addr);
+        Self {
+            mode,
+            asid,
+            ppn: page_table_addr >> paddr::PPN_OFFSET,
+        }
+    }
 }
 
 impl From<u64> for SatpData {

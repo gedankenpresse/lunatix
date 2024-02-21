@@ -24,13 +24,15 @@ use ::elfloader::ElfBinary;
 use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
 use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
+use core::arch::asm;
 use core::cmp::min;
 use core::panic::PanicInfo;
 use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
-use klog::{println, KernelLogger};
+use klog::KernelLogger;
 use log::Level;
-use riscv::pt::{PageTable, PAGESIZE};
+use riscv::mem::mapping::PhysMapping;
+use riscv::mem::{PageTable, PAGESIZE};
 
 const DEFAULT_LOG_LEVEL: Level = Level::Info;
 
@@ -56,13 +58,19 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     };
     log::debug!("device info = {:x?}", device_info);
 
-    // parse user specified arguments and apply them
+    // parse user specified arguments from device-tree and apply them
     let user_args = match device_info.bootargs {
-        None => UserArgs::default(),
-        Some(args) => UserArgs::from_str(args),
+        None => {
+            log::debug!("using default user arguments {:?}", UserArgs::default());
+            UserArgs::default()
+        }
+        Some(args) => {
+            let parsed_args = UserArgs::from_str(args);
+            log::debug!("got kernel arguments {args:?} -> {parsed_args:?}");
+            parsed_args
+        }
     };
     LOGGER.update_log_level(user_args.log_level);
-    log::debug!("got user arguments {:?}", user_args);
 
     // extract usable memory from device information
     let (mem_start, mem_len) = device_info.usable_memory;
@@ -82,40 +90,28 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let allocator = unsafe { ForwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    log::trace!("allocating kernels root PageTable");
-    let root_table_box: Box<'_, '_, PageTable> = unsafe {
-        Box::new_zeroed(&allocator)
-            .expect("Could not setup root PageTable")
-            .assume_init()
-    };
-    let root_table = root_table_box.leak();
-    log::trace!("root_table addr: {:p}", root_table);
+    // TODO pass virt_phys_map to actual kernel
+    let (root_pagetable, _virt_phys_map) = virtmem::create_pagetable(&allocator);
 
     // load the kernel ELF file
-    let mut kernel_loader = KernelLoader::new(&allocator, root_table);
+    log::debug!("loading kernel elf binary");
+    let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, PhysMapping::identity());
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
+    let entry_point = binary.entry_point();
     binary
         .load(&mut kernel_loader)
         .expect("Could not load the kernel elf binary into memory");
 
-    const STACK_LOW: usize = 0xfffffffffff70000;
-    const STACK_SIZE: usize = 0xf000;
-    const STACK_HIGH: usize = STACK_LOW + STACK_SIZE;
+    const STACK_LOW: u64 = 0xfffffffffff70000;
+    const STACK_SIZE: u64 = 0xf000;
+    const STACK_HIGH: u64 = STACK_LOW + STACK_SIZE;
     kernel_loader.load_stack(STACK_LOW, STACK_HIGH);
-    let entry_point = binary.entry_point();
     let KernelLoader {
         allocator,
         root_pagetable,
+        ..
     } = kernel_loader;
-
-    // a small hack, so that we don't run into problems when enabling virtual memory
-    // TODO: the kernel has to clean up lower address space later
-    log::debug!("identity mapping lower memory region");
-    virtmem::id_map_lower_huge(root_pagetable);
-
-    log::debug!("mapping physical memory to kernel");
-    virtmem::kernel_map_phys_huge(root_pagetable);
 
     log::info!("enabling virtual memory!");
     unsafe {
@@ -142,7 +138,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // waste a page or two so we get back to page alignment
     // TODO: remove this when the kernel fixes alignment itself
-    let _x = allocator
+    let _ = allocator
         .allocate(
             Layout::from_size_align(PAGESIZE, PAGESIZE).unwrap(),
             AllocInit::Uninitialized,
@@ -153,23 +149,25 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // TODO: add phys mem to argv
 
     let phys_free_mem = allocator.steal_remaining_mem().as_mut_ptr_range();
-    log::debug!("{:?}", phys_free_mem);
 
-    log::info!("starting Kernel, entry point: {entry_point:0x}");
+    log::info!("starting Kernel, entry point: {entry_point:#x}");
     unsafe {
-        core::arch::asm!(
+        asm!(
+            // set global-pointer to 0
             "mv gp, x0",
+            // setup stack pointer to show to kernel-stack
             "mv sp, {stack}",
+            // jump to kernel entrypoint
             "jr {entry}",
             stack = in(reg) STACK_HIGH - 16,
             entry = in(reg) entry_point,
+            // explicitly set kernel arguments in known registers
             in("a0") argc,
             in("a1") argv,
             in("a2") phys_dev_tree.leak().as_mut_ptr(),
             in("a3") phys_free_mem.start,
             in("a4") phys_free_mem.end,
-        );
+            options(noreturn)
+        )
     }
-
-    unreachable!()
 }
