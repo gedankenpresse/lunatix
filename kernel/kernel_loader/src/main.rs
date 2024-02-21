@@ -26,7 +26,6 @@ use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::arch::asm;
 use core::cmp::min;
-use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
 use core::ptr;
 use device_tree::fdt::FlattenedDeviceTree;
@@ -35,7 +34,7 @@ use log::Level;
 use riscv::mem::mapping::PhysMapping;
 use riscv::mem::{PageTable, PAGESIZE};
 
-const DEFAULT_LOG_LEVEL: Level = Level::Debug;
+const DEFAULT_LOG_LEVEL: Level = Level::Info;
 
 static LOGGER: KernelLogger = KernelLogger::new(DEFAULT_LOG_LEVEL);
 
@@ -91,7 +90,8 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let allocator = unsafe { ForwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    let (root_pagetable, virt_phys_map) = virtmem::create_pagetable(&allocator);
+    // TODO pass virt_phys_map to actual kernel
+    let (root_pagetable, _virt_phys_map) = virtmem::create_pagetable(&allocator);
 
     // load the kernel ELF file
     log::debug!("loading kernel elf binary");

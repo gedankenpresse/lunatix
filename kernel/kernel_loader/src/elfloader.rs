@@ -9,7 +9,7 @@ use elfloader::{
     ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr,
 };
 use riscv::mem::mapping::PhysMapping;
-use riscv::pt::{EntryFlags, PageTable, PAGESIZE};
+use riscv::mem::{EntryFlags, PageTable, PAGESIZE};
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {

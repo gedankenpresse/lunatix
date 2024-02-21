@@ -31,46 +31,50 @@
 //!   For this, the kernel ELF binary is placed at the very last usable addresses.
 //!
 
-use allocators::{bump_allocator::BumpAllocator, Box};
+use allocators::bump_allocator::BumpAllocator;
 use allocators::{AllocInit, Allocator};
-use bitflags::Flags;
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
 use riscv::cpu::{SStatus, SStatusFlags, Satp, SatpData, SatpMode};
 use riscv::mem::mapping::{PageType, PhysMapping};
 use riscv::mem::paddr::PAddr;
 use riscv::mem::vaddr::VAddr;
-use riscv::mem::{paddr, vaddr, EntryFlags, MemoryPage, PageTable, PAGESIZE};
-use riscv::PhysMapper;
+use riscv::mem::{EntryFlags, MemoryPage, PageTable, PAGESIZE};
 
 /// The virtual memory address at which userspace tasks are mapped
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_USER_START: usize = 0x0;
 
 /// The last virtual memory address at which userspace tasks are mapped.
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_USER_END: usize = 0x0000003fffffffff;
 
 /// The virtual memory address at which physical memory starts being mapped.
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_PHYS_MAP_START: usize = 0xFFFFFFC000000000;
 
 /// The last virtual memory address at which physical memory is mapped.
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_PHYS_MAP_END: usize = 0xFFFFFFCFFFFFFFFF;
 
 /// The virtual memory address at which the kernel binary is mapped and where the kernel stack is located
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_KERNEL_START: usize = 0xFFFFFFFF00000000;
 
 /// The virtual memory address at which the kernel memory ends.
 ///
 /// See the [module documentation](super::mem) for an explanation of this value.
+#[allow(unused)]
 pub const VIRT_MEM_KERNEL_END: usize = 0xFFFFFFFFFFFFFFFF;
 
 const PHYS_MAPPING: PhysMapping = PhysMapping::new(
@@ -104,12 +108,12 @@ pub fn create_pagetable<'a, 'b, 'c>(
 /// The mapping is set up using _GigaPages_ so no intermediate pagetables are allocated.
 /// The passed allocator is only needed because of an underlying function signature.
 fn setup_phys_mapping<'a>(page_table: &mut PageTable, alloc: &impl Allocator<'a>) {
-    const GB: usize = 1024 * 1024 * 1024;
+    const GB: u64 = 1024 * 1024 * 1024;
     log::debug!(
         "mapping physical memory into kernel-space at {:#x} -- {:#x} ({:}GiB)",
         PHYS_MAPPING.start,
         PHYS_MAPPING.start + PHYS_MAPPING.size,
-        PHYS_MAPPING.size,
+        PHYS_MAPPING.size / GB,
     );
 
     for i in (0..PHYS_MAPPING.size).step_by(PageType::GigaPage.size() as usize) {
@@ -150,27 +154,6 @@ fn setup_lower_mem_id_map<'a>(page_table: &mut PageTable, alloc: &impl Allocator
             EntryFlags::RWX | EntryFlags::Accessed | EntryFlags::Dirty,
             PageType::GigaPage,
         );
-    }
-}
-
-/// Identity-map the address range described by `start` and `end` to the same location in virtual memory
-pub fn id_map_range<'a>(
-    alloc: &mut impl BumpAllocator<'a>,
-    root: &mut PageTable,
-    phy_map: &PhysMapping,
-    start: u64,
-    end: u64,
-    flags: EntryFlags,
-) {
-    let ptr: *mut PageTable = (start & !(PAGESIZE as u64 - 1)) as *mut PageTable;
-    let endptr: *mut PageTable = end as *mut PageTable;
-    assert!(ptr <= endptr);
-    log::debug!("identity-mapping from {:0x} to {:0x}", start, end);
-    let mut offset = 0;
-    while unsafe { ptr.add(offset) < endptr } {
-        let addr = unsafe { ptr.add(offset) } as u64;
-        riscv::mem::mapping::map(alloc, root, phy_map, addr, addr, flags, PageType::Page);
-        offset += 1;
     }
 }
 
