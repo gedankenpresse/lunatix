@@ -73,64 +73,56 @@ pub const VIRT_MEM_KERNEL_START: usize = 0xFFFFFFFF00000000;
 /// See the [module documentation](super::mem) for an explanation of this value.
 pub const VIRT_MEM_KERNEL_END: usize = 0xFFFFFFFFFFFFFFFF;
 
-pub struct IdMapper;
+const PHYS_MAPPING: PhysMapping = PhysMapping::new(
+    VIRT_MEM_PHYS_MAP_START as u64,
+    (VIRT_MEM_PHYS_MAP_END - VIRT_MEM_PHYS_MAP_START) as u64,
+);
 
-unsafe impl PhysMapper for IdMapper {
-    unsafe fn phys_to_mapped_mut<T>(&self, phys: *mut T) -> *mut T {
-        phys
-    }
+/// Create a root pagetable with identity-mapped low memory and mapped physical memory
+pub fn create_pagetable<'a, 'b, 'c>(
+    allocator: &'b impl Allocator<'a>,
+) -> (&'c mut PageTable, PhysMapping) {
+    // creat an empty pagetable
+    let root_pagetable = {
+        let ptr = allocator
+            .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
+            .expect("Could not allocate memory for root page table")
+            .as_mut_ptr()
+            .cast::<MaybeUninit<PageTable>>();
+        let ptr = PageTable::init(ptr);
+        unsafe { ptr.as_mut().unwrap() }
+    };
 
-    unsafe fn phys_to_mapped<T>(&self, phys: *const T) -> *const T {
-        phys
-    }
+    setup_lower_mem_id_map(root_pagetable, allocator);
+    setup_phys_mapping(root_pagetable, allocator);
 
-    unsafe fn mapped_to_phys_mut<T>(&self, mapped: *mut T) -> *mut T {
-        mapped
-    }
-
-    unsafe fn mapped_to_phys<T>(&self, mapped: *const T) -> *const T {
-        mapped
-    }
+    (root_pagetable, PHYS_MAPPING)
 }
 
-#[deprecated]
-pub fn virt_to_phys(root: &PageTable, vaddr: usize) -> Option<usize> {
-    riscv::pt::virt_to_phys(IdMapper, root, vaddr)
-}
-
-/// Setup virtual memory mapping of the physical memory region, returning a `PhysMapping` instance which describes the
-/// mapping that was set up.
+/// Setup virtual memory region for mapping of physical memory.
 ///
 /// The mapping is set up using _GigaPages_ so no intermediate pagetables are allocated.
 /// The passed allocator is only needed because of an underlying function signature.
-pub fn setup_phys_mapping<'a>(
-    page_table: &mut PageTable,
-    alloc: &impl Allocator<'a>,
-) -> PhysMapping {
-    const MAPPING: PhysMapping = PhysMapping::new(
-        VIRT_MEM_PHYS_MAP_START as u64,
-        (VIRT_MEM_PHYS_MAP_END - VIRT_MEM_PHYS_MAP_START) as u64,
-    );
-
+fn setup_phys_mapping<'a>(page_table: &mut PageTable, alloc: &impl Allocator<'a>) {
+    const GB: usize = 1024 * 1024 * 1024;
     log::debug!(
-        "mapping physical memory into kernel-space at {:#x} -- {:#x}",
-        MAPPING.start,
-        MAPPING.start + MAPPING.size
+        "mapping physical memory into kernel-space at {:#x} -- {:#x} ({:}GiB)",
+        PHYS_MAPPING.start,
+        PHYS_MAPPING.start + PHYS_MAPPING.size,
+        PHYS_MAPPING.size,
     );
 
-    for i in (0..MAPPING.size).step_by(PageType::GigaPage.size() as usize) {
+    for i in (0..PHYS_MAPPING.size).step_by(PageType::GigaPage.size() as usize) {
         riscv::mem::mapping::map(
             alloc,
             page_table,
             &PhysMapping::identity(),
-            MAPPING.map(i),
+            PHYS_MAPPING.map(i),
             i,
             EntryFlags::RWX | EntryFlags::Accessed | EntryFlags::Dirty,
             PageType::GigaPage,
         );
     }
-
-    return MAPPING;
 }
 
 /// Setup virtual memory mapping of lower memory regions to be identity mapped (that is VAddr = resolved PAddr)
@@ -142,7 +134,7 @@ pub fn setup_phys_mapping<'a>(
 ///
 /// The mapping is set up using _GigaPages_ so no intermediate pagetables are allocated.
 /// The passed allocator is only needed because of an underlying function signature.
-pub fn setup_lower_mem_id_map<'a>(page_table: &mut PageTable, alloc: &impl Allocator<'a>) {
+fn setup_lower_mem_id_map<'a>(page_table: &mut PageTable, alloc: &impl Allocator<'a>) {
     log::debug!(
         "identity mapping lower memory region {:#x} -- {:#x}",
         0,

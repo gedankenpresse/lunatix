@@ -59,13 +59,19 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     };
     log::debug!("device info = {:x?}", device_info);
 
-    // parse user specified arguments and apply them
+    // parse user specified arguments from device-tree and apply them
     let user_args = match device_info.bootargs {
-        None => UserArgs::default(),
-        Some(args) => UserArgs::from_str(args),
+        None => {
+            log::debug!("using default user arguments {:?}", UserArgs::default());
+            UserArgs::default()
+        }
+        Some(args) => {
+            let parsed_args = UserArgs::from_str(args);
+            log::debug!("got kernel arguments {args:?} -> {parsed_args:?}");
+            parsed_args
+        }
     };
     LOGGER.update_log_level(user_args.log_level);
-    log::debug!("got user arguments {:?}", user_args);
 
     // extract usable memory from device information
     let (mem_start, mem_len) = device_info.usable_memory;
@@ -85,21 +91,11 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let allocator = unsafe { ForwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
 
     // allocate a root PageTable for the initial kernel execution environment
-    log::debug!("creating kernels root PageTable");
-    let mut phys_map = PhysMapping::identity();
-    let root_pagetable = {
-        let ptr = allocator
-            .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
-            .expect("Could not allocate memory for root page table")
-            .as_mut_ptr()
-            .cast::<MaybeUninit<PageTable>>();
-        let ptr = PageTable::init(ptr);
-        unsafe { ptr.as_mut().unwrap() }
-    };
+    let (root_pagetable, virt_phys_map) = virtmem::create_pagetable(&allocator);
 
     // load the kernel ELF file
     log::debug!("loading kernel elf binary");
-    let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, phys_map);
+    let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, PhysMapping::identity());
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
     let entry_point = binary.entry_point();
@@ -117,16 +113,10 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         ..
     } = kernel_loader;
 
-    // a small hack, so that we don't run into problems when enabling virtual memory
-    // TODO: the kernel has to clean up lower address space later
-    virtmem::setup_lower_mem_id_map(root_pagetable, allocator);
-    let virt_phys_map = virtmem::setup_phys_mapping(root_pagetable, allocator);
-
     log::info!("enabling virtual memory!");
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
-    phys_map = virt_phys_map;
 
     // TODO Don't move device-tree since it is located in a memory area that is outside of our allocation pool and fine to be there. However not moving it currently panics the kernel :(
     log::debug!("moving device tree");
@@ -148,7 +138,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // waste a page or two so we get back to page alignment
     // TODO: remove this when the kernel fixes alignment itself
-    let _x = allocator
+    let _ = allocator
         .allocate(
             Layout::from_size_align(PAGESIZE, PAGESIZE).unwrap(),
             AllocInit::Uninitialized,
@@ -163,11 +153,15 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     log::info!("starting Kernel, entry point: {entry_point:#x}");
     unsafe {
         asm!(
+            // set global-pointer to 0
             "mv gp, x0",
+            // setup stack pointer to show to kernel-stack
             "mv sp, {stack}",
+            // jump to kernel entrypoint
             "jr {entry}",
             stack = in(reg) STACK_HIGH - 16,
             entry = in(reg) entry_point,
+            // explicitly set kernel arguments in known registers
             in("a0") argc,
             in("a1") argv,
             in("a2") phys_dev_tree.leak().as_mut_ptr(),
