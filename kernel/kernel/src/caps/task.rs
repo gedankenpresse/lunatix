@@ -1,3 +1,4 @@
+use crate::arch_specific::trap::TrapFrame;
 use allocators::Box;
 use core::cell::RefCell;
 use core::mem::ManuallyDrop;
@@ -7,7 +8,6 @@ use derivation_tree::tree::CursorHandle;
 use derivation_tree::tree::TreeNodeOps;
 use derivation_tree::Correspondence;
 use riscv::pt::MemoryPage;
-use riscv::trap::TrapFrame;
 
 use crate::caps::destroy;
 use crate::caps::Uninit;

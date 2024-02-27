@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use crate::arch_specific::trap::{set_kernel_trap_handler, set_user_trap_handler};
 use crate::caps::task::TaskExecutionState;
 use crate::caps::{Capability, KernelAlloc, NotificationIface};
 use crate::init::InitCaps;
@@ -16,7 +17,6 @@ use riscv::mem::ptrs::{PhysConstPtr, PhysMutPtr};
 use riscv::mem::VIRT_MEM_KERNEL_START;
 use riscv::pt::PageTable;
 use riscv::timer::set_timeout;
-use riscv::trap::{set_kernel_trap_handler, set_user_trap_handler};
 
 mod caps;
 mod devtree;

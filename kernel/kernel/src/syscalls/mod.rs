@@ -26,7 +26,6 @@ use crate::syscalls::wait_on::WaitOnHandler;
 use crate::syscalls::yield_to::YieldToHandler;
 use crate::KernelContext;
 use derivation_tree::tree::CursorRefMut;
-use riscv::trap::TrapInfo;
 use syscall_abi::debug::DebugLog;
 use syscall_abi::debug::DebugPutc;
 use syscall_abi::identify::Identify;
@@ -34,6 +33,7 @@ use syscall_abi::r#yield::Yield;
 use syscall_abi::receive::Receive;
 use syscall_abi::system_reset::SystemReset;
 
+use crate::arch_specific::trap::TrapInfo;
 use crate::syscalls::call::CallHandler;
 use crate::syscalls::copy::CopyHandler;
 use crate::syscalls::destroy::DestroyHandler;

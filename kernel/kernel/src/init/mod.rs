@@ -14,6 +14,7 @@ pub use riscv64::*;
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
 
+use crate::arch_specific::trap;
 use crate::{
     arch_specific::plic::PLIC,
     caps::{Capability, KernelAlloc},
@@ -112,7 +113,7 @@ pub fn load_init_task(
 pub fn prepare_userspace_handoff() {
     log::debug!("enabling interrupts");
     riscv::timer::set_timeout(0).unwrap();
-    riscv::trap::enable_interrupts();
+    trap::enable_interrupts();
 
     unsafe { set_return_to_user() };
 }

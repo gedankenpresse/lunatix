@@ -1,7 +1,7 @@
+use crate::arch_specific::trap::{trap_frame_load, TrapFrame, TrapInfo};
 use riscv::cpu;
 use riscv::mem::ptrs::{MappedMutPtr, PhysMutPtr};
 use riscv::pt::PageTable;
-use riscv::trap::{trap_frame_load, TrapFrame, TrapInfo};
 
 use crate::caps::task::TaskExecutionState;
 use crate::{arch_specific::mmu, caps, virtmem};

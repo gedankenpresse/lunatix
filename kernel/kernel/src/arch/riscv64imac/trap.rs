@@ -1,5 +1,4 @@
-use crate::cpu;
-use cpu::{InterruptBits, SStatusFlags, StVecData, TrapEvent};
+use riscv::cpu::{InterruptBits, SStatusFlags, StVecData, TrapEvent};
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
 /// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support
@@ -110,10 +109,10 @@ impl TrapInfo {
     /// Construct an instance by reading the values that are currently stored in the corresponding CPU registers
     pub fn from_current_regs() -> Self {
         Self {
-            epc: cpu::Sepc::read(),
-            cause: cpu::Scause::read(),
-            stval: cpu::StVal::read(),
-            status: cpu::SStatus::read(),
+            epc: riscv::cpu::Sepc::read(),
+            cause: riscv::cpu::Scause::read(),
+            stval: riscv::cpu::StVal::read(),
+            status: riscv::cpu::SStatus::read(),
         }
     }
 }
@@ -150,7 +149,7 @@ pub unsafe fn set_kernel_trap_handler() {
     let handler: usize = kernel_trap_handler as usize;
     log::trace!("kernel trap handler address: {handler:0x}");
     unsafe {
-        cpu::StVec::write(&StVecData {
+        riscv::cpu::StVec::write(&StVecData {
             mode: 0,
             base: handler as u64,
         });
@@ -167,7 +166,7 @@ pub unsafe fn set_user_trap_handler() {
     log::trace!("trap handler address: {handler:0x}");
     unsafe {
         // set trap handler to our asm_trap_handler function
-        cpu::StVec::write(&StVecData {
+        riscv::cpu::StVec::write(&StVecData {
             mode: 0,
             base: handler as u64,
         });
@@ -181,12 +180,12 @@ pub fn enable_interrupts() {
     unsafe {
         set_user_trap_handler();
         // configure certain interrupt sources to actually trigger an interrupt
-        cpu::Sie::write(
+        riscv::cpu::Sie::write(
             InterruptBits::SupervisorExternalInterrupt
                 | InterruptBits::SupervisorSoftwareInterrupt
                 | InterruptBits::SupervisorTimerInterrupt,
         );
         //  globally enable interrupts for the previous configuration now
-        cpu::SStatus::write(SStatusFlags::SPIE);
+        riscv::cpu::SStatus::write(SStatusFlags::SPIE);
     }
 }
