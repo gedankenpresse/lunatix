@@ -1,6 +1,5 @@
 use crate::cpu;
 use cpu::{InterruptBits, SStatusFlags, StVecData, TrapEvent};
-use syscall_abi::RawSyscallReturn;
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
 /// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support
@@ -77,7 +76,7 @@ impl TrapFrame {
     ///
     /// These are the registers `a0` and `a1` as they are defined in the RISCV specification to be
     /// used for function return values.
-    pub fn write_syscall_return(&mut self, data: RawSyscallReturn) {
+    pub fn write_syscall_return(&mut self, data: [usize; 8]) {
         // fill the registers a0 to a a7
         self.general_purpose_regs[10..=17].copy_from_slice(&data)
     }

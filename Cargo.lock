@@ -413,7 +413,6 @@ dependencies = [
  "log",
  "sbi",
  "static_assertions",
- "syscall_abi",
 ]
 
 [[package]]
