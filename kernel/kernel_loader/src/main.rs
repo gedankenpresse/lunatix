@@ -88,7 +88,6 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // allocate a root PageTable for the initial kernel execution environment
     log::debug!("creating kernels root PageTable");
-    let mut phys_map = PhysMapping::identity();
     let root_pagetable = {
         let ptr = allocator
             .allocate(Layout::new::<PageTable>(), AllocInit::Uninitialized)
@@ -101,7 +100,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
 
     // load the kernel ELF file
     log::debug!("loading kernel elf binary");
-    let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, phys_map);
+    let mut kernel_loader = KernelLoader::new(&allocator, root_pagetable, PhysMapping::identity());
     let binary =
         ElfBinary::new(args.get_kernel_bin()).expect("Could not load kernel as elf object");
     let entry_point = binary.entry_point();
@@ -122,13 +121,12 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // a small hack, so that we don't run into problems when enabling virtual memory
     // TODO: the kernel has to clean up lower address space later
     virtmem::setup_lower_mem_id_map(root_pagetable, allocator);
-    let virt_phys_map = virtmem::setup_phys_mapping(root_pagetable, allocator);
+    let _virt_phys_map = virtmem::setup_phys_mapping(root_pagetable, allocator);
 
     log::info!("enabling virtual memory!");
     unsafe {
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
-    phys_map = virt_phys_map;
 
     // TODO Don't move device-tree since it is located in a memory area that is outside of our allocation pool and fine to be there. However not moving it currently panics the kernel :(
     log::debug!("moving device tree");

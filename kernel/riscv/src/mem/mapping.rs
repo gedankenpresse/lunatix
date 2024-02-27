@@ -2,7 +2,7 @@
 
 use crate::mem::paddr::PAddr;
 use crate::mem::vaddr::VAddr;
-use crate::mem::{paddr, vaddr, EntryFlags, PageTable, PageTableEntry};
+use crate::mem::{paddr, vaddr, EntryFlags, PageTable};
 use allocators::{AllocInit, Allocator};
 use core::alloc::Layout;
 use core::mem::MaybeUninit;

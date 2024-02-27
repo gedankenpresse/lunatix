@@ -10,7 +10,8 @@ pub fn shutdown() -> ! {
         Err(e) => error!("shutdown error: {}", e),
     };
 
-    poweroff_fallback();
+    // fall back to legacy shutdown
+    sbi::legacy::shutdown();
 }
 
 /// Perform an erroring shutdown of the host hardware
@@ -22,17 +23,6 @@ pub fn abort() -> ! {
         Err(e) => error!("abort error: {}", e),
     };
 
-    poweroff_fallback()
-}
-
-#[cfg(target_arch = "riscv64")]
-fn poweroff_fallback() -> ! {
     // fall back to legacy shutdown
     sbi::legacy::shutdown();
-
-    // just to make sure the hart never executes anything again, spin indefinitely
-    #[allow(unreachable_code)]
-    unsafe {
-        crate::utils::wfi_spin()
-    }
 }

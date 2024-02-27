@@ -2,14 +2,14 @@
 
 use crate::virtmem;
 
-use crate::virtmem::{map_range_alloc, virt_to_phys};
+use crate::virtmem::map_range_alloc;
 use allocators::bump_allocator::BumpAllocator;
 use elfloader::arch::riscv::RelocationTypes;
 use elfloader::{
     ElfLoader, ElfLoaderErr, Flags, LoadableHeaders, RelocationEntry, RelocationType, VAddr,
 };
 use riscv::mem::mapping::PhysMapping;
-use riscv::pt::{EntryFlags, PageTable, PAGESIZE};
+use riscv::mem::{EntryFlags, PageTable, PAGESIZE};
 
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {
@@ -90,8 +90,11 @@ impl<'alloc, A: BumpAllocator<'static>> ElfLoader for KernelLoader<'alloc, A> {
 
         for (i, chunk) in region.chunks(PAGESIZE).enumerate() {
             unsafe {
-                let dst = virt_to_phys(self.root_pagetable, (base as usize) + i * PAGESIZE)
-                    .expect("Memory mapping was not allocated before being loaded");
+                let dst = riscv::mem::mapping::translate(
+                    self.root_pagetable,
+                    &self.phys_map,
+                    base + i as u64 * PAGESIZE as u64,
+                );
                 log::trace!(
                     "copying {} bytes from {:p} to {:x}",
                     chunk.len(),
@@ -118,8 +121,11 @@ impl<'alloc, A: BumpAllocator<'static>> ElfLoader for KernelLoader<'alloc, A> {
 
                 // since this is a relative relocation, add the offset to the addend and we're done
                 log::debug!("relocating {:?}", entry.rtype);
-                let paddr = virt_to_phys(self.root_pagetable, entry.offset as usize)
-                    .expect("Memory mapping was not allocated before being relocated");
+                let paddr = riscv::mem::mapping::translate(
+                    self.root_pagetable,
+                    &self.phys_map,
+                    entry.offset,
+                );
 
                 unsafe { *(paddr as *mut u64) = addend }
 
