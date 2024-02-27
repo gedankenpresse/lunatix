@@ -13,6 +13,7 @@
 mod args;
 mod devtree;
 mod elfloader;
+mod trap;
 mod user_args;
 mod virtmem;
 
@@ -49,6 +50,7 @@ fn panic_handler(info: &PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
+    trap::set_trap_handler();
 
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
     log::debug!("kernel parameters = {:x?}", args);

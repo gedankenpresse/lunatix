@@ -78,7 +78,7 @@ impl PC {
 pub struct SStatus {}
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq)]
     pub struct SStatusFlags: u64 {
         /// The SPP bit indicates at which mode a hart was executing before entering supervisor mode.
         /// When a trap is taken, SPP is set to `0` if the trap originated from user mode and `1` otherwise.
@@ -519,7 +519,7 @@ impl Sepc {
 }
 
 /// An indication of the event that caused a trap to trigger
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TrapEvent {
     Interrupt(Interrupt),
     Exception(Exception),
@@ -538,7 +538,7 @@ impl From<u64> for TrapEvent {
 }
 
 /// An interrupt code indicating the cause of a trap
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Interrupt {
     SupervisorSoftwareInterrupt,
     SupervisorTimerInterrupt,
@@ -558,7 +558,7 @@ impl From<u32> for Interrupt {
 }
 
 /// An exception indicating the cause of a trap
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Exception {
     InstructionAddressMisaligned,
     InstructionAccessFault,

@@ -12,6 +12,8 @@ pub mod power;
 #[cfg(target_arch = "riscv64")]
 pub mod timer;
 #[cfg(target_arch = "riscv64")]
+pub mod trap;
+#[cfg(target_arch = "riscv64")]
 pub mod utils;
 
 #[deprecated]

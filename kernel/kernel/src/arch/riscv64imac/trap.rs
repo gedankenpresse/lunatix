@@ -1,4 +1,5 @@
 use riscv::cpu::{InterruptBits, SStatusFlags, StVecData, TrapEvent};
+use riscv::trap::TrapInfo;
 
 /// A struct to hold relevant data for tasks that are executed on the CPU which are not directly part of the kernel.
 /// It is mainly used to hold the tasks register data so that it can be interrupted, resumed and generally support
@@ -78,42 +79,6 @@ impl TrapFrame {
     pub fn write_syscall_return(&mut self, data: [usize; 8]) {
         // fill the registers a0 to a a7
         self.general_purpose_regs[10..=17].copy_from_slice(&data)
-    }
-}
-
-/// Context information about the last triggered trap of a [`TrapFrame`]
-#[repr(C)]
-#[derive(Debug)]
-pub struct TrapInfo {
-    /// The exception program counter.
-    ///
-    /// This is the program counter at the point at which the trap was triggered.
-    /// Essentially, the program counter of the interrupted code.
-    pub epc: usize,
-
-    /// The event that caused the trap to trigger.
-    pub cause: TrapEvent,
-
-    /// Supervisor bad address or instruction data.
-    ///
-    /// If the `cause` field indicates that the cpu encountered a bad instruction or tried to access a bad memory
-    /// address, this field holds that bad instruction or bad address.
-    /// However, this value is very specific to the instruction cause so care should be taken when interpreting it.
-    pub stval: u64,
-
-    /// Information about the execution conditions under which a trap was triggered.
-    pub status: SStatusFlags,
-}
-
-impl TrapInfo {
-    /// Construct an instance by reading the values that are currently stored in the corresponding CPU registers
-    pub fn from_current_regs() -> Self {
-        Self {
-            epc: riscv::cpu::Sepc::read(),
-            cause: riscv::cpu::Scause::read(),
-            stval: riscv::cpu::StVal::read(),
-            status: riscv::cpu::SStatus::read(),
-        }
     }
 }
 
