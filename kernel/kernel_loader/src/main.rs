@@ -65,14 +65,18 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     LOGGER.install().expect("Could not install logger");
     trap::set_trap_handler();
 
+    // move arg data to ensure it is not accidentally overwritten
     let (argc, argv) = unsafe { args::move_args(argc, argv) };
 
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
     log::debug!("kernel parameters = {:x?}", args);
 
+    // move device tree data to ensure it is not accidentally overwritten
+    let device_tree_ptr = unsafe { devtree::move_devtree(args.phys_fdt_addr) };
+
     log::debug!("parsing device tree to get information about the host hardware");
     let device_info = unsafe {
-        DeviceInfo::from_raw_ptr(args.phys_fdt_addr).expect("Could not load device information")
+        DeviceInfo::from_raw_ptr(device_tree_ptr).expect("Could not load device information")
     };
     log::debug!("device info = {:x?}", device_info);
 

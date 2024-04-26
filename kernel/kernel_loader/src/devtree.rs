@@ -53,6 +53,22 @@ impl fmt::Debug for DeviceInfo {
     }
 }
 
+// TODO: Lookup the maximum size of device trees and use that value
+/// The location into which device tree data is temporarily stored during boot
+static mut TMP_STORE: [u8; 4096 * 5] = [0u8; 4096 * 5];
+
+/// Copy the device tree data pointed to by `ptr` to a temporary internal location and return a new pointer to it.
+///
+/// # Safety
+/// This function must not be called more than once.
+///
+/// This function must never be called in a concurrent environment.
+pub unsafe fn move_devtree(ptr: *const u8) -> *const u8 {
+    log::debug!("moving device tree data to temporary, internal location");
+    core::intrinsics::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), TMP_STORE.len());
+    TMP_STORE.as_ptr()
+}
+
 /// Search for reserved memory in the device tree and return a new reservation that concatenates all areas found
 /// in the device tree.
 ///

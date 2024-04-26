@@ -30,6 +30,7 @@ pub unsafe fn move_args(
     argc: u32,
     argv: *const *const core::ffi::c_char,
 ) -> (u32, *const *const core::ffi::c_char) {
+    log::debug!("moving argument data to internal, temporary location");
     assert!(
         argc as usize <= TMP_STORE.idx.len(),
         "kernel_loader can handle at most {} arguments passed via argc, argv ({} were given)",
