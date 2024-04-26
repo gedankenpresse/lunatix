@@ -1,4 +1,4 @@
-//! An elf binary to setup virtual memory and load the kernel in high address ranges
+//! An elf binary to set up virtual memory and load the kernel in high address ranges
 //!
 //! This is a program which serves the simple purpose of loading the actual kernel in the execution environment that
 //! it expects.
@@ -7,6 +7,19 @@
 //! This assumption can of course only hold when a separate stage runs before the actual kernel which configures
 //! virtual addressing and loads the kernel binary at the addresses which it expects.
 //! That is done by this `kernel_loader` program.
+//!
+//! ## Boot Sequence
+//!
+//! The Kernel-Loader runs through the following sequence at startup:
+//!
+//! 1. Copy all firmware arguments (i.e. argc, argv & device-tree) into a *known to be free* memory area.
+//! 2. Deinitialize original memory of firmware arguments (i.e. overwrite with zeros)
+//! 3. Configure a memory allocator that will be reused by the actual lunatix kernel
+//! 4. Configure Page Tables for virtual memory
+//! 5. Enable virtual memory
+//! 6. Move firmware arguments into allocated memory
+//! 7. Switch into the kernel passing all memory management state as well as firmware arguments to it
+//!
 #![no_std]
 #![no_main]
 
@@ -51,6 +64,8 @@ fn panic_handler(info: &PanicInfo) -> ! {
 pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
     trap::set_trap_handler();
+
+    let (argc, argv) = unsafe { args::move_args(argc, argv) };
 
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
     log::debug!("kernel parameters = {:x?}", args);

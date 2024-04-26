@@ -1,9 +1,63 @@
 //! Kernel Argument handling
 //!
-//! Typically U-Boot passes through kernel parameters via an `argc`, `argv` pair.
+//! Typically, U-Boot passes through kernel parameters via an `argc`, `argv` pair.
 //! The code in this module parses relevant kernel-loader arguments from that iterator.
 
 use core::ffi::CStr;
+
+/// A storage struct for the data pointed to by `argc, argv`
+#[derive(Debug)]
+struct ArgumentStore {
+    data: [u8; 64],
+    idx: [usize; 4],
+}
+
+/// The location into which argument data is temporarily stored
+static mut TMP_STORE: ArgumentStore = ArgumentStore {
+    data: [0; 64],
+    idx: [0; 4],
+};
+
+/// Copy the data pointed to by `argc, argv` in a temporary internal location and return new `argc, argv` variables
+///
+/// # Safety
+/// This function must not be called more than once.
+///
+/// This function must never be called in a concurrent environment.
+///
+/// The data pointed to by `argc, argv` must not lie in the internal storage location.
+pub unsafe fn move_args(
+    argc: u32,
+    argv: *const *const core::ffi::c_char,
+) -> (u32, *const *const core::ffi::c_char) {
+    assert!(
+        argc as usize <= TMP_STORE.idx.len(),
+        "kernel_loader can handle at most {} arguments passed via argc, argv ({} were given)",
+        TMP_STORE.idx.len(),
+        argc
+    );
+
+    // iterate over all arguments and move them into the internal store
+    {
+        let mut store = &mut TMP_STORE;
+        let mut data_free_start = 0;
+        for i in 0..argc {
+            let arg_ptr = *argv.add(i as usize).as_ref().unwrap();
+            let arg_str = CStr::from_ptr(arg_ptr).to_bytes_with_nul();
+            assert!(data_free_start + arg_str.len() <= TMP_STORE.data.len(), "kernel_loader can handle at most {} chars as argc, argv arguments (at least {} were given)", TMP_STORE.data.len(), data_free_start + arg_str.len());
+
+            store.data[data_free_start..data_free_start + arg_str.len()].copy_from_slice(arg_str);
+            store.idx[i as usize] = (&store.data[data_free_start]) as *const u8 as usize;
+            data_free_start += arg_str.len()
+        }
+    }
+
+    // return a new pointer that points to the internal store
+    (
+        argc,
+        TMP_STORE.idx.as_ptr() as *const *const core::ffi::c_char,
+    )
+}
 
 /// An iterator over an *argc*, *argv* pair.
 ///
