@@ -13,12 +13,11 @@
 //! The Kernel-Loader runs through the following sequence at startup:
 //!
 //! 1. Copy all firmware arguments (i.e. argc, argv & device-tree) into a *known to be free* memory area.
-//! 2. Deinitialize original memory of firmware arguments (i.e. overwrite with zeros)
-//! 3. Configure a memory allocator that will be reused by the actual lunatix kernel
+//! 2. Configure a memory allocator that will be reused by the actual lunatix kernel
+//! 3. Move firmware arguments into allocated memory
 //! 4. Configure Page Tables for virtual memory
 //! 5. Enable virtual memory
-//! 6. Move firmware arguments into allocated memory
-//! 7. Switch into the kernel passing all memory management state as well as firmware arguments to it
+//! 6. Switch into the kernel passing all memory management state as well as firmware arguments to it
 //!
 #![no_std]
 #![no_main]
@@ -74,6 +73,7 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     // move device tree data to ensure it is not accidentally overwritten
     let device_tree_ptr = unsafe { devtree::move_devtree(args.phys_fdt_addr) };
 
+    // parse device tree and extract relevant device information
     log::debug!("parsing device tree to get information about the host hardware");
     let device_info = unsafe {
         DeviceInfo::from_raw_ptr(device_tree_ptr).expect("Could not load device information")
@@ -92,13 +92,9 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
     let (mem_start, mem_len) = device_info.usable_memory;
     let mut mem_end = unsafe { mem_start.add(mem_len) };
 
-    // u-boot places the device tree and kernel arguments at the very end of physical memory and since we don't want
-    // to overwrite it, we fake mem_end to end before it
-    mem_end = (min(mem_end, args.phys_fdt_addr.cast_mut()) as usize & !(4096 - 1)) as *mut u8;
-
     // create an allocator to allocate essential data structures from the end of usable memory
     log::debug!(
-        "creating allocator for general purpose memory start = {:p} end = {:p} (len = {} bytes)",
+        "creating allocator for general purpose memory start = {:p} end = {:p} (len = {:0x} bytes)",
         mem_start,
         mem_end,
         mem_end as usize - mem_start as usize
