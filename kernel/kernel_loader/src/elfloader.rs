@@ -53,7 +53,7 @@ impl<'alloc, A: BumpAllocator<'static>> KernelLoader<'alloc, A> {
 
     pub fn load_stack(&mut self, stack_low: u64, stack_high: u64) -> u64 {
         let rw = EntryFlags::Read | EntryFlags::Write;
-        log::debug!("loading stack low: {stack_low:0x} high: {stack_high:0x}");
+        log::debug!("loading kernel stack    low = {stack_low:0x}    high = {stack_high:0x}    size = {:0x}", stack_high - stack_low);
         virtmem::map_range_alloc(
             self.allocator,
             self.root_pagetable,

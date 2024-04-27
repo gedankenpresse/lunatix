@@ -127,7 +127,7 @@ pub extern "C" fn _start(argc: u32, mut argv: *const *const core::ffi::c_char) -
     device_tree_ptr = unsafe {
         devtree::copy_to_allocated_memory(&allocator, device_info.fdt.header.total_size as usize)
     };
-    //assert!(unsafe { FlattenedDeviceTree::from_ptr(device_tree_ptr).is_ok());
+    debug_assert!(unsafe { FlattenedDeviceTree::from_ptr(device_tree_ptr).is_ok() });
 
     // allocate a root PageTable for the initial kernel execution environment
     log::debug!("creating kernels root PageTable");
@@ -171,24 +171,6 @@ pub extern "C" fn _start(argc: u32, mut argv: *const *const core::ffi::c_char) -
         virtmem::use_pagetable(root_pagetable as *mut PageTable);
     }
 
-    // TODO Don't move device-tree since it is located in a memory area that is outside of our allocation pool and fine to be there. However not moving it currently panics the kernel :(
-    log::debug!("moving device tree (again -.-)");
-    let mut phys_dev_tree = Box::new_uninit_slice_with_alignment(
-        device_info.fdt.header.total_size as usize,
-        4096,
-        allocator,
-    )
-    .unwrap();
-    let phys_dev_tree = unsafe {
-        ptr::copy_nonoverlapping(
-            device_info.fdt.buf.as_ptr(),
-            phys_dev_tree.as_mut_ptr() as *mut u8,
-            device_info.fdt.header.total_size as usize,
-        );
-        phys_dev_tree.assume_init()
-    };
-    assert!(FlattenedDeviceTree::from_buffer(&phys_dev_tree).is_ok());
-
     // waste a page or two so we get back to page alignment
     // TODO: remove this when the kernel fixes alignment itself
     let _x = allocator
@@ -213,7 +195,7 @@ pub extern "C" fn _start(argc: u32, mut argv: *const *const core::ffi::c_char) -
             entry = in(reg) entry_point,
             in("a0") argc,
             in("a1") argv,
-            in("a2") phys_dev_tree.leak().as_mut_ptr(),
+            in("a2") device_tree_ptr,
             in("a3") phys_free_mem.start,
             in("a4") phys_free_mem.end,
             options(noreturn)

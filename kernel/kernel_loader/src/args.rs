@@ -77,7 +77,7 @@ pub unsafe fn copy_to_allocated_mem<'a>(
         .expect("Could not allocate memory for root page table")
         .as_mut_ptr()
         .cast::<MaybeUninit<ArgumentStore>>();
-    core::intrinsics::copy_nonoverlapping(
+    core::ptr::copy_nonoverlapping(
         (&TMP_STORE) as *const ArgumentStore as *const MaybeUninit<ArgumentStore>,
         ptr,
         1,
