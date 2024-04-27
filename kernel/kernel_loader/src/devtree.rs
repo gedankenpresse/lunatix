@@ -1,6 +1,6 @@
 //! Device-Tree interaction
 
-use allocators::{AllocInit, Allocator};
+use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::cmp::{max, Ordering};
 use core::fmt::Formatter;
@@ -69,28 +69,28 @@ static mut TMP_STORE: [u8; TMP_STORE_SIZE] = [0u8; TMP_STORE_SIZE];
 /// This function must never be called in a concurrent environment.
 pub unsafe fn inline_devtree(ptr: *const u8) -> *const u8 {
     log::debug!("moving device tree data to temporary, internal location");
-    core::intrinsics::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), TMP_STORE_SIZE);
+    core::ptr::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), TMP_STORE_SIZE);
     TMP_STORE.as_ptr()
 }
 
 /// Copy the device tree data from the temporary, internal location to allocated memory and return a new pointer to it.
-pub unsafe fn copy_to_allocated_memory<'a>(alloc: &impl Allocator<'a>) -> *const u8 {
+pub unsafe fn copy_to_allocated_memory<'a>(
+    alloc: &impl Allocator<'a>,
+    fdt_size: usize,
+) -> *const u8 {
     log::debug!("moving device tree data to allocated memory");
 
     // allocate enough memory and copy data
-    let ptr = alloc
-        .allocate(
-            Layout::from_size_align(TMP_STORE_SIZE, mem::align_of_val(&TMP_STORE)).unwrap(),
-            AllocInit::Uninitialized,
-        )
-        .expect("Could not allocate memory for root page table")
-        .as_mut_ptr()
-        .cast::<MaybeUninit<[u8; TMP_STORE_SIZE]>>();
-    core::intrinsics::copy_nonoverlapping(TMP_STORE.as_ptr().cast::<MaybeUninit<_>>(), ptr, 1);
+    let mut store = Box::new_uninit_slice_with_alignment(fdt_size, 4096, alloc).unwrap();
+    core::ptr::copy_nonoverlapping(
+        TMP_STORE.as_ptr().cast::<MaybeUninit<_>>(),
+        store.as_mut_ptr(),
+        fdt_size,
+    );
+    let store = store.assume_init();
 
     // return a new pointer
-    log::trace!("device tree data is now stored at {ptr:p}");
-    let store = ptr.as_ref().unwrap().assume_init_ref();
+    log::trace!("device tree data is now stored at {:p}", store.as_ptr());
     store.as_ptr()
 }
 
