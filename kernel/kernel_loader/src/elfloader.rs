@@ -11,6 +11,26 @@ use elfloader::{
 use riscv::mem::mapping::PhysMapping;
 use riscv::mem::{EntryFlags, PageTable, PAGESIZE};
 
+/// The location into which the kernel elf file is temporarily copied during boot
+static mut TMP_STORE: [u8; 1024 * 1024 * 10] = [0u8; 1024 * 1024 * 10];
+
+/// Copy the elf file located at `ptr` into a temporary, internal location and return a new pointer to it.
+///
+/// # Safety
+/// This function must not be called more than once.
+///
+/// This function must never be called in a concurrent environment.
+pub unsafe fn inline_elf_file(ptr: *const u8, size: usize) -> *const u8 {
+    assert!(
+        size <= TMP_STORE.len(),
+        "kernels elf file is too large for inlined, temporary storage (kerne_size = {size:0x}, capacity = {:0x})",
+        TMP_STORE.len()
+    );
+    log::debug!("moving kernels elf file to temporary, internal location");
+    core::intrinsics::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), size);
+    TMP_STORE.as_ptr()
+}
+
 /// A simple [`ElfLoader`] implementation that is able to load the kernel binary given only an allocator
 pub struct KernelLoader<'alloc, A: BumpAllocator<'static>> {
     pub allocator: &'alloc A,

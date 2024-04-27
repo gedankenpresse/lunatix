@@ -1,7 +1,10 @@
 //! Device-Tree interaction
 
+use allocators::{AllocInit, Allocator};
+use core::alloc::Layout;
 use core::cmp::{max, Ordering};
 use core::fmt::Formatter;
+use core::mem::MaybeUninit;
 use core::{fmt, mem};
 use device_tree::fdt::{FdtError, FlattenedDeviceTree, MemoryReservationEntry};
 use thiserror_no_std::Error;
@@ -54,8 +57,9 @@ impl fmt::Debug for DeviceInfo {
 }
 
 // TODO: Lookup the maximum size of device trees and use that value
+const TMP_STORE_SIZE: usize = 4096 * 5;
 /// The location into which device tree data is temporarily stored during boot
-static mut TMP_STORE: [u8; 4096 * 5] = [0u8; 4096 * 5];
+static mut TMP_STORE: [u8; TMP_STORE_SIZE] = [0u8; TMP_STORE_SIZE];
 
 /// Copy the device tree data pointed to by `ptr` to a temporary internal location and return a new pointer to it.
 ///
@@ -63,10 +67,31 @@ static mut TMP_STORE: [u8; 4096 * 5] = [0u8; 4096 * 5];
 /// This function must not be called more than once.
 ///
 /// This function must never be called in a concurrent environment.
-pub unsafe fn move_devtree(ptr: *const u8) -> *const u8 {
+pub unsafe fn inline_devtree(ptr: *const u8) -> *const u8 {
     log::debug!("moving device tree data to temporary, internal location");
-    core::intrinsics::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), TMP_STORE.len());
+    core::intrinsics::copy_nonoverlapping(ptr, TMP_STORE.as_mut_ptr(), TMP_STORE_SIZE);
     TMP_STORE.as_ptr()
+}
+
+/// Copy the device tree data from the temporary, internal location to allocated memory and return a new pointer to it.
+pub unsafe fn copy_to_allocated_memory<'a>(alloc: &impl Allocator<'a>) -> *const u8 {
+    log::debug!("moving device tree data to allocated memory");
+
+    // allocate enough memory and copy data
+    let ptr = alloc
+        .allocate(
+            Layout::from_size_align(TMP_STORE_SIZE, mem::align_of_val(&TMP_STORE)).unwrap(),
+            AllocInit::Uninitialized,
+        )
+        .expect("Could not allocate memory for root page table")
+        .as_mut_ptr()
+        .cast::<MaybeUninit<[u8; TMP_STORE_SIZE]>>();
+    core::intrinsics::copy_nonoverlapping(TMP_STORE.as_ptr().cast::<MaybeUninit<_>>(), ptr, 1);
+
+    // return a new pointer
+    log::trace!("device tree data is now stored at {ptr:p}");
+    let store = ptr.as_ref().unwrap().assume_init_ref();
+    store.as_ptr()
 }
 
 /// Search for reserved memory in the device tree and return a new reservation that concatenates all areas found
@@ -85,6 +110,7 @@ fn get_reserved_memory(
     device_tree: &FlattenedDeviceTree<'_>,
 ) -> Result<MemoryReservationEntry, DeviceInfoError> {
     // TODO Concatenating all reserved areas does not work if there are reservations at the top and bottom of physical memory. This should be improved
+    // TODO Add symbols to start and end of kernel_loader elf file and treat that as reserved memory too
 
     // search for node in the tree
     log::trace!("looking for /reserved-memory node in device tree");

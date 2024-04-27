@@ -1,23 +1,42 @@
 //! An elf binary to set up virtual memory and load the kernel in high address ranges
 //!
-//! This is a program which serves the simple purpose of loading the actual kernel in the execution environment that
+//! This is a program which serves the purpose of loading the actual kernel in the execution environment that
 //! it expects.
-//! This simplifies kernel development because the kernel can be programmed and compiled with the assumption that
-//! virtual addressing is already turned and never turned off.
+//! This simplifies kernel development because the kernel can be programmed with certain more assumptions regarding
+//! its memory layout and virtual addressing.
 //! This assumption can of course only hold when a separate stage runs before the actual kernel which configures
-//! virtual addressing and loads the kernel binary at the addresses which it expects.
+//! virtual addressing and sets up all relevant memory areas.
 //! That is done by this `kernel_loader` program.
 //!
 //! ## Boot Sequence
 //!
-//! The Kernel-Loader runs through the following sequence at startup:
+//! When the kernel-loader is bootet, not much is known about the environment in which it is booted.
+//! For an example layout see the figure below however neither the argument order nor the size of the spaces between them is guaranteed in any way.
 //!
-//! 1. Copy all firmware arguments (i.e. argc, argv & device-tree) into a *known to be free* memory area.
-//! 2. Configure a memory allocator that will be reused by the actual lunatix kernel
-//! 3. Move firmware arguments into allocated memory
-//! 4. Configure Page Tables for virtual memory
-//! 5. Enable virtual memory
-//! 6. Switch into the kernel passing all memory management state as well as firmware arguments to it
+//! ```text
+//!                                  Physical Memory Layout Example at Boot
+//! ┌───┬────────────────────────┬───┬─────────────────┬───┬─────────────────┬───┬──────────────────┬───┐
+//! │ … │ kernel_loader elf file │ … │ argc, argv data │ … │ kernel elf file │ … │ device tree data │ … │
+//! └───┴────────────────────────┴───┴─────────────────┴───┴─────────────────┴───┴──────────────────┴───┘
+//! ```
+//!
+//! The first thing to do is therefore to bring this layout into order by copying all data into space that was reserved inside the loaders data section.
+//!
+//! ```text
+//!  Physical Memory Layout after Inlining
+//!   ┌───┬────────────────────────┬───┐
+//!   │ … │ kernel_loader elf file │ … │
+//!   │   │ + argc, argv data      │   │
+//!   │   │ + kernel elf file      │   │
+//!   │   │ + device tree data     │   │
+//!   └───┴────────────────────────┴───┘
+//! ```
+//!
+//! Afterward, all argument data is evaluated and an allocator is set up which takes over further memory management.
+//! All inlined data is now copied out of its inlined storage into properly allocated storage again.
+//!
+//! Now that memory management is set up using our own allocator, PageTables are created, virtual memory is turned on, the kernel elf binary is loaded and control is passed over to it.
+//! All memory management information is passed to the kernel so that it can reuse it.
 //!
 #![no_std]
 #![no_main]
@@ -34,7 +53,9 @@ use crate::devtree::DeviceInfo;
 use crate::elfloader::KernelLoader;
 use crate::user_args::UserArgs;
 use ::elfloader::ElfBinary;
-use allocators::bump_allocator::{BumpAllocator, ForwardBumpingAllocator};
+use allocators::bump_allocator::{
+    BackwardBumpingAllocator, BumpAllocator, ForwardBumpingAllocator,
+};
 use allocators::{AllocInit, Allocator, Box};
 use core::alloc::Layout;
 use core::arch::asm;
@@ -42,6 +63,7 @@ use core::cmp::min;
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
 use core::ptr;
+use core::ptr::slice_from_raw_parts_mut;
 use device_tree::fdt::FlattenedDeviceTree;
 use klog::KernelLogger;
 use log::Level;
@@ -60,25 +82,23 @@ fn panic_handler(info: &PanicInfo) -> ! {
 
 /// The entry point of the loader that is called by U-Boot
 #[no_mangle]
-pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! {
+pub extern "C" fn _start(argc: u32, mut argv: *const *const core::ffi::c_char) -> ! {
     LOGGER.install().expect("Could not install logger");
     trap::set_trap_handler();
 
-    // move arg data to ensure it is not accidentally overwritten
-    let (argc, argv) = unsafe { args::move_args(argc, argv) };
-
+    // inline all arguments into temporary space reserved in this binary
+    log::debug!("inlining all data to reorder memory");
+    argv = unsafe { args::inline_args(argc, argv) };
     let args = LoaderArgs::from_args(CmdArgIter::from_argc_argv(argc, argv));
-    log::debug!("kernel parameters = {:x?}", args);
-
-    // move device tree data to ensure it is not accidentally overwritten
-    let device_tree_ptr = unsafe { devtree::move_devtree(args.phys_fdt_addr) };
+    let mut device_tree_ptr = unsafe { devtree::inline_devtree(args.phys_fdt_addr) };
+    let kernel_elf_ptr = unsafe { elfloader::inline_elf_file(args.image_addr, args.image_size) };
 
     // parse device tree and extract relevant device information
     log::debug!("parsing device tree to get information about the host hardware");
     let device_info = unsafe {
         DeviceInfo::from_raw_ptr(device_tree_ptr).expect("Could not load device information")
     };
-    log::debug!("device info = {:x?}", device_info);
+    log::debug!("got device info: {:x?}", device_info);
 
     // parse user specified arguments and apply them
     let user_args = match device_info.bootargs {
@@ -86,20 +106,25 @@ pub extern "C" fn _start(argc: u32, argv: *const *const core::ffi::c_char) -> ! 
         Some(args) => UserArgs::from_str(args),
     };
     LOGGER.update_log_level(user_args.log_level);
-    log::debug!("got user arguments {:?}", user_args);
+    log::debug!("got user arguments: {:?}", user_args);
 
     // extract usable memory from device information
     let (mem_start, mem_len) = device_info.usable_memory;
-    let mut mem_end = unsafe { mem_start.add(mem_len) };
 
     // create an allocator to allocate essential data structures from the end of usable memory
     log::debug!(
-        "creating allocator for general purpose memory start = {:p} end = {:p} (len = {:0x} bytes)",
+        "creating allocator for general purpose memory start = {:p} end = {:0x} (len = {:0x} bytes)",
         mem_start,
-        mem_end,
-        mem_end as usize - mem_start as usize
+        mem_start as usize + mem_len,
+        mem_len,
     );
-    let allocator = unsafe { ForwardBumpingAllocator::<'static>::new_raw(mem_start, mem_end) };
+    let allocator = BackwardBumpingAllocator::<'static>::new(unsafe {
+        core::slice::from_raw_parts_mut::<'_, u8>(mem_start, mem_len)
+    });
+
+    // copy argument data into memory allocated by the allocator
+    argv = unsafe { args::copy_to_allocated_mem(&allocator) };
+    device_tree_ptr = unsafe { devtree::copy_to_allocated_memory(&allocator) };
 
     // allocate a root PageTable for the initial kernel execution environment
     log::debug!("creating kernels root PageTable");

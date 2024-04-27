@@ -3,10 +3,15 @@
 //! Typically, U-Boot passes through kernel parameters via an `argc`, `argv` pair.
 //! The code in this module parses relevant kernel-loader arguments from that iterator.
 
+use allocators::{AllocInit, Allocator};
+use core::alloc::Layout;
 use core::ffi::CStr;
+use core::mem;
+use core::mem::MaybeUninit;
+use riscv::mem::PageTable;
 
 /// A storage struct for the data pointed to by `argc, argv`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ArgumentStore {
     data: [u8; 64],
     idx: [usize; 4],
@@ -18,7 +23,7 @@ static mut TMP_STORE: ArgumentStore = ArgumentStore {
     idx: [0; 4],
 };
 
-/// Copy the data pointed to by `argc, argv` in a temporary internal location and return new `argc, argv` variables
+/// Copy the data pointed to by `argc, argv` in a temporary, internal location and return a new `argv` pointer.
 ///
 /// # Safety
 /// This function must not be called more than once.
@@ -26,10 +31,10 @@ static mut TMP_STORE: ArgumentStore = ArgumentStore {
 /// This function must never be called in a concurrent environment.
 ///
 /// The data pointed to by `argc, argv` must not lie in the internal storage location.
-pub unsafe fn move_args(
+pub unsafe fn inline_args(
     argc: u32,
     argv: *const *const core::ffi::c_char,
-) -> (u32, *const *const core::ffi::c_char) {
+) -> *const *const core::ffi::c_char {
     log::debug!("moving argument data to internal, temporary location");
     assert!(
         argc as usize <= TMP_STORE.idx.len(),
@@ -54,10 +59,34 @@ pub unsafe fn move_args(
     }
 
     // return a new pointer that points to the internal store
-    (
-        argc,
-        TMP_STORE.idx.as_ptr() as *const *const core::ffi::c_char,
-    )
+    TMP_STORE.idx.as_ptr() as *const *const core::ffi::c_char
+}
+
+/// Copy data from the temporary, internal location to
+///
+/// # Safety
+/// This function mus be called after `inline_args()` has been successfully called.
+pub unsafe fn copy_to_allocated_mem<'a>(
+    alloc: &impl Allocator<'a>,
+) -> *const *const core::ffi::c_char {
+    log::debug!("moving argument data to allocated memory");
+
+    // allocate memory and data from TMP_STORE into it
+    let ptr = alloc
+        .allocate(Layout::new::<ArgumentStore>(), AllocInit::Uninitialized)
+        .expect("Could not allocate memory for root page table")
+        .as_mut_ptr()
+        .cast::<MaybeUninit<ArgumentStore>>();
+    core::intrinsics::copy_nonoverlapping(
+        (&TMP_STORE) as *const ArgumentStore as *const MaybeUninit<ArgumentStore>,
+        ptr,
+        1,
+    );
+
+    // return a new argv pointer
+    log::trace!("argc, argv data is now stored at {ptr:p}");
+    let store = ptr.as_ref().unwrap().assume_init_ref();
+    store.idx.as_ptr() as *const *const core::ffi::c_char
 }
 
 /// An iterator over an *argc*, *argv* pair.
